@@ -95,7 +95,7 @@ export function FieldWorkspace({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:gap-2">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-center sm:gap-2">
         <div className="w-full sm:w-64 sm:flex-shrink-0">
           <BenchPanel count={benchIds.length}>
             {benchIds.map((id) => {
@@ -131,7 +131,7 @@ export function FieldWorkspace({
           )}
         </div>
 
-        <div className="min-w-0 flex-1">
+        <div>
           <ul className="mb-2 flex flex-wrap gap-2" aria-label="Player colors by roster position">
             {POSITION_COLOR_ORDER.map((group) => (
               <li key={group} className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
