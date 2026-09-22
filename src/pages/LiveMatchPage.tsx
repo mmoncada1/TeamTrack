@@ -52,7 +52,10 @@ export function LiveMatchPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const match = store.match;
+  // Ignore a match left in the store from another screen (for example a history
+  // summary). Otherwise an ended match is treated as this route and we redirect
+  // to its summary before the requested match has loaded.
+  const match = store.match?.id === id ? store.match : null;
   const derived = useMemo(() => (match ? deriveMatchState(match, now) : null), [match, now]);
 
   useEffect(() => {

@@ -25,7 +25,7 @@ export function MatchSummaryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const match = store.match;
+  const match = store.match?.id === id ? store.match : null;
   const summary = useMemo(() => (match ? buildMatchSummary(match, roster.players) : null), [match, roster.players]);
   const playersById = useMemo(() => new Map(roster.players.map((p) => [p.id, p])), [roster.players]);
 
