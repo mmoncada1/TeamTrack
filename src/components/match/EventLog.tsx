@@ -32,7 +32,7 @@ export function EventLog({ events, playersById, formationId, canUndo, onUndo, on
             key={event.id}
             className="flex items-center justify-between gap-2 rounded border border-slate-200 px-2 py-1.5 text-sm dark:border-slate-700"
           >
-            <span className="tabular-nums text-slate-500">{eventTimeLabel(event)}</span>
+            <span className="tabular-nums text-slate-500">{eventTimeLabel(events, event)}</span>
             <span className="flex-1">{describeEvent(event, playersById, formationId)}</span>
             <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(event)} aria-label="Delete event">
               ✕

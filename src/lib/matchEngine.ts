@@ -120,6 +120,8 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
   /** Real timestamp + match-clock-ms pair captured whenever the clock (re)starts. */
   let runningAnchor: { realTimestamp: number; matchClockMsAtAnchor: number } | null = null;
   let frozenClockMs = 0;
+  /** Cumulative match time when the first half ended. Display clock subtracts this in the second half. */
+  let firstHalfEndMs: number | null = null;
 
   const events: MatchEvent[] = match.events;
 
@@ -154,6 +156,7 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
       case 'HALF_TIME': {
         status = 'half_time';
         frozenClockMs = ev.matchClockMs;
+        firstHalfEndMs = ev.matchClockMs;
         runningAnchor = null;
         break;
       }
@@ -252,6 +255,12 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
   };
   const matchClockMs = computeClockFromClockLike(clockLike, nowMs);
   const closingClockMs = ended ? frozenClockMs : matchClockMs;
+  const displayClockMs =
+    status === 'half_time'
+      ? 0
+      : currentHalf === 2 && firstHalfEndMs != null
+        ? Math.max(0, matchClockMs - firstHalfEndMs)
+        : matchClockMs;
 
   for (const playerId of match.rosterPlayerIds) {
     const state = playerStates[playerId];
@@ -289,6 +298,7 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
     teamScore,
     opponentScore,
     matchClockMs,
+    displayClockMs,
     isClockRunning: isClockRunning(clockLike),
   };
 }

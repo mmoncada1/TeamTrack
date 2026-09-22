@@ -319,7 +319,13 @@ export interface DerivedMatchState {
   playerStates: Record<string, PlayerRuntimeState>;
   teamScore: number;
   opponentScore: number;
+  /** Cumulative time across both halves. Used for playing-time math. */
   matchClockMs: number;
+  /**
+   * Clock shown to the coach. Resets to 0:00 at half-time and counts the
+   * current half only. Playing time still uses `matchClockMs`.
+   */
+  displayClockMs: number;
   /** Whether the clock is actively running right now (for UI ticking). */
   isClockRunning: boolean;
 }

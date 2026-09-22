@@ -36,7 +36,7 @@ export function MatchClock({
   onEnd,
 }: MatchClockProps) {
   const halfLengthMs = halfLengthMinutes * 60000;
-  const pastHalfLength = numberOfHalves === 2 ? matchClockMs >= halfLengthMs && currentHalf === 1 : false;
+  const pastHalfLength = numberOfHalves === 2 && status === 'in_progress' && matchClockMs >= halfLengthMs;
 
   return (
     <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
@@ -53,8 +53,9 @@ export function MatchClock({
           />
           <span>
             {STATUS_LABEL[status]}
-            {numberOfHalves === 2 ? ` · Half ${currentHalf}` : ''}
+            {numberOfHalves === 2 && status !== 'half_time' ? ` · Half ${currentHalf}` : ''}
           </span>
+          {status === 'half_time' && <span>Clock reset for the second half</span>}
           {pastHalfLength && <span className="font-medium text-amber-600">Past half length</span>}
         </div>
       </div>

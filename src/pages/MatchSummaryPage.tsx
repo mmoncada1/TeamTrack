@@ -4,7 +4,7 @@ import { useMatchStore } from '../state/matchStore';
 import { useRosterStore } from '../state/rosterStore';
 import { buildMatchSummary } from '../lib/stats';
 import { formatClock } from '../lib/timer';
-import { describeEvent } from '../lib/eventDescriptions';
+import { describeEvent, eventDisplayMs } from '../lib/eventDescriptions';
 import { exportPlayerSummaryAsCsv } from '../lib/exportImport';
 import { Button } from '../components/common/Button';
 import { PlayerAvatar } from '../components/common/PlayerAvatar';
@@ -115,7 +115,7 @@ export function MatchSummaryPage() {
         <ol className="mt-2 max-h-96 space-y-1 overflow-y-auto">
           {sortedEvents.map((event) => (
             <li key={event.id} className="flex gap-2 rounded border border-slate-200 px-2 py-1.5 text-sm dark:border-slate-700">
-              <span className="tabular-nums text-slate-500">{formatClock(event.matchClockMs)}</span>
+              <span className="tabular-nums text-slate-500">{formatClock(eventDisplayMs(match.events, event))}</span>
               <span>{describeEvent(event, playersById, match.settings.formationId)}</span>
             </li>
           ))}

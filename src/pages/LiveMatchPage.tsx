@@ -14,6 +14,7 @@ import { AlertsPanel } from '../components/match/AlertsPanel';
 import { FieldWorkspace } from '../components/match/FieldWorkspace';
 import { SubstitutionConfirmDialog } from '../components/match/SubstitutionConfirmDialog';
 import { EventLog } from '../components/match/EventLog';
+import { PlayingTimePanel } from '../components/match/PlayingTimePanel';
 import { FormationSwitcher } from '../components/match/FormationSwitcher';
 import { ThresholdSliders } from '../components/setup/ThresholdSliders';
 import { Dialog } from '../components/common/Dialog';
@@ -135,7 +136,7 @@ export function LiveMatchPage() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <MatchClock
-          matchClockMs={derived.matchClockMs}
+          matchClockMs={derived.displayClockMs}
           status={derived.status}
           currentHalf={derived.currentHalf}
           halfLengthMinutes={match.settings.halfLengthMinutes}
@@ -223,14 +224,17 @@ export function LiveMatchPage() {
             />
           )}
         </div>
-        <EventLog
-          events={match.events}
-          playersById={playersById}
-          formationId={derived.formationId}
-          canUndo={canUndoFn(match)}
-          onUndo={() => runAction(() => store.undoLastAction())}
-          onDeleteEvent={(eventId) => runAction(() => store.deleteEvent(eventId))}
-        />
+        <div className="flex flex-col gap-6">
+          <PlayingTimePanel players={matchPlayers} playerStates={derived.playerStates} />
+          <EventLog
+            events={match.events}
+            playersById={playersById}
+            formationId={derived.formationId}
+            canUndo={canUndoFn(match)}
+            onUndo={() => runAction(() => store.undoLastAction())}
+            onDeleteEvent={(eventId) => runAction(() => store.deleteEvent(eventId))}
+          />
+        </div>
       </div>
 
       <div className="mt-6 flex justify-end">
@@ -252,7 +256,7 @@ export function LiveMatchPage() {
         playerIn={pendingSub ? playersById.get(pendingSub.playerInId) ?? null : null}
         playerOut={pendingSub ? playersById.get(pendingSub.playerOutId) ?? null : null}
         positionLabel={pendingSubPositionLabel}
-        matchClockMs={derived.matchClockMs}
+        matchClockMs={derived.displayClockMs}
         onCancel={() => setPendingSub(null)}
         onConfirm={() => {
           if (pendingSub) runAction(() => store.substitutePlayer(pendingSub.playerInId, pendingSub.positionId));

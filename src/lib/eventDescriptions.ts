@@ -53,6 +53,18 @@ export function describeEvent(event: MatchEvent, playersById: Map<string, Player
   }
 }
 
-export function eventTimeLabel(event: MatchEvent): string {
-  return formatClock(event.matchClockMs);
+/**
+ * Time to show next to an event. After half-time the match clock resets, so
+ * later events are shown as time elapsed in the second half.
+ */
+export function eventDisplayMs(events: MatchEvent[], event: MatchEvent): number {
+  const halfIndex = events.findIndex((entry) => entry.type === 'HALF_TIME');
+  if (halfIndex === -1) return event.matchClockMs;
+  const eventIndex = events.findIndex((entry) => entry.id === event.id);
+  if (eventIndex <= halfIndex) return event.matchClockMs;
+  return Math.max(0, event.matchClockMs - events[halfIndex].matchClockMs);
+}
+
+export function eventTimeLabel(events: MatchEvent[], event: MatchEvent): string {
+  return formatClock(eventDisplayMs(events, event));
 }
