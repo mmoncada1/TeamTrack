@@ -95,40 +95,7 @@ export function FieldWorkspace({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-center sm:gap-2">
-        <div>
-          <ul className="mb-2 flex flex-wrap gap-2" aria-label="Player colors by roster position">
-            {POSITION_COLOR_ORDER.map((group) => (
-              <li key={group} className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
-                <span className={`h-3 w-3 rounded-full ${POSITION_COLORS[group].swatch}`} aria-hidden />
-                {POSITION_COLORS[group].abbr} {POSITION_GROUP_LABELS[group]}
-              </li>
-            ))}
-          </ul>
-          <FieldCanvas>
-            {positions.map((position) => {
-              const playerId = assignments[position.id];
-              const player = playerId ? playersById.get(playerId) : undefined;
-              return (
-                <DroppableSlot key={position.id} position={position} occupied={!!player}>
-                  {player && (
-                    <PlayerToken
-                      player={player}
-                      slotId={position.id}
-                      surface="field"
-                      disabled={locked}
-                      state={playerStates?.[player.id]}
-                      showTimer={showTimers}
-                      alertActive={alertPlayerIds?.has(player.id)}
-                      onRequestMove={() => setMoveDialogPlayerId(player.id)}
-                    />
-                  )}
-                </DroppableSlot>
-              );
-            })}
-          </FieldCanvas>
-        </div>
-
+      <div className="flex flex-col gap-4 sm:flex-row sm:gap-2">
         <div className="w-full sm:w-64 sm:flex-shrink-0">
           <BenchPanel count={benchIds.length}>
             {benchIds.map((id) => {
@@ -162,6 +129,39 @@ export function FieldWorkspace({
               </div>
             </div>
           )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <ul className="mb-2 flex flex-wrap gap-2" aria-label="Player colors by roster position">
+            {POSITION_COLOR_ORDER.map((group) => (
+              <li key={group} className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                <span className={`h-3 w-3 rounded-full ${POSITION_COLORS[group].swatch}`} aria-hidden />
+                {POSITION_COLORS[group].abbr} {POSITION_GROUP_LABELS[group]}
+              </li>
+            ))}
+          </ul>
+          <FieldCanvas>
+            {positions.map((position) => {
+              const playerId = assignments[position.id];
+              const player = playerId ? playersById.get(playerId) : undefined;
+              return (
+                <DroppableSlot key={position.id} position={position} occupied={!!player}>
+                  {player && (
+                    <PlayerToken
+                      player={player}
+                      slotId={position.id}
+                      surface="field"
+                      disabled={locked}
+                      state={playerStates?.[player.id]}
+                      showTimer={showTimers}
+                      alertActive={alertPlayerIds?.has(player.id)}
+                      onRequestMove={() => setMoveDialogPlayerId(player.id)}
+                    />
+                  )}
+                </DroppableSlot>
+              );
+            })}
+          </FieldCanvas>
         </div>
       </div>
 
