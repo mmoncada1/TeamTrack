@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Player, PositionGroup } from '../types';
 import { POSITION_GROUP_LABELS } from '../types';
 import { useRosterStore } from '../state/rosterStore';
+import { useTeamStore } from '../state/teamStore';
 import { PlayerForm } from '../components/roster/PlayerForm';
 import { Dialog } from '../components/common/Dialog';
 import { Button } from '../components/common/Button';
@@ -10,6 +11,8 @@ import { jerseyLabel } from '../lib/playerSort';
 
 export function RosterPage() {
   const { players, loaded, load, addPlayer, updatePlayer, deletePlayer } = useRosterStore();
+  const activeTeam = useTeamStore((s) => s.teams.find((team) => team.id === s.activeTeamId) ?? null);
+  const teamPlayers = players.filter((player) => !activeTeam || player.teamId === activeTeam.id);
   const [formOpen, setFormOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Player | null>(null);
@@ -21,17 +24,17 @@ export function RosterPage() {
   }, [loaded, load]);
 
   const filtered = useMemo(() => {
-    return players.filter((p) => {
+    return teamPlayers.filter((p) => {
       if (groupFilter !== 'ALL' && p.preferredGroup !== groupFilter) return false;
       if (search.trim() && !p.name.toLowerCase().includes(search.trim().toLowerCase())) return false;
       return true;
     });
-  }, [players, search, groupFilter]);
+  }, [teamPlayers, search, groupFilter]);
 
   return (
     <div className="mx-auto max-w-4xl p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Roster</h1>
+        <h1 className="text-2xl font-bold">{activeTeam ? `${activeTeam.name} roster` : 'Roster'}</h1>
         <Button
           variant="primary"
           onClick={() => {
@@ -77,7 +80,7 @@ export function RosterPage() {
         </div>
       </div>
 
-      {players.length === 0 && loaded && (
+      {teamPlayers.length === 0 && loaded && (
         <p className="mt-8 text-center text-slate-500 dark:text-slate-400">
           No players yet. Add your first player to get started.
         </p>

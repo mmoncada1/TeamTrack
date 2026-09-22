@@ -17,10 +17,11 @@ const DEMO_NAMES: { name: string; group: PositionGroup }[] = [
 ];
 
 /** Build a fresh demo roster (12 players covering every position group). */
-export function buildDemoRoster(): Player[] {
+export function buildDemoRoster(teamId: string): Player[] {
   const now = Date.now();
   return DEMO_NAMES.map((entry, index) => ({
     id: createId(),
+    teamId,
     name: entry.name,
     jerseyNumber: index + 1,
     preferredGroup: entry.group,

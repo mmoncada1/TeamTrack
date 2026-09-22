@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMatchStore } from '../state/matchStore';
+import { useTeamStore } from '../state/teamStore';
 import { deriveMatchState } from '../lib/matchEngine';
 import { Button } from '../components/common/Button';
 import type { Match, MatchStatus } from '../types';
@@ -16,14 +17,18 @@ const STATUS_LABEL: Record<MatchStatus, string> = {
 export function DashboardPage() {
   const navigate = useNavigate();
   const { allMatches, loadAllMatches, deleteMatchById } = useMatchStore();
+  const activeTeam = useTeamStore((s) => s.teams.find((team) => team.id === s.activeTeamId) ?? null);
 
   useEffect(() => {
     loadAllMatches();
   }, [loadAllMatches]);
 
   const withStatus = useMemo(
-    () => allMatches.map((m) => ({ match: m, status: deriveMatchState(m).status })),
-    [allMatches],
+    () =>
+      allMatches
+        .filter((match) => !activeTeam || match.teamId === activeTeam.id)
+        .map((m) => ({ match: m, status: deriveMatchState(m).status })),
+    [allMatches, activeTeam],
   );
 
   const active = withStatus.filter((m) => m.status !== 'ended' && m.status !== 'setup');
@@ -39,7 +44,7 @@ export function DashboardPage() {
   return (
     <div className="mx-auto max-w-4xl p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">TeamTrack</h1>
+        <h1 className="text-2xl font-bold">{activeTeam ? activeTeam.name : 'TeamTrack'}</h1>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => navigate('/roster')}>
             Manage roster

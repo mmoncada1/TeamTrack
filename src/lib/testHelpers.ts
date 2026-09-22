@@ -6,6 +6,7 @@ export function makePlayer(overrides: Partial<Player> & { name: string; jerseyNu
   const now = Date.now();
   return {
     id: createId(),
+    teamId: 'team',
     preferredGroup: 'MID' as PositionGroup,
     availability: 'active',
     createdAt: now,
@@ -31,6 +32,7 @@ export function makeMatch(overrides: Partial<Match> = {}): Match {
   const now = Date.now();
   return {
     id: createId(),
+    teamId: 'team',
     teamName: 'Test FC',
     opponentName: 'Rivals',
     date: '2026-01-01',

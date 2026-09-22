@@ -231,6 +231,7 @@ export function isValidPlayerRecord(raw: unknown): raw is Player {
   const p = raw as Partial<Player>;
   return (
     typeof p.id === 'string' &&
+    typeof p.teamId === 'string' &&
     typeof p.name === 'string' &&
     (p.jerseyNumber === undefined || typeof p.jerseyNumber === 'number') &&
     typeof p.preferredGroup === 'string' &&

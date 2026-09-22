@@ -403,6 +403,7 @@ export function getPlayerState(match: Match, playerId: string, nowMs: number = D
 // ---------------------------------------------------------------------------
 
 export interface CreateDraftMatchInput {
+  teamId: string;
   teamName: string;
   opponentName: string;
   date: string;
@@ -455,6 +456,7 @@ export function updateDraftMeta(match: Match, patch: DraftMetaPatch, nowMs: numb
 export function createDraftMatch(input: CreateDraftMatchInput, nowMs: number = Date.now()): Match {
   return {
     id: createId(),
+    teamId: input.teamId,
     teamName: input.teamName,
     opponentName: input.opponentName,
     date: input.date,

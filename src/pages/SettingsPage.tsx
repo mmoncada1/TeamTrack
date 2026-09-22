@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppSettingsStore } from '../state/appSettingsStore';
 import { useRosterStore } from '../state/rosterStore';
 import { useMatchStore } from '../state/matchStore';
+import { useTeamStore } from '../state/teamStore';
 import { db } from '../db/db';
 import * as repo from '../db/repository';
 import { exportBackupAsJson, validateBackup, type BackupValidationResult } from '../lib/exportImport';
@@ -22,9 +23,10 @@ export function SettingsPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   async function handleExport() {
+    const teams = await repo.listTeams();
     const players = await repo.listPlayers();
     const matches = await repo.listMatches();
-    exportBackupAsJson(players, matches, settings);
+    exportBackupAsJson(teams, players, matches, settings);
   }
 
   async function handleFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
@@ -42,7 +44,8 @@ export function SettingsPage() {
 
   async function confirmImport() {
     if (!pendingImport?.backup) return;
-    await repo.replaceAllData(pendingImport.backup.players, pendingImport.backup.matches);
+    await repo.replaceAllData(pendingImport.backup.teams, pendingImport.backup.players, pendingImport.backup.matches);
+    await useTeamStore.getState().load();
     await roster.load();
     await matchStore.loadAllMatches();
     setPendingImport(null);
@@ -50,6 +53,7 @@ export function SettingsPage() {
   }
 
   async function handleResetApp() {
+    await db.teams.clear();
     await db.players.clear();
     await db.photos.clear();
     await db.matches.clear();
@@ -59,7 +63,12 @@ export function SettingsPage() {
   }
 
   async function handleLoadDemoRoster() {
-    const demo = buildDemoRoster();
+    const teamId = useTeamStore.getState().activeTeamId;
+    if (!teamId) {
+      setMessage('Choose a team before loading the demo roster.');
+      return;
+    }
+    const demo = buildDemoRoster(teamId);
     await Promise.all(demo.map((p) => repo.upsertPlayer(p)));
     await roster.load();
     setMessage(`Loaded ${demo.length} demo players.`);

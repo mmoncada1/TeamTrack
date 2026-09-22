@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import type { MatchFormat } from '../types';
 import { MATCH_FORMAT_PLAYER_COUNT, DEFAULT_THRESHOLDS } from '../types';
 import { useRosterStore } from '../state/rosterStore';
+import { useTeamStore } from '../state/teamStore';
 import { useMatchStore } from '../state/matchStore';
 import { getDefaultFormationForFormat, getFormationsForFormat } from '../formations/definitions';
 import { validateMatchSetup } from '../lib/validation';
@@ -18,6 +19,7 @@ export function MatchSetupPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const roster = useRosterStore();
+  const activeTeam = useTeamStore((s) => s.teams.find((team) => team.id === s.activeTeamId) ?? null);
   const store = useMatchStore();
   const [initializing, setInitializing] = useState(true);
   const [moveSummary, setMoveSummary] = useState<string | null>(null);
@@ -34,11 +36,13 @@ export function MatchSetupPage() {
         if (!cancelled) setInitializing(false);
         return;
       }
-      if (!roster.loaded) return;
+      if (!roster.loaded || !activeTeam) return;
       const defaultFormation = getDefaultFormationForFormat('7v7');
-      const activePlayerIds = roster.players.filter((p) => p.availability === 'active').map((p) => p.id);
+      const teamPlayers = roster.players.filter((p) => p.teamId === activeTeam.id);
+      const activePlayerIds = teamPlayers.filter((p) => p.availability === 'active').map((p) => p.id);
       const newId = await store.createDraft({
-        teamName: '',
+        teamId: activeTeam.id,
+        teamName: activeTeam.name,
         opponentName: '',
         date: new Date().toISOString().slice(0, 10),
         format: '7v7',
@@ -50,7 +54,7 @@ export function MatchSetupPage() {
         alertSoundEnabled: false,
         rosterPlayerIds: activePlayerIds,
         unavailablePlayerIds: [],
-      }, roster.players);
+      }, teamPlayers);
       if (!cancelled) navigate(`/match/${newId}/setup`, { replace: true });
     }
     init();
@@ -58,7 +62,7 @@ export function MatchSetupPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, roster.loaded]);
+  }, [id, roster.loaded, activeTeam]);
 
   const match = store.match;
   const derived = useMemo(() => (match ? deriveMatchState(match) : null), [match]);
@@ -238,7 +242,7 @@ export function MatchSetupPage() {
       <section className="mt-6">
         <h2 className="text-lg font-semibold">Roster for this match</h2>
         <ul className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-3">
-          {roster.players.map((p) => {
+          {roster.players.filter((player) => player.teamId === match.teamId).map((p) => {
             const included = match.rosterPlayerIds.includes(p.id);
             const unavailable = match.unavailablePlayerIds.includes(p.id);
             return (

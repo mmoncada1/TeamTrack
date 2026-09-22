@@ -1,13 +1,15 @@
-import type { AppBackup, AppSettings, Match, Player, PlayingTimeSummary } from '../types';
+import type { AppBackup, AppSettings, Match, Player, PlayingTimeSummary, Team } from '../types';
 import { isValidPlayerRecord, mergeAppSettingsWithDefaults } from './validation';
 import { formatClock } from './timer';
+import { createId } from './id';
 
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 
-export function buildBackup(players: Player[], matches: Match[], settings: AppSettings): AppBackup {
+export function buildBackup(teams: Team[], players: Player[], matches: Match[], settings: AppSettings): AppBackup {
   return {
     version: BACKUP_VERSION,
     exportedAt: Date.now(),
+    teams,
     players,
     matches,
     settings,
@@ -26,8 +28,8 @@ export function triggerDownload(filename: string, content: string, mimeType: str
   URL.revokeObjectURL(url);
 }
 
-export function exportBackupAsJson(players: Player[], matches: Match[], settings: AppSettings): void {
-  const backup = buildBackup(players, matches, settings);
+export function exportBackupAsJson(teams: Team[], players: Player[], matches: Match[], settings: AppSettings): void {
+  const backup = buildBackup(teams, players, matches, settings);
   triggerDownload(
     `teamtrack-backup-${new Date().toISOString().slice(0, 10)}.json`,
     JSON.stringify(backup, null, 2),
@@ -93,11 +95,6 @@ export function validateBackup(raw: unknown): BackupValidationResult {
   }
   if (!Array.isArray(obj.players)) {
     errors.push('Missing or invalid "players" array.');
-  } else {
-    const invalidCount = obj.players.filter((p) => !isValidPlayerRecord(p)).length;
-    if (invalidCount > 0) {
-      errors.push(`${invalidCount} player record(s) are invalid and would be skipped.`);
-    }
   }
   if (!Array.isArray(obj.matches)) {
     errors.push('Missing or invalid "matches" array.');
@@ -107,14 +104,54 @@ export function validateBackup(raw: unknown): BackupValidationResult {
     return { valid: false, errors };
   }
 
-  const players = (obj.players ?? []).filter(isValidPlayerRecord);
-  const matches = Array.isArray(obj.matches) ? (obj.matches as Match[]) : [];
+  const rawTeams = Array.isArray(obj.teams) ? obj.teams : [];
+  const teams: Team[] = rawTeams.filter(
+    (team): team is Team =>
+      !!team &&
+      typeof team === 'object' &&
+      typeof (team as Team).id === 'string' &&
+      typeof (team as Team).name === 'string' &&
+      (team as Team).name.trim().length > 0,
+  );
+  if (teams.length === 0) {
+    const now = Date.now();
+    teams.push({ id: createId(), name: 'Imported team', createdAt: now, updatedAt: now });
+  }
+  const teamIds = new Set(teams.map((team) => team.id));
+  const fallbackTeamId = teams[0].id;
+
+  const stampedPlayers = (obj.players ?? []).map((player) => {
+    if (!player || typeof player !== 'object') return player;
+    const record = player as Partial<Player>;
+    const teamId = typeof record.teamId === 'string' && teamIds.has(record.teamId) ? record.teamId : fallbackTeamId;
+    return { ...record, teamId };
+  });
+  const invalidCount = stampedPlayers.filter((player) => !isValidPlayerRecord(player)).length;
+  if (invalidCount > 0) {
+    errors.push(`${invalidCount} player record(s) are invalid and would be skipped.`);
+  }
+
+  const players = stampedPlayers.filter(isValidPlayerRecord).map((player) => ({
+    ...player,
+    teamId: player.teamId && teamIds.has(player.teamId) ? player.teamId : fallbackTeamId,
+  }));
+  const matches = (Array.isArray(obj.matches) ? (obj.matches as Match[]) : []).map((match) => ({
+    ...match,
+    teamId: match.teamId && teamIds.has(match.teamId) ? match.teamId : fallbackTeamId,
+  }));
   const settings = mergeAppSettingsWithDefaults(obj.settings);
 
   return {
     valid: true,
     errors,
-    backup: { version: obj.version ?? BACKUP_VERSION, exportedAt: obj.exportedAt ?? Date.now(), players, matches, settings },
+    backup: {
+      version: obj.version ?? BACKUP_VERSION,
+      exportedAt: obj.exportedAt ?? Date.now(),
+      teams,
+      players,
+      matches,
+      settings,
+    },
   };
 }
 

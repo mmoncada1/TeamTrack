@@ -5,6 +5,7 @@ import { createId } from '../lib/id';
 import { compressImageFile } from '../lib/photo';
 import { validatePlayerInput, type FieldError } from '../lib/validation';
 import { comparePlayersByJersey } from '../lib/playerSort';
+import { useTeamStore } from './teamStore';
 
 export interface PlayerFormInput {
   name: string;
@@ -45,13 +46,17 @@ export const useRosterStore = create<RosterState>((set, get) => ({
   },
 
   addPlayer: async (input) => {
-    const errors = validatePlayerInput(input, get().players);
+    const teamId = useTeamStore.getState().activeTeamId;
+    if (!teamId) return { errors: [{ field: 'name', message: 'Choose a team before adding a player.' }] };
+    const sameTeam = get().players.filter((player) => player.teamId === teamId);
+    const errors = validatePlayerInput(input, sameTeam);
     if (errors.length > 0) return { errors };
 
     const now = Date.now();
     const id = createId();
     const player: Player = {
       id,
+      teamId,
       name: input.name.trim(),
       jerseyNumber: parseJerseyNumber(input.jerseyNumber),
       preferredGroup: input.preferredGroup,
@@ -85,7 +90,11 @@ export const useRosterStore = create<RosterState>((set, get) => ({
     const existing = get().players.find((p) => p.id === id);
     if (!existing) return { errors: [{ field: 'name', message: 'Player not found.' }] };
 
-    const errors = validatePlayerInput(input, get().players, id);
+    const errors = validatePlayerInput(
+      input,
+      get().players.filter((player) => player.teamId === existing.teamId),
+      id,
+    );
     if (errors.length > 0) return { errors };
 
     const now = Date.now();

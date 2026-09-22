@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import clsx from 'clsx';
+import { TeamSwitcher } from './TeamSwitcher';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard' },
@@ -17,7 +18,7 @@ export function AppShell() {
         Skip to main content
       </a>
       <header className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
-        <nav className="mx-auto flex max-w-6xl items-center gap-1 p-3" aria-label="Main navigation">
+        <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-1 p-3" aria-label="Main navigation">
           <span className="mr-4 flex items-center gap-2 font-bold">
             <img src="/field-icon.svg" alt="" className="h-6 w-6" aria-hidden />
             TeamTrack
@@ -39,6 +40,7 @@ export function AppShell() {
               {item.label}
             </NavLink>
           ))}
+          <TeamSwitcher />
         </nav>
       </header>
       <main id="main-content">

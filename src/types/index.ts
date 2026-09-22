@@ -25,9 +25,18 @@ export const MATCH_FORMAT_PLAYER_COUNT: Record<MatchFormat, number> = {
 
 export type PlayerAvailability = 'active' | 'unavailable';
 
+/** A club or squad the coach manages. Rosters and matches belong to one team. */
+export interface Team {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /** A player in the persistent roster (not tied to a single match). */
 export interface Player {
   id: string;
+  teamId: string;
   name: string;
   /** Optional — some rosters (e.g. very young teams) don't assign numbers. */
   jerseyNumber?: number;
@@ -262,6 +271,8 @@ export interface StatusInterval {
 
 export interface Match {
   id: string;
+  /** Team this match was created for. The roster comes from this team. */
+  teamId: string;
   teamName: string;
   opponentName: string;
   date: string; // ISO date string, yyyy-mm-dd
@@ -348,6 +359,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 export interface AppBackup {
   version: number;
   exportedAt: number;
+  teams: Team[];
   players: Player[];
   matches: Match[];
   settings: AppSettings;
