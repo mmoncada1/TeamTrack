@@ -152,15 +152,15 @@ export function LiveMatchPage() {
       {/* Mobile: alerts shown full-width above the workspace. sm+: they become the left sidebar column below. */}
       <div className="mt-3 shrink-0 sm:hidden">{alertsPanel}</div>
 
-      <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 sm:mt-0 sm:flex-row">
-        <div className="hidden w-52 shrink-0 flex-col sm:flex sm:h-full">
+      <div className="mt-3 flex min-h-0 flex-1 flex-col gap-2 sm:mt-0 sm:flex-row">
+        <div className="hidden min-w-52 flex-col sm:flex sm:h-full sm:flex-1">
           <h1 className="flex h-7 shrink-0 items-center truncate text-base font-bold">
             {match.teamName || 'Us'} vs {match.opponentName || 'Opponent'}
           </h1>
           <div className="min-h-0 flex-1 overflow-y-auto">{alertsPanel}</div>
         </div>
 
-        <div className="min-w-0 flex-1 sm:h-full sm:min-h-0">
+        <div className="min-w-0 sm:h-full sm:min-h-0 sm:shrink-0">
           {formation && (
             <FieldWorkspace
               positions={formation.positions}
@@ -176,7 +176,7 @@ export function LiveMatchPage() {
             />
           )}
         </div>
-        <div className="flex w-full shrink-0 flex-col sm:h-full sm:w-72">
+        <div className="flex w-full min-w-0 flex-col sm:h-full sm:min-w-72 sm:flex-1">
           <div className="hidden h-7 shrink-0 items-center justify-end sm:flex">
             <SaveIndicator status={store.saveStatus} />
           </div>
