@@ -336,8 +336,10 @@ export function undoLastAction(match: Match): Match {
 
 export function recomputeAlerts(match: Match, players: Player[], nowMs: number = Date.now()): Match {
   const derived = deriveMatchState(match, nowMs);
-  if (derived.status !== 'in_progress') {
-    // No new alerts while paused/stopped, but keep existing ones as-is.
+  // Also refresh during half-time and pause. The clock is frozen, but a
+  // substitution still changes who is on the field, so outgoing alerts must
+  // drop and the remaining recommendations must pick a different bench player.
+  if (derived.status !== 'in_progress' && derived.status !== 'half_time' && derived.status !== 'paused') {
     return match;
   }
   const formation = getFormationById(derived.formationId);
