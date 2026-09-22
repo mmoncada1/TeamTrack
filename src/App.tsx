@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { RosterPage } from './pages/RosterPage';
+import { WhiteboardPage } from './pages/WhiteboardPage';
 import { MatchSetupPage } from './pages/MatchSetupPage';
 import { LiveMatchPage } from './pages/LiveMatchPage';
 import { MatchSummaryPage } from './pages/MatchSummaryPage';
@@ -44,6 +45,7 @@ function App() {
         <Route element={<AppShell />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/roster" element={<RosterPage />} />
+          <Route path="/whiteboard" element={<WhiteboardPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/match/new" element={<MatchSetupPage />} />
           <Route path="/match/:id/setup" element={<MatchSetupPage />} />

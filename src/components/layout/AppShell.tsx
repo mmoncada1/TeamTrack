@@ -5,6 +5,7 @@ import { TeamSwitcher } from './TeamSwitcher';
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard' },
   { to: '/roster', label: 'Roster' },
+  { to: '/whiteboard', label: 'Whiteboard' },
   { to: '/settings', label: 'Settings' },
 ];
 
