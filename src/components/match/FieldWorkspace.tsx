@@ -95,9 +95,9 @@ export function FieldWorkspace({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="flex flex-col gap-4 sm:h-full sm:min-h-0 sm:flex-row sm:items-start sm:gap-2">
-        <div className="flex w-full flex-col sm:h-full sm:min-h-0 sm:w-48 sm:flex-shrink-0">
-          <div className="sm:min-h-0 sm:flex-1">
+      <div className="flex flex-col gap-4 wide:h-full wide:min-h-0 wide:flex-row wide:items-start wide:gap-2">
+        <div className="flex w-full flex-col wide:h-full wide:min-h-0 wide:w-48 wide:flex-shrink-0">
+          <div className="wide:min-h-0 wide:flex-1">
             <BenchPanel count={benchIds.length}>
               {benchIds.map((id) => {
                 const player = playersById.get(id);
@@ -133,7 +133,7 @@ export function FieldWorkspace({
           )}
         </div>
 
-        <div className="flex flex-col sm:h-full sm:min-h-0">
+        <div className="flex flex-col wide:h-full wide:min-h-0">
           <ul className="flex h-7 shrink-0 items-center gap-2" aria-label="Player colors by roster position">
             {POSITION_COLOR_ORDER.map((group) => (
               <li key={group} className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -142,7 +142,7 @@ export function FieldWorkspace({
               </li>
             ))}
           </ul>
-          <div className="sm:min-h-0 sm:flex-1">
+          <div className="wide:min-h-0 wide:flex-1">
             <FieldCanvas>
               {positions.map((position) => {
                 const playerId = assignments[position.id];

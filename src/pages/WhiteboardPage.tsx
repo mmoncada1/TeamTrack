@@ -225,8 +225,8 @@ export function WhiteboardPage() {
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-6xl flex-col gap-3 p-3 sm:flex-row sm:p-4">
-      <div className="flex shrink-0 flex-row flex-wrap items-center gap-2 sm:w-44 sm:flex-col sm:items-stretch">
+    <div className="mx-auto flex h-full max-w-6xl flex-col gap-3 p-3 wide:flex-row sm:p-4">
+      <div className="flex shrink-0 flex-row flex-wrap items-center gap-2 wide:w-44 wide:flex-col wide:items-stretch">
         <h1 className="w-full text-base font-bold">Whiteboard</h1>
         <p className="w-full text-xs text-slate-500 dark:text-slate-400">
           Draw on the pitch for {teamName}. It stays on this device.
@@ -282,7 +282,7 @@ export function WhiteboardPage() {
 
       <div
         ref={pitchRef}
-        className="relative mx-auto aspect-[2/3] h-[min(78vh,860px)] w-auto max-w-full overflow-hidden rounded-xl shadow-inner"
+        className="relative mx-auto aspect-[2/3] h-[min(60vh,860px)] w-auto max-w-full overflow-hidden rounded-xl shadow-inner wide:h-[min(78vh,860px)]"
       >
         <svg viewBox="0 0 100 150" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden="true">
           <rect x="0" y="0" width="100" height="150" fill="#2e7d4f" />
