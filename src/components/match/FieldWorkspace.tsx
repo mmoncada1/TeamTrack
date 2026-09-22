@@ -49,7 +49,11 @@ export function FieldWorkspace({
   const playersById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
 
   const assignedIds = new Set(Object.values(assignments));
-  const benchIds = rosterPlayerIds.filter((id) => !assignedIds.has(id) && !unavailablePlayerIds.includes(id));
+  const benchIds = rosterPlayerIds
+    .filter((id) => !assignedIds.has(id) && !unavailablePlayerIds.includes(id))
+    // Longest current bench stint first, so the coach can spot who's been
+    // waiting longest for their next turn on the field.
+    .sort((a, b) => (playerStates?.[b]?.currentStintMs ?? 0) - (playerStates?.[a]?.currentStintMs ?? 0));
   const unavailableIds = rosterPlayerIds.filter((id) => unavailablePlayerIds.includes(id));
 
   // A single PointerSensor (not Pointer+Touch together) is the recommended
