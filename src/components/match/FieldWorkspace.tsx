@@ -95,30 +95,32 @@ export function FieldWorkspace({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-center sm:gap-2">
-        <div className="w-full sm:w-48 sm:flex-shrink-0">
-          <BenchPanel count={benchIds.length}>
-            {benchIds.map((id) => {
-              const player = playersById.get(id);
-              if (!player) return null;
-              return (
-                <PlayerToken
-                  key={id}
-                  player={player}
-                  slotId="BENCH"
-                  surface="bench"
-                  disabled={locked}
-                  state={playerStates?.[id]}
-                  showTimer={showTimers}
-                  alertActive={alertPlayerIds?.has(id)}
-                  onRequestMove={() => setMoveDialogPlayerId(id)}
-                />
-              );
-            })}
-          </BenchPanel>
+      <div className="flex flex-col gap-4 sm:h-full sm:min-h-0 sm:flex-row sm:items-start sm:justify-center sm:gap-2">
+        <div className="flex w-full flex-col sm:h-full sm:min-h-0 sm:w-48 sm:flex-shrink-0">
+          <div className="sm:min-h-0 sm:flex-1">
+            <BenchPanel count={benchIds.length}>
+              {benchIds.map((id) => {
+                const player = playersById.get(id);
+                if (!player) return null;
+                return (
+                  <PlayerToken
+                    key={id}
+                    player={player}
+                    slotId="BENCH"
+                    surface="bench"
+                    disabled={locked}
+                    state={playerStates?.[id]}
+                    showTimer={showTimers}
+                    alertActive={alertPlayerIds?.has(id)}
+                    onRequestMove={() => setMoveDialogPlayerId(id)}
+                  />
+                );
+              })}
+            </BenchPanel>
+          </div>
 
           {unavailableIds.length > 0 && (
-            <div className="mt-3">
+            <div className="mt-3 shrink-0">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Unavailable</h3>
               <div className="mt-1 flex flex-col items-center gap-2 opacity-60">
                 {unavailableIds.map((id) => {
@@ -131,8 +133,8 @@ export function FieldWorkspace({
           )}
         </div>
 
-        <div>
-          <ul className="mb-2 flex flex-wrap gap-2" aria-label="Player colors by roster position">
+        <div className="flex flex-col sm:h-full sm:min-h-0">
+          <ul className="mb-2 flex flex-wrap gap-2 shrink-0" aria-label="Player colors by roster position">
             {POSITION_COLOR_ORDER.map((group) => (
               <li key={group} className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
                 <span className={`h-3 w-3 rounded-full ${POSITION_COLORS[group].swatch}`} aria-hidden />
@@ -140,28 +142,30 @@ export function FieldWorkspace({
               </li>
             ))}
           </ul>
-          <FieldCanvas>
-            {positions.map((position) => {
-              const playerId = assignments[position.id];
-              const player = playerId ? playersById.get(playerId) : undefined;
-              return (
-                <DroppableSlot key={position.id} position={position} occupied={!!player}>
-                  {player && (
-                    <PlayerToken
-                      player={player}
-                      slotId={position.id}
-                      surface="field"
-                      disabled={locked}
-                      state={playerStates?.[player.id]}
-                      showTimer={showTimers}
-                      alertActive={alertPlayerIds?.has(player.id)}
-                      onRequestMove={() => setMoveDialogPlayerId(player.id)}
-                    />
-                  )}
-                </DroppableSlot>
-              );
-            })}
-          </FieldCanvas>
+          <div className="sm:min-h-0 sm:flex-1">
+            <FieldCanvas>
+              {positions.map((position) => {
+                const playerId = assignments[position.id];
+                const player = playerId ? playersById.get(playerId) : undefined;
+                return (
+                  <DroppableSlot key={position.id} position={position} occupied={!!player}>
+                    {player && (
+                      <PlayerToken
+                        player={player}
+                        slotId={position.id}
+                        surface="field"
+                        disabled={locked}
+                        state={playerStates?.[player.id]}
+                        showTimer={showTimers}
+                        alertActive={alertPlayerIds?.has(player.id)}
+                        onRequestMove={() => setMoveDialogPlayerId(player.id)}
+                      />
+                    )}
+                  </DroppableSlot>
+                );
+              })}
+            </FieldCanvas>
+          </div>
         </div>
       </div>
 

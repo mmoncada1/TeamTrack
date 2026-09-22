@@ -10,14 +10,14 @@ const NAV_ITEMS = [
 
 export function AppShell() {
   return (
-    <div className="min-h-screen">
+    <div className="flex h-screen flex-col">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-white focus:px-3 focus:py-2 focus:shadow"
       >
         Skip to main content
       </a>
-      <header className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+      <header className="shrink-0 border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
         <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-1 px-3 py-2" aria-label="Main navigation">
           <span className="mr-3 flex items-center gap-1.5 text-sm font-bold">
             <img src="/field-icon.svg" alt="" className="h-5 w-5" aria-hidden />
@@ -43,7 +43,7 @@ export function AppShell() {
           <TeamSwitcher />
         </nav>
       </header>
-      <main id="main-content">
+      <main id="main-content" className="min-h-0 flex-1 overflow-y-auto">
         <Outlet />
       </main>
     </div>

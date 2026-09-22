@@ -119,9 +119,19 @@ export function LiveMatchPage() {
     ? formation?.positions.find((p) => p.id === pendingSub.positionId)?.label ?? pendingSub.positionId
     : '';
 
+  const alertsPanel = (
+    <AlertsPanel
+      alerts={match.activeAlerts}
+      playersById={playersById}
+      onAccept={handleAcceptAlert}
+      onDismiss={(alertId) => runAction(() => store.dismissAlert(alertId, 'dismiss'))}
+      onSnooze={(alertId) => runAction(() => store.dismissAlert(alertId, 'snooze', 3))}
+    />
+  );
+
   return (
-    <div className="mx-auto max-w-[1400px] p-3 sm:p-4">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto flex h-full min-h-0 max-w-[1600px] flex-col p-3 sm:p-4">
+      <div className="flex shrink-0 items-center justify-between">
         <h1 className="text-base font-bold">
           {match.teamName || 'Us'} vs {match.opponentName || 'Opponent'}
         </h1>
@@ -129,23 +139,21 @@ export function LiveMatchPage() {
       </div>
 
       {actionError && (
-        <p role="alert" className="mt-2 rounded bg-red-100 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+        <p
+          role="alert"
+          className="mt-2 shrink-0 rounded bg-red-100 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200"
+        >
           {actionError}
         </p>
       )}
 
-      <div className="mt-3">
-        <AlertsPanel
-          alerts={match.activeAlerts}
-          playersById={playersById}
-          onAccept={handleAcceptAlert}
-          onDismiss={(alertId) => runAction(() => store.dismissAlert(alertId, 'dismiss'))}
-          onSnooze={(alertId) => runAction(() => store.dismissAlert(alertId, 'snooze', 3))}
-        />
-      </div>
+      {/* Mobile: alerts shown full-width above the workspace. sm+: they become the left sidebar column below. */}
+      <div className="mt-3 shrink-0 sm:hidden">{alertsPanel}</div>
 
-      <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div>
+      <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 sm:flex-row">
+        <div className="hidden w-52 shrink-0 flex-col gap-2 overflow-y-auto sm:flex sm:h-full">{alertsPanel}</div>
+
+        <div className="min-w-0 flex-1 sm:h-full sm:min-h-0">
           {formation && (
             <FieldWorkspace
               positions={formation.positions}
@@ -161,7 +169,7 @@ export function LiveMatchPage() {
             />
           )}
         </div>
-        <div className="flex flex-col gap-3">
+        <div className="flex w-full shrink-0 flex-col gap-3 overflow-y-auto sm:h-full sm:w-72">
           <MatchClock
             matchClockMs={derived.displayClockMs}
             status={derived.status}
@@ -240,7 +248,7 @@ export function LiveMatchPage() {
         </div>
       </div>
 
-      <div className="mt-6 flex justify-end">
+      <div className="mt-3 flex shrink-0 justify-end">
         <Button variant="ghost" onClick={() => setConfirmReset(true)}>
           Reset match…
         </Button>
