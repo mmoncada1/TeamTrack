@@ -45,7 +45,7 @@ export function PlayerToken({
       className={clsx(
         'group relative flex flex-col items-center gap-1 rounded-lg p-1 text-center transition-opacity',
         isDragging && 'opacity-30',
-        compact ? 'w-16' : 'w-24',
+        compact ? 'w-16' : 'w-28',
       )}
     >
       <div
@@ -59,9 +59,14 @@ export function PlayerToken({
           disabled && 'cursor-default opacity-70',
         )}
       >
-        <PlayerAvatar player={player} size={compact ? 'sm' : 'md'} ringClassName={colors.ring} />
+        <PlayerAvatar player={player} size={compact ? 'sm' : 'xl'} ringClassName={colors.ring} />
         {player.jerseyNumber != null && (
-          <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white ring-2 ring-white dark:ring-slate-800">
+          <span
+            className={clsx(
+              'absolute -bottom-1 -right-1 flex items-center justify-center rounded-full bg-slate-900 font-bold text-white ring-2 ring-white dark:ring-slate-800',
+              compact ? 'h-5 w-5 text-[10px]' : 'h-7 w-7 text-xs',
+            )}
+          >
             {player.jerseyNumber}
           </span>
         )}

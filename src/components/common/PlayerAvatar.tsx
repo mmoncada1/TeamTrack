@@ -5,7 +5,7 @@ import { getInitials } from '../../lib/photo';
 
 interface PlayerAvatarProps {
   player: Pick<Player, 'id' | 'name' | 'photoId'>;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   /** Ring color class, used to show the player's roster position group. */
   ringClassName?: string;
@@ -15,6 +15,7 @@ const sizeClasses = {
   sm: 'h-8 w-8 text-xs',
   md: 'h-11 w-11 text-sm',
   lg: 'h-16 w-16 text-lg',
+  xl: 'h-20 w-20 text-xl',
 };
 
 export function PlayerAvatar({ player, size = 'md', className, ringClassName }: PlayerAvatarProps) {

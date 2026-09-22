@@ -157,10 +157,10 @@ export function FieldWorkspace({
 
       <DragOverlay dropAnimation={null}>
         {draggingPlayer ? (
-          <div className="flex w-24 flex-col items-center rounded-xl bg-white p-2 shadow-2xl">
+          <div className="flex w-28 flex-col items-center rounded-xl bg-white p-2 shadow-2xl">
             <PlayerAvatar
               player={draggingPlayer}
-              size="md"
+              size="xl"
               ringClassName={POSITION_COLORS[draggingPlayer.preferredGroup].ring}
             />
             <span
