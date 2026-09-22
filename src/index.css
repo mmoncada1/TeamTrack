@@ -16,6 +16,13 @@ html.dark {
 
 html {
   -webkit-tap-highlight-color: transparent;
+  /* Most of the app's spacing/type sizing is Tailwind's default rem scale.
+     Shrinking the root font-size here has the same visual effect as the
+     ~67% browser zoom that looked noticeably better/denser during testing,
+     without the pointer/hit-testing quirks a CSS `transform: scale()` would
+     introduce for drag-and-drop. Fixed px values (e.g. 44px touch targets,
+     borders) are intentionally left unaffected. */
+  font-size: 67%;
 }
 
 body {
