@@ -1,0 +1,348 @@
+/**
+ * Core data model for TeamTrack.
+ *
+ * These types are intentionally plain data (no class instances) so they can
+ * be stored in IndexedDB (via Dexie), serialized to JSON for import/export,
+ * and used as the input/output of pure functions in `src/lib`.
+ */
+
+export type PositionGroup = 'GK' | 'DEF' | 'MID' | 'FWD';
+
+export const POSITION_GROUP_LABELS: Record<PositionGroup, string> = {
+  GK: 'Goalkeeper',
+  DEF: 'Defender',
+  MID: 'Midfielder',
+  FWD: 'Forward',
+};
+
+export type MatchFormat = '7v7' | '9v9' | '11v11';
+
+export const MATCH_FORMAT_PLAYER_COUNT: Record<MatchFormat, number> = {
+  '7v7': 7,
+  '9v9': 9,
+  '11v11': 11,
+};
+
+export type PlayerAvailability = 'active' | 'unavailable';
+
+/** A player in the persistent roster (not tied to a single match). */
+export interface Player {
+  id: string;
+  name: string;
+  /** Optional — some rosters (e.g. very young teams) don't assign numbers. */
+  jerseyNumber?: number;
+  preferredGroup: PositionGroup;
+  notes?: string;
+  availability: PlayerAvailability;
+  /** Foreign key into the `photos` table, if a profile picture was uploaded. */
+  photoId?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** A locally stored, compressed profile picture. */
+export interface PlayerPhoto {
+  id: string;
+  playerId: string;
+  /** Compressed image data, stored as a Blob in IndexedDB. */
+  blob: Blob;
+  mimeType: string;
+  width: number;
+  height: number;
+  createdAt: number;
+}
+
+/** A single position slot within a formation. */
+export interface FormationPosition {
+  id: string;
+  label: string;
+  group: PositionGroup;
+  /** Percentage (0-100) from the left of the field. */
+  x: number;
+  /** Percentage (0-100) from the top of the field (0 = opponent's end). */
+  y: number;
+}
+
+/** A named arrangement of positions for a given match format. */
+export interface Formation {
+  id: string;
+  format: MatchFormat;
+  name: string;
+  /** Human readable shape, e.g. "2-3-1". Does not include the goalkeeper. */
+  shape: string;
+  positions: FormationPosition[];
+}
+
+export type SlotId = string | 'BENCH';
+
+/** Configurable playing-time alert threshold for a position group. */
+export interface ThresholdSetting {
+  enabled: boolean;
+  minutes: number;
+}
+
+export type ThresholdSettings = Record<PositionGroup, ThresholdSetting>;
+
+export const DEFAULT_THRESHOLDS: ThresholdSettings = {
+  GK: { enabled: false, minutes: 10 },
+  DEF: { enabled: true, minutes: 5 },
+  MID: { enabled: true, minutes: 4 },
+  FWD: { enabled: true, minutes: 5 },
+};
+
+export interface MatchSettings {
+  format: MatchFormat;
+  formationId: string;
+  /** Length of a single half, in minutes. */
+  halfLengthMinutes: number;
+  numberOfHalves: 1 | 2;
+  thresholds: ThresholdSettings;
+  goalkeeperRotationEnabled: boolean;
+  alertSoundEnabled: boolean;
+}
+
+export type MatchStatus =
+  | 'setup'
+  | 'in_progress'
+  | 'paused'
+  | 'half_time'
+  | 'ended';
+
+/** A snapshot of where every player stood at one moment in time. */
+export interface Assignment {
+  [positionId: string]: string /* playerId */;
+}
+
+export type MatchEventType =
+  | 'MATCH_STARTED'
+  | 'MATCH_PAUSED'
+  | 'MATCH_RESUMED'
+  | 'HALF_TIME'
+  | 'SECOND_HALF_STARTED'
+  | 'FORMATION_CHANGED'
+  | 'PLAYER_MOVED'
+  | 'PLAYERS_SWAPPED'
+  | 'SUBSTITUTION'
+  | 'GOAL'
+  | 'ALERT_DISMISSED'
+  | 'MATCH_ENDED'
+  | 'NOTE';
+
+interface BaseMatchEvent {
+  id: string;
+  type: MatchEventType;
+  /** Milliseconds elapsed on the match clock when this event occurred. */
+  matchClockMs: number;
+  /** Real wall-clock timestamp (ms since epoch) when this event occurred. */
+  timestamp: number;
+  note?: string;
+  /** Player IDs involved, for quick filtering/search. */
+  playerIds: string[];
+}
+
+export interface MatchStartedEvent extends BaseMatchEvent {
+  type: 'MATCH_STARTED';
+  formationId: string;
+  assignments: Assignment;
+  unavailablePlayerIds: string[];
+}
+
+export interface MatchPausedEvent extends BaseMatchEvent {
+  type: 'MATCH_PAUSED';
+}
+
+export interface MatchResumedEvent extends BaseMatchEvent {
+  type: 'MATCH_RESUMED';
+}
+
+export interface HalfTimeEvent extends BaseMatchEvent {
+  type: 'HALF_TIME';
+}
+
+export interface SecondHalfStartedEvent extends BaseMatchEvent {
+  type: 'SECOND_HALF_STARTED';
+}
+
+export interface FormationChangedEvent extends BaseMatchEvent {
+  type: 'FORMATION_CHANGED';
+  fromFormationId: string;
+  toFormationId: string;
+  newAssignments: Assignment;
+  movedToBenchPlayerIds: string[];
+  summary: string;
+}
+
+export interface PlayerMovedEvent extends BaseMatchEvent {
+  type: 'PLAYER_MOVED';
+  playerId: string;
+  fromSlot: SlotId;
+  toSlot: SlotId;
+}
+
+export interface PlayersSwappedEvent extends BaseMatchEvent {
+  type: 'PLAYERS_SWAPPED';
+  playerAId: string;
+  positionAId: string;
+  playerBId: string;
+  positionBId: string;
+}
+
+export interface SubstitutionEvent extends BaseMatchEvent {
+  type: 'SUBSTITUTION';
+  playerInId: string;
+  playerOutId: string;
+  positionId: string;
+}
+
+export interface GoalEvent extends BaseMatchEvent {
+  type: 'GOAL';
+  team: 'us' | 'opponent';
+  isOwnGoal: boolean;
+  scorerId?: string;
+  assisterId?: string;
+}
+
+export interface AlertDismissedEvent extends BaseMatchEvent {
+  type: 'ALERT_DISMISSED';
+  alertId: string;
+  playerId: string;
+  action: 'dismiss' | 'snooze';
+}
+
+export interface MatchEndedEvent extends BaseMatchEvent {
+  type: 'MATCH_ENDED';
+}
+
+export interface NoteEvent extends BaseMatchEvent {
+  type: 'NOTE';
+}
+
+export type MatchEvent =
+  | MatchStartedEvent
+  | MatchPausedEvent
+  | MatchResumedEvent
+  | HalfTimeEvent
+  | SecondHalfStartedEvent
+  | FormationChangedEvent
+  | PlayerMovedEvent
+  | PlayersSwappedEvent
+  | SubstitutionEvent
+  | GoalEvent
+  | AlertDismissedEvent
+  | MatchEndedEvent
+  | NoteEvent;
+
+export type AlertStatus = 'active' | 'snoozed' | 'dismissed' | 'resolved';
+
+export interface Alert {
+  id: string;
+  playerId: string;
+  positionGroup: PositionGroup;
+  thresholdMinutes: number;
+  /** Match clock ms at which the player's current stint began. */
+  stintStartMs: number;
+  /** Match clock ms at which the alert was first raised. */
+  createdAtClockMs: number;
+  status: AlertStatus;
+  snoozeUntilClockMs?: number;
+  recommendation?: {
+    inPlayerId: string;
+    explanation: string;
+  };
+}
+
+/** One continuous span of time a player spent in a given status. */
+export interface StatusInterval {
+  status: 'field' | 'bench';
+  positionId?: string;
+  startMs: number;
+  /** `null` means the interval is still open (ongoing). */
+  endMs: number | null;
+}
+
+export interface Match {
+  id: string;
+  teamName: string;
+  opponentName: string;
+  date: string; // ISO date string, yyyy-mm-dd
+  title?: string;
+  settings: MatchSettings;
+  /** Roster player IDs selected/available for this match. */
+  rosterPlayerIds: string[];
+  /** Player IDs explicitly marked unavailable for this specific match. */
+  unavailablePlayerIds: string[];
+  /** Assignments used before the match has started (setup screen only). */
+  pendingAssignments: Assignment;
+  pendingFormationId: string;
+  /**
+   * Append-only (but editable/deletable for corrections) log of everything
+   * that happened. `status`, `currentHalf`, the match clock, score, and all
+   * player statistics are DERIVED from this log by `deriveMatchState`
+   * rather than stored redundantly, so undo/edit/delete always yields a
+   * consistent result.
+   */
+  events: MatchEvent[];
+  /** Transient alert state; not derivable from events, persisted for continuity across refresh. */
+  activeAlerts: Alert[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Aggregated, derived state for a single player within a match. */
+export interface PlayerRuntimeState {
+  playerId: string;
+  status: 'field' | 'bench' | 'unavailable';
+  positionId: string | null;
+  positionGroup: PositionGroup | null;
+  intervals: StatusInterval[];
+  currentStintStartMs: number | null;
+  currentStintMs: number;
+  totalFieldMs: number;
+  totalBenchMs: number;
+  subsIn: number;
+  subsOut: number;
+  lastSubTimeMs: number | null;
+  goals: number;
+  assists: number;
+}
+
+export interface PlayingTimeSummary extends PlayerRuntimeState {
+  playerName: string;
+  jerseyNumber?: number;
+}
+
+export interface DerivedMatchState {
+  status: MatchStatus;
+  currentHalf: 1 | 2;
+  assignments: Assignment;
+  formationId: string;
+  playerStates: Record<string, PlayerRuntimeState>;
+  teamScore: number;
+  opponentScore: number;
+  matchClockMs: number;
+  /** Whether the clock is actively running right now (for UI ticking). */
+  isClockRunning: boolean;
+}
+
+export interface AppSettings {
+  theme: 'light' | 'dark';
+  alertSoundEnabled: boolean;
+  reducedMotion: boolean;
+  fieldLocked: boolean;
+}
+
+export const DEFAULT_APP_SETTINGS: AppSettings = {
+  theme: 'light',
+  alertSoundEnabled: false,
+  reducedMotion: false,
+  fieldLocked: false,
+};
+
+/** Shape of a full JSON export/backup of the app's local data. */
+export interface AppBackup {
+  version: number;
+  exportedAt: number;
+  players: Player[];
+  matches: Match[];
+  settings: AppSettings;
+}

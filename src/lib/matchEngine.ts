@@ -1,0 +1,268 @@
+import type {
+  Assignment,
+  DerivedMatchState,
+  Match,
+  MatchEvent,
+  MatchStatus,
+  PlayerRuntimeState,
+  PositionGroup,
+  StatusInterval,
+} from '../types';
+import { getFormationById } from '../formations/definitions';
+import { getMatchClockMs as computeClockFromClockLike, isClockRunning } from './timer';
+
+function getPositionGroup(formationId: string, positionId: string | null): PositionGroup | null {
+  if (!positionId) return null;
+  const formation = getFormationById(formationId);
+  const position = formation?.positions.find((p) => p.id === positionId);
+  return position?.group ?? null;
+}
+
+function freshState(playerId: string): PlayerRuntimeState {
+  return {
+    playerId,
+    status: 'bench',
+    positionId: null,
+    positionGroup: null,
+    intervals: [],
+    currentStintStartMs: null,
+    currentStintMs: 0,
+    totalFieldMs: 0,
+    totalBenchMs: 0,
+    subsIn: 0,
+    subsOut: 0,
+    lastSubTimeMs: null,
+    goals: 0,
+    assists: 0,
+  };
+}
+
+function closeInterval(state: PlayerRuntimeState, atMs: number): void {
+  if (state.currentStintStartMs == null) return;
+  const open = state.intervals.find((i) => i.endMs === null);
+  if (open) {
+    open.endMs = atMs;
+  }
+  state.currentStintStartMs = null;
+}
+
+function openInterval(
+  state: PlayerRuntimeState,
+  status: 'field' | 'bench',
+  positionId: string | undefined,
+  atMs: number,
+): void {
+  const interval: StatusInterval = { status, positionId, startMs: atMs, endMs: null };
+  state.intervals.push(interval);
+  state.status = status;
+  state.positionId = positionId ?? null;
+  state.currentStintStartMs = atMs;
+}
+
+function transition(
+  state: PlayerRuntimeState,
+  status: 'field' | 'bench',
+  positionId: string | undefined,
+  atMs: number,
+): void {
+  if (state.status === status && state.positionId === (positionId ?? null)) {
+    return; // no-op, nothing changed
+  }
+  closeInterval(state, atMs);
+  openInterval(state, status, positionId, atMs);
+}
+
+/**
+ * Replay a match's event log to derive the current authoritative state:
+ * assignments, per-player status/intervals/totals, and score. This function
+ * is pure and deterministic, so undo (removing the last event) or deleting
+ * an arbitrary event and re-running this function always yields a correct,
+ * consistent result.
+ */
+export function deriveMatchState(match: Match, nowMs: number = Date.now()): DerivedMatchState {
+  const playerStates: Record<string, PlayerRuntimeState> = {};
+  for (const playerId of match.rosterPlayerIds) {
+    playerStates[playerId] = freshState(playerId);
+    if (match.unavailablePlayerIds.includes(playerId)) {
+      playerStates[playerId].status = 'unavailable';
+    }
+  }
+
+  let assignments: Assignment = {};
+  let formationId = match.settings.formationId;
+  let teamScore = 0;
+  let opponentScore = 0;
+  let started = false;
+  let ended = false;
+  let status: MatchStatus = 'setup';
+  let currentHalf: 1 | 2 = 1;
+  /** Real timestamp + match-clock-ms pair captured whenever the clock (re)starts. */
+  let runningAnchor: { realTimestamp: number; matchClockMsAtAnchor: number } | null = null;
+  let frozenClockMs = 0;
+
+  const events: MatchEvent[] = match.events;
+
+  for (const ev of events) {
+    switch (ev.type) {
+      case 'MATCH_STARTED': {
+        started = true;
+        status = 'in_progress';
+        runningAnchor = { realTimestamp: ev.timestamp, matchClockMsAtAnchor: ev.matchClockMs };
+        formationId = ev.formationId;
+        assignments = { ...ev.assignments };
+        const positionByPlayer = new Map(Object.entries(assignments).map(([pos, pid]) => [pid, pos]));
+        for (const playerId of match.rosterPlayerIds) {
+          const state = playerStates[playerId];
+          if (state.status === 'unavailable') continue;
+          const positionId = positionByPlayer.get(playerId);
+          openInterval(state, positionId ? 'field' : 'bench', positionId, ev.matchClockMs);
+        }
+        break;
+      }
+      case 'MATCH_PAUSED': {
+        status = 'paused';
+        frozenClockMs = ev.matchClockMs;
+        runningAnchor = null;
+        break;
+      }
+      case 'MATCH_RESUMED': {
+        status = 'in_progress';
+        runningAnchor = { realTimestamp: ev.timestamp, matchClockMsAtAnchor: ev.matchClockMs };
+        break;
+      }
+      case 'HALF_TIME': {
+        status = 'half_time';
+        frozenClockMs = ev.matchClockMs;
+        runningAnchor = null;
+        break;
+      }
+      case 'SECOND_HALF_STARTED': {
+        status = 'in_progress';
+        currentHalf = 2;
+        runningAnchor = { realTimestamp: ev.timestamp, matchClockMsAtAnchor: ev.matchClockMs };
+        break;
+      }
+      case 'FORMATION_CHANGED': {
+        formationId = ev.toFormationId;
+        assignments = { ...ev.newAssignments };
+        const positionByPlayer = new Map(Object.entries(assignments).map(([pos, pid]) => [pid, pos]));
+        for (const playerId of match.rosterPlayerIds) {
+          const state = playerStates[playerId];
+          if (state.status === 'unavailable') continue;
+          const positionId = positionByPlayer.get(playerId);
+          transition(state, positionId ? 'field' : 'bench', positionId, ev.matchClockMs);
+        }
+        break;
+      }
+      case 'PLAYER_MOVED': {
+        const state = playerStates[ev.playerId];
+        if (!state) break;
+        if (ev.fromSlot !== 'BENCH' && assignments[ev.fromSlot] === ev.playerId) {
+          delete assignments[ev.fromSlot];
+        }
+        if (ev.toSlot !== 'BENCH') {
+          assignments[ev.toSlot] = ev.playerId;
+        }
+        transition(state, ev.toSlot === 'BENCH' ? 'bench' : 'field', ev.toSlot === 'BENCH' ? undefined : ev.toSlot, ev.matchClockMs);
+        break;
+      }
+      case 'PLAYERS_SWAPPED': {
+        const stateA = playerStates[ev.playerAId];
+        const stateB = playerStates[ev.playerBId];
+        assignments[ev.positionAId] = ev.playerBId;
+        assignments[ev.positionBId] = ev.playerAId;
+        if (stateA) transition(stateA, 'field', ev.positionBId, ev.matchClockMs);
+        if (stateB) transition(stateB, 'field', ev.positionAId, ev.matchClockMs);
+        break;
+      }
+      case 'SUBSTITUTION': {
+        const stateIn = playerStates[ev.playerInId];
+        const stateOut = playerStates[ev.playerOutId];
+        assignments[ev.positionId] = ev.playerInId;
+        if (stateOut) {
+          transition(stateOut, 'bench', undefined, ev.matchClockMs);
+          stateOut.subsOut += 1;
+          stateOut.lastSubTimeMs = ev.matchClockMs;
+        }
+        if (stateIn) {
+          transition(stateIn, 'field', ev.positionId, ev.matchClockMs);
+          stateIn.subsIn += 1;
+          stateIn.lastSubTimeMs = ev.matchClockMs;
+        }
+        break;
+      }
+      case 'GOAL': {
+        if (ev.isOwnGoal) {
+          opponentScore += 1;
+        } else if (ev.team === 'us') {
+          teamScore += 1;
+          if (ev.scorerId && playerStates[ev.scorerId]) {
+            playerStates[ev.scorerId].goals += 1;
+          }
+          if (ev.assisterId && playerStates[ev.assisterId]) {
+            playerStates[ev.assisterId].assists += 1;
+          }
+        } else {
+          opponentScore += 1;
+        }
+        break;
+      }
+      case 'MATCH_ENDED': {
+        ended = true;
+        status = 'ended';
+        frozenClockMs = ev.matchClockMs;
+        runningAnchor = null;
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  const clockLike = {
+    status,
+    clockRunningSince: runningAnchor?.realTimestamp ?? null,
+    clockOffsetMs: runningAnchor ? runningAnchor.matchClockMsAtAnchor : frozenClockMs,
+  };
+  const matchClockMs = computeClockFromClockLike(clockLike, nowMs);
+  const closingClockMs = ended ? frozenClockMs : matchClockMs;
+
+  for (const playerId of match.rosterPlayerIds) {
+    const state = playerStates[playerId];
+    if (state.status === 'unavailable') continue;
+    if (!started) {
+      // Setup phase: reflect pending assignments without timers running.
+      const pendingPositionId = Object.entries(match.pendingAssignments).find(
+        ([, pid]) => pid === playerId,
+      )?.[0];
+      state.status = pendingPositionId ? 'field' : 'bench';
+      state.positionId = pendingPositionId ?? null;
+    }
+    state.positionGroup = getPositionGroup(formationId, state.positionId);
+
+    let totalField = 0;
+    let totalBench = 0;
+    for (const interval of state.intervals) {
+      const end = interval.endMs ?? closingClockMs;
+      const duration = Math.max(0, end - interval.startMs);
+      if (interval.status === 'field') totalField += duration;
+      else totalBench += duration;
+    }
+    state.totalFieldMs = totalField;
+    state.totalBenchMs = totalBench;
+    state.currentStintMs =
+      state.currentStintStartMs != null ? Math.max(0, closingClockMs - state.currentStintStartMs) : 0;
+  }
+
+  return {
+    status,
+    currentHalf,
+    assignments: started ? assignments : { ...match.pendingAssignments },
+    formationId: started ? formationId : match.pendingFormationId,
+    playerStates,
+    teamScore,
+    opponentScore,
+    matchClockMs,
+    isClockRunning: isClockRunning(clockLike),
+  };
+}
