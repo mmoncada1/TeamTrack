@@ -7,6 +7,8 @@ interface PlayerAvatarProps {
   player: Pick<Player, 'id' | 'name' | 'photoId'>;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  /** Ring color class, used to show the player's roster position group. */
+  ringClassName?: string;
 }
 
 const sizeClasses = {
@@ -15,15 +17,16 @@ const sizeClasses = {
   lg: 'h-16 w-16 text-lg',
 };
 
-export function PlayerAvatar({ player, size = 'md', className }: PlayerAvatarProps) {
+export function PlayerAvatar({ player, size = 'md', className, ringClassName }: PlayerAvatarProps) {
   const url = usePlayerPhotoUrl(player.id, player.photoId);
+  const ring = ringClassName ?? 'ring-white dark:ring-slate-800';
 
   if (url) {
     return (
       <img
         src={url}
         alt={`Photo of ${player.name}`}
-        className={clsx('rounded-full object-cover ring-2 ring-white dark:ring-slate-800', sizeClasses[size], className)}
+        className={clsx('rounded-full object-cover ring-4', ring, sizeClasses[size], className)}
       />
     );
   }
@@ -33,7 +36,8 @@ export function PlayerAvatar({ player, size = 'md', className }: PlayerAvatarPro
       role="img"
       aria-label={`${player.name} (no photo, showing initials)`}
       className={clsx(
-        'flex items-center justify-center rounded-full bg-slate-300 font-semibold text-slate-700 ring-2 ring-white dark:bg-slate-600 dark:text-slate-100 dark:ring-slate-800',
+        'flex items-center justify-center rounded-full bg-slate-300 font-semibold text-slate-700 ring-4 dark:bg-slate-600 dark:text-slate-100',
+        ring,
         sizeClasses[size],
         className,
       )}

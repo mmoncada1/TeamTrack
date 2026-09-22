@@ -1,8 +1,10 @@
 import { useDraggable } from '@dnd-kit/core';
 import clsx from 'clsx';
 import type { Player, PlayerRuntimeState } from '../../types';
+import { POSITION_GROUP_LABELS } from '../../types';
 import { PlayerAvatar } from '../common/PlayerAvatar';
 import { formatClock } from '../../lib/timer';
+import { POSITION_COLORS } from './positionColors';
 
 interface PlayerTokenProps {
   player: Player;
@@ -34,7 +36,9 @@ export function PlayerToken({
     disabled,
   });
 
-  const timerMs = state ? (state.status === 'field' ? state.currentStintMs : state.currentStintMs) : 0;
+  const timerMs = state ? state.currentStintMs : 0;
+  const colors = POSITION_COLORS[player.preferredGroup];
+  const positionLabel = POSITION_GROUP_LABELS[player.preferredGroup];
 
   return (
     <div
@@ -55,7 +59,7 @@ export function PlayerToken({
           disabled && 'cursor-default opacity-70',
         )}
       >
-        <PlayerAvatar player={player} size={compact ? 'sm' : 'md'} />
+        <PlayerAvatar player={player} size={compact ? 'sm' : 'md'} ringClassName={colors.ring} />
         {player.jerseyNumber != null && (
           <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white ring-2 ring-white dark:ring-slate-800">
             {player.jerseyNumber}
@@ -72,12 +76,12 @@ export function PlayerToken({
       </div>
       <span
         className={clsx(
-          'line-clamp-2 w-full break-words rounded px-1 py-0.5 text-xs font-bold leading-tight',
-          surface === 'field'
-            ? 'bg-black/75 text-white shadow-sm'
-            : 'text-slate-900 dark:text-slate-100',
+          'line-clamp-2 w-full break-words rounded px-1 py-0.5 text-xs font-bold leading-tight shadow-sm',
+          colors.badge,
         )}
+        title={`${player.name}, preferred ${positionLabel}`}
       >
+        <span className="mr-1 font-extrabold">{colors.abbr}</span>
         {player.name}
       </span>
       {showTimer && state && (

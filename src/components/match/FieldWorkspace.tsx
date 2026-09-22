@@ -15,6 +15,8 @@ import { FieldCanvas } from './FieldCanvas';
 import { BenchPanel } from './BenchPanel';
 import { MoveDialog } from './MoveDialog';
 import { PlayerAvatar } from '../common/PlayerAvatar';
+import { POSITION_COLORS, POSITION_COLOR_ORDER } from './positionColors';
+import { POSITION_GROUP_LABELS } from '../../types';
 
 interface FieldWorkspaceProps {
   positions: FormationPosition[];
@@ -89,6 +91,14 @@ export function FieldWorkspace({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
+      <ul className="mb-2 flex flex-wrap gap-2" aria-label="Player colors by roster position">
+        {POSITION_COLOR_ORDER.map((group) => (
+          <li key={group} className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+            <span className={`h-3 w-3 rounded-full ${POSITION_COLORS[group].swatch}`} aria-hidden />
+            {POSITION_COLORS[group].abbr} {POSITION_GROUP_LABELS[group]}
+          </li>
+        ))}
+      </ul>
       <FieldCanvas>
         {positions.map((position) => {
           const playerId = assignments[position.id];
@@ -147,10 +157,16 @@ export function FieldWorkspace({
 
       <DragOverlay dropAnimation={null}>
         {draggingPlayer ? (
-          <div className="flex w-24 flex-col items-center rounded-xl bg-white p-2 shadow-2xl ring-2 ring-blue-500">
-            <PlayerAvatar player={draggingPlayer} size="md" />
-            <span className="mt-1 w-full truncate text-center text-xs font-bold text-slate-900">
-              {draggingPlayer.name}
+          <div className="flex w-24 flex-col items-center rounded-xl bg-white p-2 shadow-2xl">
+            <PlayerAvatar
+              player={draggingPlayer}
+              size="md"
+              ringClassName={POSITION_COLORS[draggingPlayer.preferredGroup].ring}
+            />
+            <span
+              className={`mt-1 w-full truncate rounded px-1 text-center text-xs font-bold ${POSITION_COLORS[draggingPlayer.preferredGroup].badge}`}
+            >
+              {POSITION_COLORS[draggingPlayer.preferredGroup].abbr} {draggingPlayer.name}
             </span>
           </div>
         ) : null}

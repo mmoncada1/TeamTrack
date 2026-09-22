@@ -225,7 +225,12 @@ export function LiveMatchPage() {
           )}
         </div>
         <div className="flex flex-col gap-6">
-          <PlayingTimePanel players={matchPlayers} playerStates={derived.playerStates} />
+          <PlayingTimePanel
+            players={matchPlayers}
+            playerStates={derived.playerStates}
+            thresholds={match.settings.thresholds}
+            goalkeeperRotationEnabled={match.settings.goalkeeperRotationEnabled}
+          />
           <EventLog
             events={match.events}
             playersById={playersById}
