@@ -31,7 +31,7 @@ export function TeamSwitcher() {
       </label>
       <select
         id="active-team"
-        className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+        className="min-h-[32px] rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-800"
         value={activeTeamId ?? ''}
         onChange={(e) => {
           setActiveTeam(e.target.value);

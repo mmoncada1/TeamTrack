@@ -14,7 +14,7 @@ export function AlertsPanel({ alerts, playersById, onAccept, onDismiss, onSnooze
   const visible = alerts.filter((a) => a.status === 'active');
   if (visible.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+      <div className="rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
         No playing-time alerts right now.
       </div>
     );

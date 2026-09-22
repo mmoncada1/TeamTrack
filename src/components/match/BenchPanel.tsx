@@ -22,7 +22,7 @@ export function BenchPanel({ children, unavailableSection, count }: BenchPanelPr
           // Height mirrors FieldCanvas's FIELD_HEIGHT_CLASS (`h-[min(68vh,880px)]`) so the
           // bench box matches the field's height on the same row. Tailwind needs the full
           // class literal here (not interpolated) to pick it up during the content scan.
-          'mt-2 grid min-h-[6rem] grid-cols-2 content-start gap-2 overflow-y-auto rounded-lg border-2 border-dashed border-slate-300 p-3 dark:border-slate-600 sm:h-[min(68vh,880px)]',
+          'mt-2 grid min-h-[6rem] grid-cols-2 content-start gap-2 overflow-y-auto rounded-lg border-2 border-dashed border-slate-300 p-3 dark:border-slate-600 sm:h-[min(58vh,700px)]',
           isOver && 'border-blue-400 bg-blue-50 dark:bg-blue-950/30',
         )}
       >

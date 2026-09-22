@@ -10,17 +10,17 @@ const GROUPS: PositionGroup[] = ['GK', 'DEF', 'MID', 'FWD'];
 
 export function ThresholdSliders({ thresholds, onChange }: ThresholdSlidersProps) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {GROUPS.map((group) => {
         const t = thresholds[group];
         const inputId = `threshold-${group}`;
         return (
-          <div key={group} className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+          <div key={group} className="rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
             <div className="flex items-center justify-between">
-              <label htmlFor={inputId} className="font-medium">
+              <label htmlFor={inputId} className="text-sm font-medium">
                 {POSITION_GROUP_LABELS[group]} playing-time alert
               </label>
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
                   checked={t.enabled}
@@ -42,7 +42,7 @@ export function ThresholdSliders({ thresholds, onChange }: ThresholdSlidersProps
                 className="flex-1 disabled:opacity-40"
                 aria-valuetext={`${t.minutes} minutes`}
               />
-              <span className="w-24 shrink-0 tabular-nums text-sm">
+              <span className="w-20 shrink-0 tabular-nums text-xs">
                 {t.minutes} minute{t.minutes === 1 ? '' : 's'}
               </span>
             </div>

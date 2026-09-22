@@ -120,9 +120,9 @@ export function LiveMatchPage() {
     : '';
 
   return (
-    <div className="mx-auto max-w-[1600px] p-4 sm:p-6">
+    <div className="mx-auto max-w-[1400px] p-3 sm:p-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">
+        <h1 className="text-base font-bold">
           {match.teamName || 'Us'} vs {match.opponentName || 'Opponent'}
         </h1>
         <SaveIndicator status={store.saveStatus} />
@@ -134,7 +134,7 @@ export function LiveMatchPage() {
         </p>
       )}
 
-      <div className="mt-4">
+      <div className="mt-3">
         <AlertsPanel
           alerts={match.activeAlerts}
           playersById={playersById}
@@ -144,7 +144,7 @@ export function LiveMatchPage() {
         />
       </div>
 
-      <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div>
           {formation && (
             <FieldWorkspace
@@ -161,7 +161,7 @@ export function LiveMatchPage() {
             />
           )}
         </div>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           <MatchClock
             matchClockMs={derived.displayClockMs}
             status={derived.status}
@@ -182,14 +182,14 @@ export function LiveMatchPage() {
             onRecordGoal={() => setGoalDialogOpen(true)}
             disabled={derived.status === 'setup'}
           />
-          <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
             <FormationSwitcher
               format={match.settings.format}
               formationId={derived.formationId}
               disabled={appSettings.fieldLocked}
               onChange={(fid) => setFormationSummary(store.changeFormation(fid))}
             />
-            <label className="mt-3 flex items-center gap-2 text-sm">
+            <label className="mt-2 flex items-center gap-2 text-xs">
               <input
                 type="checkbox"
                 checked={appSettings.fieldLocked}
@@ -197,12 +197,12 @@ export function LiveMatchPage() {
               />
               Lock field layout
             </label>
-            {formationSummary && <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">{formationSummary}</p>}
+            {formationSummary && <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">{formationSummary}</p>}
           </div>
 
-          <details className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-            <summary className="cursor-pointer text-sm font-semibold">Substitution timers</summary>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <details className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+            <summary className="cursor-pointer text-xs font-semibold">Substitution timers</summary>
+            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
               Changes apply immediately to who gets an alert. A player already on the field keeps their current stint.
             </p>
             <div className="mt-3">
@@ -213,7 +213,7 @@ export function LiveMatchPage() {
                 }
               />
             </div>
-            <label className="mt-3 flex items-center gap-2 text-sm">
+            <label className="mt-3 flex items-center gap-2 text-xs">
               <input
                 type="checkbox"
                 checked={match.settings.goalkeeperRotationEnabled}

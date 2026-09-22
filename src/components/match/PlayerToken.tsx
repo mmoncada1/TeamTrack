@@ -43,9 +43,9 @@ export function PlayerToken({
   return (
     <div
       className={clsx(
-        'group relative flex flex-col items-center gap-1 rounded-lg p-1 text-center transition-opacity',
+        'group relative flex flex-col items-center gap-0.5 rounded-lg p-1 text-center transition-opacity',
         isDragging && 'opacity-30',
-        compact ? 'w-16' : 'w-28',
+        compact ? 'w-12' : 'w-20',
       )}
     >
       <div
@@ -59,12 +59,12 @@ export function PlayerToken({
           disabled && 'cursor-default opacity-70',
         )}
       >
-        <PlayerAvatar player={player} size={compact ? 'sm' : 'xl'} ringClassName={colors.ring} />
+        <PlayerAvatar player={player} size={compact ? 'sm' : 'lg'} ringClassName={colors.ring} />
         {player.jerseyNumber != null && (
           <span
             className={clsx(
               'absolute -bottom-1 -right-1 flex items-center justify-center rounded-full bg-slate-900 font-bold text-white ring-2 ring-white dark:ring-slate-800',
-              compact ? 'h-5 w-5 text-[10px]' : 'h-7 w-7 text-xs',
+              compact ? 'h-4 w-4 text-[9px]' : 'h-5 w-5 text-[10px]',
             )}
           >
             {player.jerseyNumber}
@@ -72,7 +72,7 @@ export function PlayerToken({
         )}
         {alertActive && (
           <span
-            className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white"
+            className="absolute -top-1 -left-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-600 text-[9px] font-bold text-white"
             aria-hidden
           >
             !
@@ -81,7 +81,7 @@ export function PlayerToken({
       </div>
       <span
         className={clsx(
-          'line-clamp-2 w-full break-words rounded px-1 py-0.5 text-xs font-bold leading-tight shadow-sm',
+          'line-clamp-2 w-full break-words rounded px-1 py-0.5 text-[10px] font-bold leading-tight shadow-sm',
           colors.badge,
         )}
         title={`${player.name}, preferred ${positionLabel}`}
@@ -91,7 +91,7 @@ export function PlayerToken({
       {showTimer && state && (
         <span
           className={clsx(
-            'rounded px-1.5 py-0.5 text-xs font-bold tabular-nums',
+            'rounded px-1 py-0.5 text-[10px] font-bold tabular-nums',
             surface === 'field'
               ? 'bg-white text-slate-900 shadow-sm'
               : 'bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-slate-100',
@@ -104,7 +104,7 @@ export function PlayerToken({
         <button
           type="button"
           onClick={() => onRequestMove(player.id)}
-          className="rounded border border-slate-300 bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 opacity-0 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200"
+          className="rounded border border-slate-300 bg-white/90 px-1 py-0.5 text-[9px] font-medium text-slate-700 opacity-0 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200"
         >
           Move…
         </button>

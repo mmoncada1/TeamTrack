@@ -12,10 +12,10 @@ interface PlayerAvatarProps {
 }
 
 const sizeClasses = {
-  sm: 'h-8 w-8 text-xs',
-  md: 'h-11 w-11 text-sm',
-  lg: 'h-16 w-16 text-lg',
-  xl: 'h-20 w-20 text-xl',
+  sm: 'h-6 w-6 text-[10px]',
+  md: 'h-8 w-8 text-xs',
+  lg: 'h-11 w-11 text-sm',
+  xl: 'h-14 w-14 text-base',
 };
 
 export function PlayerAvatar({ player, size = 'md', className, ringClassName }: PlayerAvatarProps) {

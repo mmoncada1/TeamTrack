@@ -39,12 +39,12 @@ export function MatchClock({
   const pastHalfLength = numberOfHalves === 2 && status === 'in_progress' && matchClockMs >= halfLengthMs;
 
   return (
-    <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
       <div>
-        <div className="text-4xl font-bold tabular-nums" aria-live="off">
+        <div className="text-2xl font-bold tabular-nums" aria-live="off">
           {formatClock(matchClockMs)}
         </div>
-        <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
           <span
             className={`inline-flex h-2.5 w-2.5 rounded-full ${
               status === 'in_progress' ? 'bg-emerald-500' : status === 'paused' ? 'bg-amber-500' : 'bg-slate-400'
@@ -59,43 +59,43 @@ export function MatchClock({
           {pastHalfLength && <span className="font-medium text-amber-600">Past half length</span>}
         </div>
       </div>
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Match clock controls">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Match clock controls">
         {status === 'setup' && (
-          <Button variant="primary" onClick={onStart}>
+          <Button variant="primary" size="sm" onClick={onStart}>
             Start match
           </Button>
         )}
         {status === 'in_progress' && (
           <>
-            <Button variant="secondary" onClick={onPause}>
+            <Button variant="secondary" size="sm" onClick={onPause}>
               Pause
             </Button>
             {numberOfHalves === 2 && currentHalf === 1 && (
-              <Button variant="secondary" onClick={onHalfTime}>
+              <Button variant="secondary" size="sm" onClick={onHalfTime}>
                 Half-time
               </Button>
             )}
-            <Button variant="danger" onClick={onEnd}>
+            <Button variant="danger" size="sm" onClick={onEnd}>
               End match
             </Button>
           </>
         )}
         {status === 'paused' && (
           <>
-            <Button variant="primary" onClick={onResume}>
+            <Button variant="primary" size="sm" onClick={onResume}>
               Resume
             </Button>
-            <Button variant="danger" onClick={onEnd}>
+            <Button variant="danger" size="sm" onClick={onEnd}>
               End match
             </Button>
           </>
         )}
         {status === 'half_time' && (
           <>
-            <Button variant="primary" onClick={onResume}>
+            <Button variant="primary" size="sm" onClick={onResume}>
               Start second half
             </Button>
-            <Button variant="danger" onClick={onEnd}>
+            <Button variant="danger" size="sm" onClick={onEnd}>
               End match
             </Button>
           </>

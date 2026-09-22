@@ -42,14 +42,14 @@ export function PlayingTimePanel({
   });
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
-      <h2 className="text-lg font-semibold">Time tracker</h2>
-      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+    <section className="rounded-xl border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-800">
+      <h2 className="text-sm font-semibold">Time tracker</h2>
+      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
         Sorted by overall field time, longest first. Yellow in Now means they have reached their sub time. Red means they are at least 1 minute past it.
       </p>
       <div className="mt-2 max-h-80 overflow-y-auto">
-        <table className="w-full border-collapse text-sm">
-          <thead className="sticky top-0 bg-white text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+        <table className="w-full border-collapse text-xs">
+          <thead className="sticky top-0 bg-white text-left text-[10px] uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             <tr>
               <th className="py-1 pr-2 font-medium">Player</th>
               <th className="py-1 pr-2 font-medium">Now</th>
@@ -63,7 +63,7 @@ export function PlayingTimePanel({
               if (!state || state.status === 'unavailable') {
                 return (
                   <tr key={player.id} className="border-t border-slate-100 text-slate-400 dark:border-slate-700">
-                    <td className="py-1.5 pr-2">
+                    <td className="py-1 pr-2">
                       {jerseyLabel(player.jerseyNumber)} {player.name}
                     </td>
                     <td colSpan={3}>Unavailable</td>
@@ -84,16 +84,16 @@ export function PlayingTimePanel({
                 urgency === 'overdue' ? 'Past due' : urgency === 'due' ? 'Sub due' : onField ? 'Field' : 'Bench';
               return (
                 <tr key={player.id} className="border-t border-slate-100 dark:border-slate-700">
-                  <td className="py-1.5 pr-2 font-medium">
+                  <td className="py-1 pr-2 font-medium">
                     {jerseyLabel(player.jerseyNumber)} {player.name}
                   </td>
-                  <td className="py-1.5 pr-2 tabular-nums">
-                    <span className={`inline-block rounded px-1.5 py-0.5 font-semibold ${nowClass}`}>
+                  <td className="py-1 pr-2 tabular-nums">
+                    <span className={`inline-block rounded px-1 py-0.5 font-semibold ${nowClass}`}>
                       {nowLabel} {formatClock(state.currentStintMs)}
                     </span>
                   </td>
-                  <td className="py-1.5 pr-2 font-semibold tabular-nums">{formatClock(state.totalFieldMs)}</td>
-                  <td className="py-1.5 font-semibold tabular-nums">{formatClock(state.totalBenchMs)}</td>
+                  <td className="py-1 pr-2 font-semibold tabular-nums">{formatClock(state.totalFieldMs)}</td>
+                  <td className="py-1 font-semibold tabular-nums">{formatClock(state.totalBenchMs)}</td>
                 </tr>
               );
             })}

@@ -12,7 +12,7 @@ export function FormationSwitcher({ format, formationId, onChange, disabled }: F
   const formations = getFormationsForFormat(format);
   return (
     <div>
-      <label htmlFor="live-formation" className="block text-sm font-medium">
+      <label htmlFor="live-formation" className="block text-xs font-medium">
         Formation
       </label>
       <select
