@@ -133,7 +133,7 @@ export function LiveMatchPage() {
 
   return (
     <div className="mx-auto flex h-full min-h-0 max-w-[1600px] flex-col p-3 sm:p-4">
-      <div className="flex shrink-0 items-center justify-between wide:hidden">
+      <div className="flex shrink-0 items-center justify-between sm:hidden">
         <h1 className="text-base font-bold">
           {match.teamName || 'Us'} vs {match.opponentName || 'Opponent'}
         </h1>
@@ -149,20 +149,18 @@ export function LiveMatchPage() {
         </p>
       )}
 
-      {/* Stacked layout (mobile, or a laptop/tablet turned to portrait): alerts
-          shown full-width above the workspace. `wide` (a landscape viewport
-          with room to spare) turns them into the left sidebar column below. */}
-      <div className="mt-3 shrink-0 wide:hidden">{alertsPanel}</div>
+      {/* Mobile: alerts shown full-width above the workspace. sm+: they become the left sidebar column below. */}
+      <div className="mt-3 shrink-0 sm:hidden">{alertsPanel}</div>
 
-      <div className="mt-3 flex min-h-0 flex-1 flex-col gap-2 wide:mt-0 wide:flex-row">
-        <div className="hidden min-w-52 flex-col wide:flex wide:h-full wide:flex-1">
+      <div className="mt-3 flex min-h-0 flex-1 flex-col gap-2 sm:mt-0 sm:flex-row">
+        <div className="hidden min-w-52 flex-col sm:flex sm:h-full sm:flex-1">
           <h1 className="flex h-7 shrink-0 items-center truncate text-base font-bold">
             {match.teamName || 'Us'} vs {match.opponentName || 'Opponent'}
           </h1>
           <div className="min-h-0 flex-1 overflow-y-auto">{alertsPanel}</div>
         </div>
 
-        <div className="min-w-0 wide:h-full wide:min-h-0 wide:shrink-0">
+        <div className="min-w-0 sm:h-full sm:min-h-0 sm:shrink-0">
           {formation && (
             <FieldWorkspace
               positions={formation.positions}
@@ -178,8 +176,8 @@ export function LiveMatchPage() {
             />
           )}
         </div>
-        <div className="flex w-full min-w-0 flex-col wide:h-full wide:min-w-72 wide:flex-1">
-          <div className="hidden h-7 shrink-0 items-center justify-end wide:flex">
+        <div className="flex w-full min-w-0 flex-col sm:h-full sm:min-w-72 sm:flex-1">
+          <div className="hidden h-7 shrink-0 items-center justify-end sm:flex">
             <SaveIndicator status={store.saveStatus} />
           </div>
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
