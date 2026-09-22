@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { FIELD_HEIGHT_CLASS } from './fieldLayout';
 
 interface FieldCanvasProps {
   children: ReactNode;
@@ -11,7 +12,7 @@ interface FieldCanvasProps {
  */
 export function FieldCanvas({ children }: FieldCanvasProps) {
   return (
-    <div className="relative mx-auto aspect-[2/3] h-[min(68vh,880px)] max-w-full overflow-hidden rounded-xl bg-pitch shadow-inner">
+    <div className={`relative mx-auto aspect-[2/3] max-w-full overflow-hidden rounded-xl bg-pitch shadow-inner ${FIELD_HEIGHT_CLASS}`}>
       <svg
         viewBox="0 0 100 150"
         preserveAspectRatio="none"

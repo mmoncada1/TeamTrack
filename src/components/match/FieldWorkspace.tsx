@@ -92,7 +92,7 @@ export function FieldWorkspace({
       onDragCancel={handleDragCancel}
     >
       <div className="flex flex-col gap-4 sm:flex-row">
-        <div className="w-full sm:w-36 sm:flex-shrink-0">
+        <div className="w-full sm:w-64 sm:flex-shrink-0">
           <BenchPanel count={benchIds.length}>
             {benchIds.map((id) => {
               const player = playersById.get(id);
