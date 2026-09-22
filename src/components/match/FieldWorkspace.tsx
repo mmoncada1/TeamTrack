@@ -95,7 +95,7 @@ export function FieldWorkspace({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="flex flex-col gap-4 sm:flex-row">
+      <div className="flex flex-col gap-4 sm:flex-row sm:gap-2">
         <div className="w-full sm:w-64 sm:flex-shrink-0">
           <BenchPanel count={benchIds.length}>
             {benchIds.map((id) => {
