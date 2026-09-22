@@ -50,7 +50,7 @@ export function MatchSetupPage() {
         alertSoundEnabled: false,
         rosterPlayerIds: activePlayerIds,
         unavailablePlayerIds: [],
-      });
+      }, roster.players);
       if (!cancelled) navigate(`/match/${newId}/setup`, { replace: true });
     }
     init();
@@ -86,7 +86,7 @@ export function MatchSetupPage() {
   function handleFormatChange(format: MatchFormat) {
     const formation = getDefaultFormationForFormat(format);
     store.updateDraftMeta({ settings: { format } });
-    const summary = store.setPendingFormation(formation.id);
+    const summary = store.setPendingFormation(formation.id, roster.players);
     setMoveSummary(summary);
   }
 
@@ -175,7 +175,7 @@ export function MatchSetupPage() {
             id="formation"
             className="input mt-1 max-w-xs"
             value={match.pendingFormationId}
-            onChange={(e) => setMoveSummary(store.setPendingFormation(e.target.value))}
+            onChange={(e) => setMoveSummary(store.setPendingFormation(e.target.value, roster.players))}
           >
             {formationsForFormat.map((f) => (
               <option key={f.id} value={f.id}>

@@ -10,6 +10,7 @@ import { createId } from './id';
 import { deriveMatchState } from './matchEngine';
 import { getFormationById } from '../formations/definitions';
 import { remapFormation } from '../formations/remap';
+import { fillFormationByPreference } from '../formations/fill';
 import { updateAlerts } from './alerts';
 import type { Player } from '../types';
 
@@ -44,18 +45,22 @@ export class MatchActionError extends Error {}
 // Setup-phase (pre-start) mutations — no events, just editing the draft.
 // ---------------------------------------------------------------------------
 
-export function setPendingFormation(match: Match, newFormationId: string): { match: Match; summary: string } {
-  const fromFormation = getFormationById(match.pendingFormationId);
+export function setPendingFormation(
+  match: Match,
+  newFormationId: string,
+  players: Player[],
+): { match: Match; summary: string } {
   const toFormation = getFormationById(newFormationId);
   if (!toFormation) throw new MatchActionError('Unknown formation.');
 
-  if (!fromFormation) {
-    return { match: { ...match, pendingFormationId: newFormationId, pendingAssignments: {} }, summary: `Switched to ${toFormation.shape}.` };
-  }
-
-  const { newAssignments, summary } = remapFormation(fromFormation, toFormation, match.pendingAssignments);
+  const { assignments, summary } = fillFormationByPreference(
+    toFormation,
+    players,
+    match.rosterPlayerIds,
+    match.unavailablePlayerIds,
+  );
   return {
-    match: { ...match, pendingFormationId: newFormationId, pendingAssignments: newAssignments },
+    match: { ...match, pendingFormationId: newFormationId, pendingAssignments: assignments },
     summary,
   };
 }

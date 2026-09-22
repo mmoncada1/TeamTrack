@@ -17,12 +17,12 @@ interface MatchState {
   loadAllMatches: () => Promise<void>;
   loadMatch: (id: string) => Promise<void>;
   clearActiveMatch: () => void;
-  createDraft: (input: CreateDraftMatchInput) => Promise<string>;
+  createDraft: (input: CreateDraftMatchInput, players: Player[]) => Promise<string>;
   deleteMatchById: (id: string) => Promise<void>;
 
   updateDraftMeta: (patch: DraftMetaPatch) => void;
   updateLiveSettings: (patch: Partial<Match['settings']>) => void;
-  setPendingFormation: (formationId: string) => string;
+  setPendingFormation: (formationId: string, players: Player[]) => string;
   setPendingAssignment: (positionId: string, playerId: string | null) => void;
   movePendingPlayer: (playerId: string, toSlot: SlotId) => void;
 
@@ -90,8 +90,9 @@ export const useMatchStore = create<MatchState>((set, get) => ({
 
   clearActiveMatch: () => set({ match: null }),
 
-  createDraft: async (input) => {
-    const match = actions.createDraftMatch(input);
+  createDraft: async (input, players) => {
+    const draft = actions.createDraftMatch(input);
+    const { match } = actions.setPendingFormation(draft, input.formationId, players);
     await repo.upsertMatch(match);
     set({ match, saveStatus: 'saved' });
     return match.id;
@@ -111,10 +112,10 @@ export const useMatchStore = create<MatchState>((set, get) => ({
     applyMutation((m) => actions.updateLiveSettings(m, patch));
   },
 
-  setPendingFormation: (formationId) => {
+  setPendingFormation: (formationId, players) => {
     const current = get().match;
     if (!current) return '';
-    const { match, summary } = actions.setPendingFormation(current, formationId);
+    const { match, summary } = actions.setPendingFormation(current, formationId, players);
     set({ match });
     persist(match);
     return summary;
