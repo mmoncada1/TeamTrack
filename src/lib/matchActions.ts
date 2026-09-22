@@ -357,7 +357,12 @@ export function recomputeAlerts(match: Match, players: Player[], nowMs: number =
 
 function alertsEqual(a: Alert[], b: Alert[]): boolean {
   if (a.length !== b.length) return false;
-  return a.every((alert, i) => alert.id === b[i].id && alert.status === b[i].status);
+  return a.every(
+    (alert, i) =>
+      alert.id === b[i].id &&
+      alert.status === b[i].status &&
+      alert.recommendation?.inPlayerId === b[i].recommendation?.inPlayerId,
+  );
 }
 
 export function dismissAlert(
@@ -371,17 +376,15 @@ export function dismissAlert(
   const alert = match.activeAlerts.find((a) => a.id === alertId);
   if (!alert) throw new MatchActionError('Alert not found.');
 
-  const nextAlerts = match.activeAlerts
-    .map((a) => {
-      if (a.id !== alertId) return a;
-      if (action === 'dismiss') return { ...a, status: 'dismissed' as const };
-      return {
-        ...a,
-        status: 'snoozed' as const,
-        snoozeUntilClockMs: derived.matchClockMs + snoozeMinutes * 60000,
-      };
-    })
-    .filter((a) => a.status !== 'dismissed');
+  const nextAlerts = match.activeAlerts.map((a) => {
+    if (a.id !== alertId) return a;
+    if (action === 'dismiss') return { ...a, status: 'dismissed' as const, recommendation: undefined };
+    return {
+      ...a,
+      status: 'snoozed' as const,
+      snoozeUntilClockMs: derived.matchClockMs + snoozeMinutes * 60000,
+    };
+  });
 
   const event: MatchEvent = {
     ...baseEvent(derived.matchClockMs, nowMs, [alert.playerId]),

@@ -3,6 +3,7 @@ import type { Match, Player, SlotId } from '../types';
 import * as repo from '../db/repository';
 import * as actions from '../lib/matchActions';
 import { deriveMatchState } from '../lib/matchEngine';
+import { useRosterStore } from './rosterStore';
 import type { RecordGoalInput, CreateDraftMatchInput, DraftMetaPatch } from '../lib/matchActions';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -136,11 +137,16 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   endMatch: () => applyMutation((m) => actions.endMatch(m)),
   resetMatch: () => applyMutation((m) => actions.resetMatch(m)),
 
-  movePlayer: (playerId, toSlot) => applyMutation((m) => actions.movePlayer(m, playerId, toSlot)),
+  movePlayer: (playerId, toSlot) =>
+    applyMutation((m) => actions.recomputeAlerts(actions.movePlayer(m, playerId, toSlot), useRosterStore.getState().players)),
   swapPlayers: (positionAId, positionBId) =>
-    applyMutation((m) => actions.swapPlayers(m, positionAId, positionBId)),
+    applyMutation((m) =>
+      actions.recomputeAlerts(actions.swapPlayers(m, positionAId, positionBId), useRosterStore.getState().players),
+    ),
   substitutePlayer: (playerInId, positionId) =>
-    applyMutation((m) => actions.substitutePlayer(m, playerInId, positionId)),
+    applyMutation((m) =>
+      actions.recomputeAlerts(actions.substitutePlayer(m, playerInId, positionId), useRosterStore.getState().players),
+    ),
 
   changeFormation: (formationId) => {
     const current = get().match;

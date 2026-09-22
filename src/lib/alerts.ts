@@ -34,20 +34,49 @@ export function updateAlerts(params: UpdateAlertsParams): UpdateAlertsResult {
   const playersById = new Map(players.map((p) => [p.id, p]));
   const newAlertIds: string[] = [];
   const result: Alert[] = [];
+  const claimedIncoming = new Set<string>();
+
+  const recommendationContext = {
+    players,
+    playerStates,
+    thresholds,
+    goalkeeperRotationEnabled,
+    rosterOrder,
+    positions,
+    excludePlayerIds: claimedIncoming,
+  };
+
+  function nextRecommendation(positionId: string | null | undefined) {
+    if (!positionId) return undefined;
+    const recommendation = recommendIncomingPlayer(positionId, recommendationContext);
+    if (!recommendation) return undefined;
+    claimedIncoming.add(recommendation.playerId);
+    return { inPlayerId: recommendation.playerId, explanation: recommendation.explanation };
+  }
 
   // Carry forward alerts that are still relevant (player still on field, same stint).
+  // Dismissed alerts stay stored for that stint so the next tick does not recreate them.
   for (const alert of existingAlerts) {
-    if (alert.status === 'dismissed' || alert.status === 'resolved') continue;
+    if (alert.status === 'resolved') continue;
     const state = playerStates[alert.playerId];
     const stillOnSameStint =
       state && state.status === 'field' && state.currentStintStartMs === alert.stintStartMs;
     if (!stillOnSameStint) continue; // player subbed out / moved -> alert auto-resolves
 
+    if (alert.status === 'dismissed') {
+      result.push(alert);
+      continue;
+    }
+
     let status = alert.status;
     if (status === 'snoozed' && alert.snoozeUntilClockMs != null && matchClockMs >= alert.snoozeUntilClockMs) {
       status = 'active';
     }
-    result.push({ ...alert, status });
+    result.push({
+      ...alert,
+      status,
+      recommendation: nextRecommendation(state.positionId),
+    });
   }
 
   const existingKeys = new Set(result.map((a) => `${a.playerId}:${a.stintStartMs}`));
@@ -68,15 +97,6 @@ export function updateAlerts(params: UpdateAlertsParams): UpdateAlertsResult {
     const key = `${state.playerId}:${state.currentStintStartMs}`;
     if (existingKeys.has(key)) continue;
 
-    const recommendation = recommendIncomingPlayer(state.positionId, {
-      players,
-      playerStates,
-      thresholds,
-      goalkeeperRotationEnabled,
-      rosterOrder,
-      positions,
-    });
-
     const alert: Alert = {
       id: createId(),
       playerId: state.playerId,
@@ -85,9 +105,7 @@ export function updateAlerts(params: UpdateAlertsParams): UpdateAlertsResult {
       stintStartMs: state.currentStintStartMs,
       createdAtClockMs: matchClockMs,
       status: 'active',
-      recommendation: recommendation
-        ? { inPlayerId: recommendation.playerId, explanation: recommendation.explanation }
-        : undefined,
+      recommendation: nextRecommendation(state.positionId),
     };
     result.push(alert);
     newAlertIds.push(alert.id);

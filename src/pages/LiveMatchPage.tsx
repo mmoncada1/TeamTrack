@@ -125,7 +125,6 @@ export function LiveMatchPage() {
       playersById={playersById}
       onAccept={handleAcceptAlert}
       onDismiss={(alertId) => runAction(() => store.dismissAlert(alertId, 'dismiss'))}
-      onSnooze={(alertId) => runAction(() => store.dismissAlert(alertId, 'snooze', 3))}
     />
   );
 

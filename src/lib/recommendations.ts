@@ -9,6 +9,8 @@ export interface RecommendationContext {
   /** Deterministic roster order, used only as a final tie-breaker. */
   rosterOrder: string[];
   positions: FormationPosition[];
+  /** Bench players already recommended for another alert this pass. */
+  excludePlayerIds?: ReadonlySet<string>;
 }
 
 export interface ExceededCandidate {
@@ -74,6 +76,7 @@ export function recommendIncomingPlayer(
 
   const benchCandidates = Object.values(playerStates).filter((state) => {
     if (state.status !== 'bench') return false;
+    if (context.excludePlayerIds?.has(state.playerId)) return false;
     return playersById.has(state.playerId);
   });
 
