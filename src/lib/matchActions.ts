@@ -420,6 +420,19 @@ export type DraftMetaPatch = Partial<
   >
 > & { settings?: Partial<Match['settings']> };
 
+/** Update match settings at any time, including substitution thresholds during a live match. */
+export function updateLiveSettings(
+  match: Match,
+  patch: Partial<Match['settings']>,
+  nowMs: number = Date.now(),
+): Match {
+  return {
+    ...match,
+    settings: { ...match.settings, ...patch },
+    updatedAt: nowMs,
+  };
+}
+
 /** Update setup-only fields on a draft match (before it has started). */
 export function updateDraftMeta(match: Match, patch: DraftMetaPatch, nowMs: number = Date.now()): Match {
   const derived = deriveMatchState(match, nowMs);

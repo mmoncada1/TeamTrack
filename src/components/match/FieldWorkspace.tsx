@@ -1,11 +1,20 @@
 import { useMemo, useState } from 'react';
-import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
 import type { Assignment, FormationPosition, Player, PlayerRuntimeState, SlotId } from '../../types';
 import { DroppableSlot } from './DroppableSlot';
 import { PlayerToken } from './PlayerToken';
 import { FieldCanvas } from './FieldCanvas';
 import { BenchPanel } from './BenchPanel';
 import { MoveDialog } from './MoveDialog';
+import { PlayerAvatar } from '../common/PlayerAvatar';
 
 interface FieldWorkspaceProps {
   positions: FormationPosition[];
@@ -33,6 +42,7 @@ export function FieldWorkspace({
   onRequestMove,
 }: FieldWorkspaceProps) {
   const [moveDialogPlayerId, setMoveDialogPlayerId] = useState<string | null>(null);
+  const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null);
 
   const playersById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
 
@@ -52,17 +62,33 @@ export function FieldWorkspace({
     }),
   );
 
+  function handleDragStart(event: DragStartEvent) {
+    const playerId = event.active.data.current?.playerId as string | undefined;
+    setDraggingPlayerId(playerId ?? null);
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setDraggingPlayerId(null);
     const playerId = event.active.data.current?.playerId as string | undefined;
     const toSlot = event.over?.id as SlotId | undefined;
     if (!playerId || !toSlot) return;
     onRequestMove(playerId, toSlot);
   }
 
+  function handleDragCancel() {
+    setDraggingPlayerId(null);
+  }
+
   const moveDialogPlayer = moveDialogPlayerId ? playersById.get(moveDialogPlayerId) ?? null : null;
+  const draggingPlayer = draggingPlayerId ? playersById.get(draggingPlayerId) ?? null : null;
 
   return (
-    <DndContext sensors={locked ? undefined : sensors} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={locked ? undefined : sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
       <FieldCanvas>
         {positions.map((position) => {
           const playerId = assignments[position.id];
@@ -73,6 +99,7 @@ export function FieldWorkspace({
                 <PlayerToken
                   player={player}
                   slotId={position.id}
+                  surface="field"
                   disabled={locked}
                   state={playerStates?.[player.id]}
                   showTimer={showTimers}
@@ -94,6 +121,7 @@ export function FieldWorkspace({
               key={id}
               player={player}
               slotId="BENCH"
+              surface="bench"
               disabled={locked}
               state={playerStates?.[id]}
               showTimer={showTimers}
@@ -116,6 +144,17 @@ export function FieldWorkspace({
           </div>
         </div>
       )}
+
+      <DragOverlay dropAnimation={null}>
+        {draggingPlayer ? (
+          <div className="flex w-24 flex-col items-center rounded-xl bg-white p-2 shadow-2xl ring-2 ring-blue-500">
+            <PlayerAvatar player={draggingPlayer} size="md" />
+            <span className="mt-1 w-full truncate text-center text-xs font-bold text-slate-900">
+              {draggingPlayer.name}
+            </span>
+          </div>
+        ) : null}
+      </DragOverlay>
 
       <MoveDialog
         open={!!moveDialogPlayer}

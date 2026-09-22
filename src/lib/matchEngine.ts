@@ -73,6 +73,27 @@ function transition(
 }
 
 /**
+ * Place a player on the field or bench.
+ * Moving between two field positions keeps the current on-field stint
+ * (and its timer) running. Only a real status change — onto the field from
+ * the bench, or off the field — starts a new stint.
+ */
+function placePlayer(
+  state: PlayerRuntimeState,
+  status: 'field' | 'bench',
+  positionId: string | undefined,
+  atMs: number,
+): void {
+  if (state.status === 'field' && status === 'field' && state.currentStintStartMs != null && positionId) {
+    state.positionId = positionId;
+    const open = state.intervals.find((interval) => interval.endMs === null);
+    if (open) open.positionId = positionId;
+    return;
+  }
+  transition(state, status, positionId, atMs);
+}
+
+/**
  * Replay a match's event log to derive the current authoritative state:
  * assignments, per-player status/intervals/totals, and score. This function
  * is pure and deterministic, so undo (removing the last event) or deleting
@@ -150,7 +171,7 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
           const state = playerStates[playerId];
           if (state.status === 'unavailable') continue;
           const positionId = positionByPlayer.get(playerId);
-          transition(state, positionId ? 'field' : 'bench', positionId, ev.matchClockMs);
+          placePlayer(state, positionId ? 'field' : 'bench', positionId, ev.matchClockMs);
         }
         break;
       }
@@ -163,7 +184,12 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
         if (ev.toSlot !== 'BENCH') {
           assignments[ev.toSlot] = ev.playerId;
         }
-        transition(state, ev.toSlot === 'BENCH' ? 'bench' : 'field', ev.toSlot === 'BENCH' ? undefined : ev.toSlot, ev.matchClockMs);
+        placePlayer(
+          state,
+          ev.toSlot === 'BENCH' ? 'bench' : 'field',
+          ev.toSlot === 'BENCH' ? undefined : ev.toSlot,
+          ev.matchClockMs,
+        );
         break;
       }
       case 'PLAYERS_SWAPPED': {
@@ -171,8 +197,8 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
         const stateB = playerStates[ev.playerBId];
         assignments[ev.positionAId] = ev.playerBId;
         assignments[ev.positionBId] = ev.playerAId;
-        if (stateA) transition(stateA, 'field', ev.positionBId, ev.matchClockMs);
-        if (stateB) transition(stateB, 'field', ev.positionAId, ev.matchClockMs);
+        if (stateA) placePlayer(stateA, 'field', ev.positionBId, ev.matchClockMs);
+        if (stateB) placePlayer(stateB, 'field', ev.positionAId, ev.matchClockMs);
         break;
       }
       case 'SUBSTITUTION': {

@@ -15,6 +15,7 @@ import { FieldWorkspace } from '../components/match/FieldWorkspace';
 import { SubstitutionConfirmDialog } from '../components/match/SubstitutionConfirmDialog';
 import { EventLog } from '../components/match/EventLog';
 import { FormationSwitcher } from '../components/match/FormationSwitcher';
+import { ThresholdSliders } from '../components/setup/ThresholdSliders';
 import { Dialog } from '../components/common/Dialog';
 import { Button } from '../components/common/Button';
 import type { Alert, SlotId } from '../types';
@@ -171,6 +172,29 @@ export function LiveMatchPage() {
           {formationSummary && <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">{formationSummary}</p>}
         </div>
       </div>
+
+      <details className="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+        <summary className="cursor-pointer text-sm font-semibold">Substitution timers</summary>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Changes apply immediately to who gets an alert. A player already on the field keeps their current stint.
+        </p>
+        <div className="mt-3">
+          <ThresholdSliders
+            thresholds={match.settings.thresholds}
+            onChange={(group, next) =>
+              store.updateLiveSettings({ thresholds: { ...match.settings.thresholds, [group]: next } })
+            }
+          />
+        </div>
+        <label className="mt-3 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={match.settings.goalkeeperRotationEnabled}
+            onChange={(e) => store.updateLiveSettings({ goalkeeperRotationEnabled: e.target.checked })}
+          />
+          Enable goalkeeper rotation alerts
+        </label>
+      </details>
 
       <div className="mt-4">
         <AlertsPanel

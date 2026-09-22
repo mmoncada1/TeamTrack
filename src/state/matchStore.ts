@@ -21,6 +21,7 @@ interface MatchState {
   deleteMatchById: (id: string) => Promise<void>;
 
   updateDraftMeta: (patch: DraftMetaPatch) => void;
+  updateLiveSettings: (patch: Partial<Match['settings']>) => void;
   setPendingFormation: (formationId: string) => string;
   setPendingAssignment: (positionId: string, playerId: string | null) => void;
   movePendingPlayer: (playerId: string, toSlot: SlotId) => void;
@@ -104,6 +105,10 @@ export const useMatchStore = create<MatchState>((set, get) => ({
 
   updateDraftMeta: (patch) => {
     applyMutation((m) => actions.updateDraftMeta(m, patch));
+  },
+
+  updateLiveSettings: (patch) => {
+    applyMutation((m) => actions.updateLiveSettings(m, patch));
   },
 
   setPendingFormation: (formationId) => {

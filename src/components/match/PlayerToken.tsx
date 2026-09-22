@@ -7,6 +7,8 @@ import { formatClock } from '../../lib/timer';
 interface PlayerTokenProps {
   player: Player;
   slotId: string; // current slot ('BENCH' or positionId), used as the unique drag id source
+  /** Field tokens sit on the green pitch and need high-contrast labels. */
+  surface?: 'field' | 'bench';
   disabled?: boolean;
   state?: PlayerRuntimeState;
   showTimer?: boolean;
@@ -18,6 +20,7 @@ interface PlayerTokenProps {
 export function PlayerToken({
   player,
   slotId,
+  surface = 'bench',
   disabled,
   state,
   showTimer,
@@ -36,9 +39,9 @@ export function PlayerToken({
   return (
     <div
       className={clsx(
-        'group relative flex flex-col items-center gap-0.5 rounded-lg p-1 text-center transition-opacity',
-        isDragging && 'opacity-40',
-        compact ? 'w-16' : 'w-20',
+        'group relative flex flex-col items-center gap-1 rounded-lg p-1 text-center transition-opacity',
+        isDragging && 'opacity-30',
+        compact ? 'w-16' : 'w-24',
       )}
     >
       <div
@@ -67,9 +70,25 @@ export function PlayerToken({
           </span>
         )}
       </div>
-      <span className="w-full truncate text-[11px] font-medium leading-tight">{player.name}</span>
+      <span
+        className={clsx(
+          'line-clamp-2 w-full break-words rounded px-1 py-0.5 text-xs font-bold leading-tight',
+          surface === 'field'
+            ? 'bg-black/75 text-white shadow-sm'
+            : 'text-slate-900 dark:text-slate-100',
+        )}
+      >
+        {player.name}
+      </span>
       {showTimer && state && (
-        <span className="text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
+        <span
+          className={clsx(
+            'rounded px-1.5 py-0.5 text-xs font-bold tabular-nums',
+            surface === 'field'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-slate-100',
+          )}
+        >
           {formatClock(timerMs)}
         </span>
       )}

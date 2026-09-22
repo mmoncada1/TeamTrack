@@ -18,6 +18,9 @@ export function Dialog({ open, title, description, onClose, children, footer }: 
   const idRef = useRef(`dialog-title-${++dialogCounter}`);
   const descIdRef = useRef(`dialog-desc-${dialogCounter}`);
 
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!open) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -25,12 +28,17 @@ export function Dialog({ open, title, description, onClose, children, footer }: 
     const focusable = container?.querySelectorAll<HTMLElement>(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
     );
-    focusable?.[0]?.focus();
+    // Only move focus when the dialog first opens. Re-running this on every
+    // parent render (the live match clock ticks twice a second) was stealing
+    // focus out of open <select> menus and closing them immediately.
+    if (container && !container.contains(document.activeElement)) {
+      focusable?.[0]?.focus();
+    }
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key === 'Tab' && focusable && focusable.length > 0) {
@@ -51,7 +59,7 @@ export function Dialog({ open, title, description, onClose, children, footer }: 
       document.removeEventListener('keydown', onKeyDown, true);
       previouslyFocused?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
