@@ -70,6 +70,29 @@ export function blobToObjectUrl(blob: Blob): string {
   return URL.createObjectURL(blob);
 }
 
+/** Convert a Blob to a base64 data URL string — used so photos can travel inside a JSON backup. */
+export function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Convert a base64 data URL (from an imported JSON backup) back into a Blob. */
+export function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, base64] = dataUrl.split(',');
+  const mimeMatch = /data:(.*?);base64/.exec(header);
+  const mimeType = mimeMatch?.[1] ?? 'application/octet-stream';
+  const binary = atob(base64 ?? '');
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: mimeType });
+}
+
 /** Compute initials (max 2 chars) to use as a fallback avatar when no photo exists. */
 export function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);

@@ -362,5 +362,7 @@ export interface AppBackup {
   teams: Team[];
   players: Player[];
   matches: Match[];
+  /** Profile pictures, ready to store (blob already reconstructed from the JSON data URL). */
+  photos: PlayerPhoto[];
   settings: AppSettings;
 }

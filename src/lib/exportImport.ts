@@ -1,17 +1,50 @@
-import type { AppBackup, AppSettings, Match, Player, PlayingTimeSummary, Team } from '../types';
+import type { AppBackup, AppSettings, Match, Player, PlayerPhoto, PlayingTimeSummary, Team } from '../types';
 import { isValidPlayerRecord, mergeAppSettingsWithDefaults } from './validation';
 import { formatClock } from './timer';
 import { createId } from './id';
+import { blobToDataUrl, dataUrlToBlob } from './photo';
 
-export const BACKUP_VERSION = 2;
+export const BACKUP_VERSION = 3;
 
-export function buildBackup(teams: Team[], players: Player[], matches: Match[], settings: AppSettings): AppBackup {
+/** JSON-safe representation of a PlayerPhoto for the exported backup file (blob -> data URL). */
+interface SerializedPhoto {
+  id: string;
+  playerId: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  createdAt: number;
+  dataUrl: string;
+}
+
+async function serializePhotos(photos: PlayerPhoto[]): Promise<SerializedPhoto[]> {
+  return Promise.all(
+    photos.map(async (photo) => ({
+      id: photo.id,
+      playerId: photo.playerId,
+      mimeType: photo.mimeType,
+      width: photo.width,
+      height: photo.height,
+      createdAt: photo.createdAt,
+      dataUrl: await blobToDataUrl(photo.blob),
+    })),
+  );
+}
+
+export async function buildBackup(
+  teams: Team[],
+  players: Player[],
+  matches: Match[],
+  settings: AppSettings,
+  photos: PlayerPhoto[],
+): Promise<Record<string, unknown>> {
   return {
     version: BACKUP_VERSION,
     exportedAt: Date.now(),
     teams,
     players,
     matches,
+    photos: await serializePhotos(photos),
     settings,
   };
 }
@@ -28,8 +61,14 @@ export function triggerDownload(filename: string, content: string, mimeType: str
   URL.revokeObjectURL(url);
 }
 
-export function exportBackupAsJson(teams: Team[], players: Player[], matches: Match[], settings: AppSettings): void {
-  const backup = buildBackup(teams, players, matches, settings);
+export async function exportBackupAsJson(
+  teams: Team[],
+  players: Player[],
+  matches: Match[],
+  settings: AppSettings,
+  photos: PlayerPhoto[],
+): Promise<void> {
+  const backup = await buildBackup(teams, players, matches, settings, photos);
   triggerDownload(
     `teamtrack-backup-${new Date().toISOString().slice(0, 10)}.json`,
     JSON.stringify(backup, null, 2),
@@ -141,15 +180,58 @@ export function validateBackup(raw: unknown): BackupValidationResult {
   }));
   const settings = mergeAppSettingsWithDefaults(obj.settings);
 
+  const playerIds = new Set(players.map((p) => p.id));
+  const rawPhotos = Array.isArray((obj as { photos?: unknown }).photos) ? (obj as { photos: unknown[] }).photos : [];
+  let skippedPhotoCount = 0;
+  const photos: PlayerPhoto[] = rawPhotos.flatMap((entry) => {
+    const p = entry as Partial<SerializedPhoto>;
+    if (
+      !p ||
+      typeof p.id !== 'string' ||
+      typeof p.playerId !== 'string' ||
+      typeof p.dataUrl !== 'string' ||
+      typeof p.mimeType !== 'string' ||
+      typeof p.width !== 'number' ||
+      typeof p.height !== 'number'
+    ) {
+      skippedPhotoCount += 1;
+      return [];
+    }
+    if (!playerIds.has(p.playerId)) {
+      skippedPhotoCount += 1;
+      return [];
+    }
+    try {
+      return [
+        {
+          id: p.id,
+          playerId: p.playerId,
+          mimeType: p.mimeType,
+          width: p.width,
+          height: p.height,
+          createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
+          blob: dataUrlToBlob(p.dataUrl),
+        },
+      ];
+    } catch {
+      skippedPhotoCount += 1;
+      return [];
+    }
+  });
+  if (skippedPhotoCount > 0) {
+    errors.push(`${skippedPhotoCount} photo(s) could not be imported and would be skipped.`);
+  }
+
   return {
     valid: true,
     errors,
     backup: {
-      version: obj.version ?? BACKUP_VERSION,
-      exportedAt: obj.exportedAt ?? Date.now(),
+      version: typeof obj.version === 'number' ? obj.version : BACKUP_VERSION,
+      exportedAt: typeof obj.exportedAt === 'number' ? obj.exportedAt : Date.now(),
       teams,
       players,
       matches,
+      photos,
       settings,
     },
   };

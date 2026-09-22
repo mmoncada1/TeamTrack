@@ -92,6 +92,10 @@ export async function deletePhotoForPlayer(playerId: string): Promise<void> {
   await Promise.all(photos.map((p) => db.photos.delete(p.id)));
 }
 
+export async function listPhotos(): Promise<PlayerPhoto[]> {
+  return db.photos.toArray();
+}
+
 // ---------------------------------------------------------------------------
 // Matches
 // ---------------------------------------------------------------------------
@@ -113,16 +117,20 @@ export async function deleteMatch(matchId: string): Promise<void> {
   await db.matches.delete(matchId);
 }
 
-export async function replaceAllData(teams: Team[], players: Player[], matches: Match[]): Promise<void> {
+export async function replaceAllData(
+  teams: Team[],
+  players: Player[],
+  matches: Match[],
+  photos: PlayerPhoto[] = [],
+): Promise<void> {
   await db.transaction('rw', db.teams, db.players, db.photos, db.matches, async () => {
     await db.teams.clear();
     await db.players.clear();
     await db.matches.clear();
-    // Imported backups do not include photo blobs (JSON can't hold them
-    // efficiently) — existing photos are left untouched so profile
-    // pictures for surviving players aren't lost after an import.
+    await db.photos.clear();
     await db.teams.bulkPut(teams);
     await db.players.bulkPut(players);
     await db.matches.bulkPut(matches);
+    if (photos.length > 0) await db.photos.bulkPut(photos);
   });
 }
