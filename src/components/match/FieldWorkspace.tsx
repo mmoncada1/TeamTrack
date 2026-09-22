@@ -166,7 +166,7 @@ export function FieldWorkspace({
             <span
               className={`mt-1 w-full truncate rounded px-1 text-center text-xs font-bold ${POSITION_COLORS[draggingPlayer.preferredGroup].badge}`}
             >
-              {POSITION_COLORS[draggingPlayer.preferredGroup].abbr} {draggingPlayer.name}
+              {draggingPlayer.name} ({POSITION_COLORS[draggingPlayer.preferredGroup].abbr})
             </span>
           </div>
         ) : null}

@@ -81,8 +81,7 @@ export function PlayerToken({
         )}
         title={`${player.name}, preferred ${positionLabel}`}
       >
-        <span className="mr-1 font-extrabold">{colors.abbr}</span>
-        {player.name}
+        {player.name} ({colors.abbr})
       </span>
       {showTimer && state && (
         <span
