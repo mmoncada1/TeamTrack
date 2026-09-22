@@ -134,7 +134,7 @@ export function FieldWorkspace({
         </div>
 
         <div className="flex flex-col sm:h-full sm:min-h-0">
-          <ul className="mb-2 flex flex-wrap gap-2 shrink-0" aria-label="Player colors by roster position">
+          <ul className="flex h-7 shrink-0 items-center gap-2" aria-label="Player colors by roster position">
             {POSITION_COLOR_ORDER.map((group) => (
               <li key={group} className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
                 <span className={`h-3 w-3 rounded-full ${POSITION_COLORS[group].swatch}`} aria-hidden />

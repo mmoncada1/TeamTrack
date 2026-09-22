@@ -133,7 +133,7 @@ export function LiveMatchPage() {
 
   return (
     <div className="mx-auto flex h-full min-h-0 max-w-[1600px] flex-col p-3 sm:p-4">
-      <div className="flex shrink-0 items-center justify-between">
+      <div className="flex shrink-0 items-center justify-between sm:hidden">
         <h1 className="text-base font-bold">
           {match.teamName || 'Us'} vs {match.opponentName || 'Opponent'}
         </h1>
@@ -152,8 +152,13 @@ export function LiveMatchPage() {
       {/* Mobile: alerts shown full-width above the workspace. sm+: they become the left sidebar column below. */}
       <div className="mt-3 shrink-0 sm:hidden">{alertsPanel}</div>
 
-      <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 sm:flex-row">
-        <div className="hidden w-52 shrink-0 flex-col gap-2 overflow-y-auto sm:flex sm:h-full">{alertsPanel}</div>
+      <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 sm:mt-0 sm:flex-row">
+        <div className="hidden w-52 shrink-0 flex-col sm:flex sm:h-full">
+          <h1 className="flex h-7 shrink-0 items-center truncate text-base font-bold">
+            {match.teamName || 'Us'} vs {match.opponentName || 'Opponent'}
+          </h1>
+          <div className="min-h-0 flex-1 overflow-y-auto">{alertsPanel}</div>
+        </div>
 
         <div className="min-w-0 flex-1 sm:h-full sm:min-h-0">
           {formation && (
@@ -171,7 +176,11 @@ export function LiveMatchPage() {
             />
           )}
         </div>
-        <div className="flex w-full shrink-0 flex-col gap-3 overflow-y-auto sm:h-full sm:w-72">
+        <div className="flex w-full shrink-0 flex-col sm:h-full sm:w-72">
+          <div className="hidden h-7 shrink-0 items-center justify-end sm:flex">
+            <SaveIndicator status={store.saveStatus} />
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
           <MatchClock
             matchClockMs={derived.displayClockMs}
             status={derived.status}
@@ -247,6 +256,7 @@ export function LiveMatchPage() {
             onUndo={() => runAction(() => store.undoLastAction())}
             onDeleteEvent={(eventId) => runAction(() => store.deleteEvent(eventId))}
           />
+          </div>
         </div>
       </div>
 
