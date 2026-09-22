@@ -1,5 +1,6 @@
 import type { Alert, Player } from '../../types';
 import { Button } from '../common/Button';
+import { POSITION_COLORS } from './positionColors';
 
 interface AlertsPanelProps {
   alerts: Alert[];
@@ -23,7 +24,12 @@ export function AlertsPanel({ alerts, playersById, onAccept, onDismiss }: Alerts
       {visible.map((alert) => {
         const player = playersById.get(alert.playerId);
         const inPlayer = alert.recommendation ? playersById.get(alert.recommendation.inPlayerId) : undefined;
-        const name = player?.name ?? 'Player';
+        const name = player
+          ? `${player.name} (${POSITION_COLORS[player.preferredGroup].abbr})`
+          : 'Player';
+        const inLabel = inPlayer
+          ? `Sub in ${inPlayer.name} (${POSITION_COLORS[inPlayer.preferredGroup].abbr})`
+          : '';
         return (
           <div
             key={alert.id}
@@ -43,8 +49,8 @@ export function AlertsPanel({ alerts, playersById, onAccept, onDismiss }: Alerts
               </button>
             </div>
             {inPlayer && (
-              <Button variant="primary" size="sm" className="mt-1 w-full" onClick={() => onAccept(alert)}>
-                In {inPlayer.name}
+              <Button variant="primary" size="sm" className="mt-1 w-full whitespace-normal text-center leading-tight" onClick={() => onAccept(alert)}>
+                {inLabel}
               </Button>
             )}
           </div>
