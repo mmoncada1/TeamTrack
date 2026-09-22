@@ -11,7 +11,7 @@ interface FieldCanvasProps {
  */
 export function FieldCanvas({ children }: FieldCanvasProps) {
   return (
-    <div className="relative aspect-[2/3] w-full max-w-xl overflow-hidden rounded-xl bg-pitch shadow-inner sm:aspect-[3/4] md:mx-auto">
+    <div className="relative mx-auto aspect-[2/3] h-[min(68vh,880px)] max-w-full overflow-hidden rounded-xl bg-pitch shadow-inner">
       <svg
         viewBox="0 0 100 150"
         preserveAspectRatio="none"

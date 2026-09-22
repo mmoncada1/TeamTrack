@@ -120,7 +120,7 @@ export function LiveMatchPage() {
     : '';
 
   return (
-    <div className="mx-auto max-w-6xl p-4 sm:p-6">
+    <div className="mx-auto max-w-[1600px] p-4 sm:p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">
           {match.teamName || 'Us'} vs {match.opponentName || 'Opponent'}
@@ -134,69 +134,6 @@ export function LiveMatchPage() {
         </p>
       )}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <MatchClock
-          matchClockMs={derived.displayClockMs}
-          status={derived.status}
-          currentHalf={derived.currentHalf}
-          halfLengthMinutes={match.settings.halfLengthMinutes}
-          numberOfHalves={match.settings.numberOfHalves}
-          onStart={() => runAction(() => store.start())}
-          onPause={() => runAction(() => store.pause())}
-          onResume={() => runAction(() => store.resume())}
-          onHalfTime={() => runAction(() => store.goToHalfTime())}
-          onEnd={() => setConfirmEnd(true)}
-        />
-        <ScoreBoard
-          teamName={match.teamName}
-          opponentName={match.opponentName}
-          teamScore={derived.teamScore}
-          opponentScore={derived.opponentScore}
-          onRecordGoal={() => setGoalDialogOpen(true)}
-          disabled={derived.status === 'setup'}
-        />
-        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-          <FormationSwitcher
-            format={match.settings.format}
-            formationId={derived.formationId}
-            disabled={appSettings.fieldLocked}
-            onChange={(fid) => setFormationSummary(store.changeFormation(fid))}
-          />
-          <label className="mt-3 flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={appSettings.fieldLocked}
-              onChange={(e) => useAppSettingsStore.getState().setFieldLocked(e.target.checked)}
-            />
-            Lock field layout
-          </label>
-          {formationSummary && <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">{formationSummary}</p>}
-        </div>
-      </div>
-
-      <details className="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-        <summary className="cursor-pointer text-sm font-semibold">Substitution timers</summary>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Changes apply immediately to who gets an alert. A player already on the field keeps their current stint.
-        </p>
-        <div className="mt-3">
-          <ThresholdSliders
-            thresholds={match.settings.thresholds}
-            onChange={(group, next) =>
-              store.updateLiveSettings({ thresholds: { ...match.settings.thresholds, [group]: next } })
-            }
-          />
-        </div>
-        <label className="mt-3 flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={match.settings.goalkeeperRotationEnabled}
-            onChange={(e) => store.updateLiveSettings({ goalkeeperRotationEnabled: e.target.checked })}
-          />
-          Enable goalkeeper rotation alerts
-        </label>
-      </details>
-
       <div className="mt-4">
         <AlertsPanel
           alerts={match.activeAlerts}
@@ -207,7 +144,7 @@ export function LiveMatchPage() {
         />
       </div>
 
-      <div className="mt-4 grid gap-6 lg:grid-cols-[2fr,1fr]">
+      <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div>
           {formation && (
             <FieldWorkspace
@@ -224,7 +161,68 @@ export function LiveMatchPage() {
             />
           )}
         </div>
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
+          <MatchClock
+            matchClockMs={derived.displayClockMs}
+            status={derived.status}
+            currentHalf={derived.currentHalf}
+            halfLengthMinutes={match.settings.halfLengthMinutes}
+            numberOfHalves={match.settings.numberOfHalves}
+            onStart={() => runAction(() => store.start())}
+            onPause={() => runAction(() => store.pause())}
+            onResume={() => runAction(() => store.resume())}
+            onHalfTime={() => runAction(() => store.goToHalfTime())}
+            onEnd={() => setConfirmEnd(true)}
+          />
+          <ScoreBoard
+            teamName={match.teamName}
+            opponentName={match.opponentName}
+            teamScore={derived.teamScore}
+            opponentScore={derived.opponentScore}
+            onRecordGoal={() => setGoalDialogOpen(true)}
+            disabled={derived.status === 'setup'}
+          />
+          <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+            <FormationSwitcher
+              format={match.settings.format}
+              formationId={derived.formationId}
+              disabled={appSettings.fieldLocked}
+              onChange={(fid) => setFormationSummary(store.changeFormation(fid))}
+            />
+            <label className="mt-3 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={appSettings.fieldLocked}
+                onChange={(e) => useAppSettingsStore.getState().setFieldLocked(e.target.checked)}
+              />
+              Lock field layout
+            </label>
+            {formationSummary && <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">{formationSummary}</p>}
+          </div>
+
+          <details className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+            <summary className="cursor-pointer text-sm font-semibold">Substitution timers</summary>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Changes apply immediately to who gets an alert. A player already on the field keeps their current stint.
+            </p>
+            <div className="mt-3">
+              <ThresholdSliders
+                thresholds={match.settings.thresholds}
+                onChange={(group, next) =>
+                  store.updateLiveSettings({ thresholds: { ...match.settings.thresholds, [group]: next } })
+                }
+              />
+            </div>
+            <label className="mt-3 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={match.settings.goalkeeperRotationEnabled}
+                onChange={(e) => store.updateLiveSettings({ goalkeeperRotationEnabled: e.target.checked })}
+              />
+              Enable goalkeeper rotation alerts
+            </label>
+          </details>
+
           <PlayingTimePanel
             players={matchPlayers}
             playerStates={derived.playerStates}
