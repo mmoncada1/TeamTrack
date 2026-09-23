@@ -10,7 +10,6 @@ import { describeEvent, eventDisplayMs } from '../lib/eventDescriptions';
 import { exportPlayerSummaryAsCsv } from '../lib/exportImport';
 import { Button } from '../components/common/Button';
 import { PlayerAvatar } from '../components/common/PlayerAvatar';
-import { jerseyLabel } from '../lib/playerSort';
 import type { CardEvent, GoalEvent, Match, MatchEvent, Player } from '../types';
 
 export function MatchSummaryPage() {
@@ -96,7 +95,6 @@ export function MatchSummaryPage() {
             <thead>
               <tr className="border-b border-slate-300 text-left dark:border-slate-600">
                 <th className="py-2">Player</th>
-                <th>Status</th>
                 <th>Minutes played</th>
                 <th>Minutes benched</th>
                 <th>Goals</th>
@@ -111,9 +109,9 @@ export function MatchSummaryPage() {
                   <tr key={s.playerId} className="border-b border-slate-100 dark:border-slate-700">
                     <td className="flex items-center gap-2 py-2">
                       {player && <PlayerAvatar player={player} size="sm" />}
-                      {jerseyLabel(s.jerseyNumber)} {s.playerName}
+                      {s.jerseyNumber != null ? `#${s.jerseyNumber} ` : ''}
+                      {s.playerName}
                     </td>
-                    <td className="capitalize">{s.status.replace('_', ' ')}</td>
                     <td className="tabular-nums">{(s.totalFieldMs / 60000).toFixed(1)}</td>
                     <td className="tabular-nums">{(s.totalBenchMs / 60000).toFixed(1)}</td>
                     <td className="tabular-nums">{s.goals}</td>
