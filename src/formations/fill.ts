@@ -1,6 +1,7 @@
 import type { Assignment, Formation, Player, PositionGroup } from '../types';
 import { comparePlayersByJersey } from '../lib/playerSort';
 import { playerPositionGroups } from '../lib/playerPositions';
+import type { CoedFieldRule } from '../lib/coed';
 
 export interface FillResult {
   assignments: Assignment;
@@ -25,11 +26,29 @@ function compareForSlot(a: Player, b: Player, group: PositionGroup): number {
  * someone who only lists it as an extra. Within that, lower jersey numbers
  * go first. Extra players stay on the bench. A player is never assigned twice.
  */
+function assignPlayers(
+  formation: Formation,
+  eligible: Player[],
+  used: Set<string>,
+  assignments: Assignment,
+): void {
+  for (const position of formation.positions) {
+    if (assignments[position.id]) continue;
+    const player = eligible
+      .filter((candidate) => !used.has(candidate.id) && playerPositionGroups(candidate).includes(position.group))
+      .sort((a, b) => compareForSlot(a, b, position.group))[0];
+    if (!player) continue;
+    used.add(player.id);
+    assignments[position.id] = player.id;
+  }
+}
+
 export function fillFormationByPreference(
   formation: Formation,
   players: Player[],
   rosterPlayerIds: string[],
   unavailablePlayerIds: string[],
+  coed?: CoedFieldRule,
 ): FillResult {
   const roster = new Set(rosterPlayerIds);
   const unavailable = new Set(unavailablePlayerIds);
@@ -39,13 +58,19 @@ export function fillFormationByPreference(
 
   const used = new Set<string>();
   const assignments: Assignment = {};
-  for (const position of formation.positions) {
-    const player = eligible
-      .filter((candidate) => !used.has(candidate.id) && playerPositionGroups(candidate).includes(position.group))
-      .sort((a, b) => compareForSlot(a, b, position.group))[0];
-    if (!player) continue;
-    used.add(player.id);
-    assignments[position.id] = player.id;
+  if (!coed) {
+    assignPlayers(formation, eligible, used, assignments);
+  } else {
+    const girls = eligible.filter((player) => player.gender === 'girl');
+    assignPlayers(formation, girls, used, assignments);
+    if (girls.filter((player) => used.has(player.id)).length >= coed.minGirlsOnField) {
+      assignPlayers(
+        formation,
+        eligible.filter((player) => player.gender !== 'girl'),
+        used,
+        assignments,
+      );
+    }
   }
 
   const filled = Object.keys(assignments).length;

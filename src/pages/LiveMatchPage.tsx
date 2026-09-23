@@ -4,7 +4,8 @@ import { useMatchStore } from '../state/matchStore';
 import { useRosterStore } from '../state/rosterStore';
 import { useTeamStore } from '../state/teamStore';
 import { useAppSettingsStore } from '../state/appSettingsStore';
-import { clampMinGirls, countGirlsOnField, girlsAfterSubstitution } from '../lib/coed';
+import { clampMinGirls, countGirlsOnField, moveLeavesTooManyGuys, TOO_MANY_GUYS_MESSAGE } from '../lib/coed';
+import { TooManyGuysDialog } from '../components/match/TooManyGuysDialog';
 import { useNow } from '../hooks/useNow';
 import { deriveMatchState } from '../lib/matchEngine';
 import { getFormationById } from '../formations/definitions';
@@ -49,6 +50,7 @@ export function LiveMatchPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [addPlayerOpen, setAddPlayerOpen] = useState(false);
+  const [coedBlocked, setCoedBlocked] = useState(false);
 
   useEffect(() => {
     if (!roster.loaded) roster.load();
@@ -95,8 +97,38 @@ export function LiveMatchPage() {
       setActionError(null);
       fn();
     } catch (err) {
+      if (err instanceof MatchActionError && err.message === TOO_MANY_GUYS_MESSAGE) {
+        setCoedBlocked(true);
+        return;
+      }
       setActionError(err instanceof MatchActionError ? err.message : 'Something went wrong.');
     }
+  }
+
+  function moveBreaksCoedRule(playerId: string, toSlot: SlotId, replacedPlayerId?: string): boolean {
+    const coedTeam = teams.find((entry) => entry.id === match.teamId);
+    if (!coedTeam?.coed) return false;
+    const fromSlot: SlotId = derived.playerStates[playerId]?.positionId ?? 'BENCH';
+    const fromField = fromSlot !== 'BENCH';
+    const toField = toSlot !== 'BENCH';
+    if (fromField && toField && replacedPlayerId) return false;
+    const beforeIds = Object.values(derived.assignments);
+    const fieldIds = new Set(beforeIds);
+    if (fromField) fieldIds.delete(playerId);
+    if (replacedPlayerId) fieldIds.delete(replacedPlayerId);
+    if (toField) fieldIds.add(playerId);
+    if (
+      !moveLeavesTooManyGuys(
+        { minGirlsOnField: clampMinGirls(coedTeam.minGirlsOnField) },
+        roster.players,
+        beforeIds,
+        fieldIds,
+      )
+    ) {
+      return false;
+    }
+    setCoedBlocked(true);
+    return true;
   }
 
   function handleRequestMove(playerId: string, toSlot: SlotId) {
@@ -104,6 +136,8 @@ export function LiveMatchPage() {
     const fromSlot: SlotId = state?.positionId ?? 'BENCH';
     if (fromSlot === toSlot) return;
     const occupant = toSlot !== 'BENCH' ? derived!.assignments[toSlot] : undefined;
+
+    if (moveBreaksCoedRule(playerId, toSlot, fromSlot === 'BENCH' ? occupant : undefined)) return;
 
     if (!occupant || occupant === playerId) {
       runAction(() => store.movePlayer(playerId, toSlot));
@@ -120,6 +154,7 @@ export function LiveMatchPage() {
     if (!alert.recommendation) return;
     const state = derived!.playerStates[alert.playerId];
     if (!state?.positionId) return;
+    if (moveBreaksCoedRule(alert.recommendation.inPlayerId, state.positionId, alert.playerId)) return;
     setPendingSub({ playerInId: alert.recommendation.inPlayerId, playerOutId: alert.playerId, positionId: state.positionId });
   }
 
@@ -152,17 +187,6 @@ export function LiveMatchPage() {
       )}
     </div>
   ) : null;
-
-  const coedWarning = (() => {
-    if (!pendingSub || !team?.coed) return null;
-    const next = girlsAfterSubstitution(
-      girlsNow,
-      playersById.get(pendingSub.playerOutId)?.gender,
-      playersById.get(pendingSub.playerInId)?.gender,
-    );
-    if (next >= minGirls) return null;
-    return `This leaves ${next} ${next === 1 ? 'girl' : 'girls'} on the field. Co-ed needs at least ${minGirls}.`;
-  })();
 
   const alertsPanel = (
     <AlertsPanel
@@ -255,7 +279,7 @@ export function LiveMatchPage() {
               format={match.settings.format}
               formationId={derived.formationId}
               disabled={appSettings.fieldLocked}
-              onChange={(fid) => setFormationSummary(store.changeFormation(fid))}
+              onChange={(fid) => runAction(() => setFormationSummary(store.changeFormation(fid)))}
             />
             <label className="mt-2 flex items-center gap-2 text-xs">
               <input
@@ -315,6 +339,8 @@ export function LiveMatchPage() {
         </Button>
       </div>
 
+      <TooManyGuysDialog open={coedBlocked} minGirls={minGirls} onDismiss={() => setCoedBlocked(false)} />
+
       <GoalDialog
         open={goalDialogOpen}
         onClose={() => setGoalDialogOpen(false)}
@@ -329,7 +355,6 @@ export function LiveMatchPage() {
         playerOut={pendingSub ? playersById.get(pendingSub.playerOutId) ?? null : null}
         positionLabel={pendingSubPositionLabel}
         matchClockMs={derived.displayClockMs}
-        warning={coedWarning}
         onCancel={() => setPendingSub(null)}
         onConfirm={() => {
           if (pendingSub) runAction(() => store.substitutePlayer(pendingSub.playerInId, pendingSub.positionId));

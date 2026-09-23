@@ -8,7 +8,7 @@ import type {
 } from '../types';
 import { createId } from './id';
 import { deriveMatchState } from './matchEngine';
-import type { CoedFieldRule } from './coed';
+import { moveLeavesTooManyGuys, TOO_MANY_GUYS_MESSAGE, type CoedFieldRule } from './coed';
 import { getFormationById } from '../formations/definitions';
 import { remapFormation } from '../formations/remap';
 import { fillFormationByPreference } from '../formations/fill';
@@ -54,6 +54,7 @@ export function setPendingFormation(
   match: Match,
   newFormationId: string,
   players: Player[],
+  coed?: CoedFieldRule,
 ): { match: Match; summary: string } {
   const toFormation = getFormationById(newFormationId);
   if (!toFormation) throw new MatchActionError('Unknown formation.');
@@ -63,6 +64,7 @@ export function setPendingFormation(
     players,
     match.rosterPlayerIds,
     match.unavailablePlayerIds,
+    coed,
   );
   return {
     match: { ...match, pendingFormationId: newFormationId, pendingAssignments: assignments },
@@ -92,7 +94,12 @@ export function clearPendingAssignment(match: Match, positionId: string): Match 
  * Move a player during setup (bench <-> field, field <-> field, or a swap
  * if the destination is occupied). Never duplicates or drops a player.
  */
-export function movePendingPlayer(match: Match, playerId: string, toSlot: SlotId): Match {
+export function movePendingPlayer(
+  match: Match,
+  playerId: string,
+  toSlot: SlotId,
+  coed?: { rule?: CoedFieldRule; players: Player[] },
+): Match {
   const assignments = { ...match.pendingAssignments };
   const fromSlot = (Object.keys(assignments).find((k) => assignments[k] === playerId) ?? 'BENCH') as SlotId;
   if (fromSlot === toSlot) return match;
@@ -110,18 +117,25 @@ export function movePendingPlayer(match: Match, playerId: string, toSlot: SlotId
     assignments[toSlot] = playerId;
   }
 
-  return { ...match, pendingAssignments: assignments };
+  const next = { ...match, pendingAssignments: assignments };
+  guardCoedLineup(coed?.rule, coed?.players, Object.values(match.pendingAssignments), Object.values(assignments));
+  return next;
 }
 
 // ---------------------------------------------------------------------------
 // Match lifecycle
 // ---------------------------------------------------------------------------
 
-export function startMatch(match: Match, nowMs: number = Date.now()): Match {
+export function startMatch(
+  match: Match,
+  nowMs: number = Date.now(),
+  coed?: { rule?: CoedFieldRule; players: Player[] },
+): Match {
   const derived = deriveMatchState(match, nowMs);
   if (derived.status !== 'setup') {
     throw new MatchActionError('Match has already started.');
   }
+  guardCoedLineup(coed?.rule, coed?.players, [], Object.values(match.pendingAssignments));
   const event: MatchEvent = {
     ...baseEvent(0, nowMs, Object.values(match.pendingAssignments)),
     type: 'MATCH_STARTED',
@@ -238,6 +252,18 @@ export function removePlayerFromMatch(match: Match, playerId: string, nowMs: num
   return withEvent(match, event);
 }
 
+function guardCoedLineup(
+  rule: CoedFieldRule | undefined,
+  players: Player[] | undefined,
+  beforeFieldPlayerIds: Iterable<string>,
+  afterFieldPlayerIds: Iterable<string>,
+): void {
+  if (!rule || !players) return;
+  if (moveLeavesTooManyGuys(rule, players, beforeFieldPlayerIds, afterFieldPlayerIds)) {
+    throw new MatchActionError(TOO_MANY_GUYS_MESSAGE);
+  }
+}
+
 function assertSlotEmpty(assignments: Assignment, slot: SlotId, excludePlayerId?: string): void {
   if (slot === 'BENCH') return;
   const occupant = assignments[slot];
@@ -247,7 +273,13 @@ function assertSlotEmpty(assignments: Assignment, slot: SlotId, excludePlayerId?
 }
 
 /** Move a single player between bench and an empty field position, or between two empty-destination slots. */
-export function movePlayer(match: Match, playerId: string, toSlot: SlotId, nowMs: number = Date.now()): Match {
+export function movePlayer(
+  match: Match,
+  playerId: string,
+  toSlot: SlotId,
+  nowMs: number = Date.now(),
+  coed?: { rule?: CoedFieldRule; players: Player[] },
+): Match {
   const derived = deriveMatchState(match, nowMs);
   const state = derived.playerStates[playerId];
   if (!state) throw new MatchActionError('Unknown player.');
@@ -256,6 +288,15 @@ export function movePlayer(match: Match, playerId: string, toSlot: SlotId, nowMs
   const fromSlot: SlotId = state.positionId ?? 'BENCH';
   if (fromSlot === toSlot) return match;
   assertSlotEmpty(derived.assignments, toSlot, playerId);
+
+  const fromField = fromSlot !== 'BENCH';
+  const toField = toSlot !== 'BENCH';
+  if (fromField !== toField) {
+    const fieldIds = new Set(Object.values(derived.assignments));
+    if (fromField) fieldIds.delete(playerId);
+    if (toField) fieldIds.add(playerId);
+    guardCoedLineup(coed?.rule, coed?.players, Object.values(derived.assignments), fieldIds);
+  }
 
   const event: MatchEvent = {
     ...baseEvent(derived.matchClockMs, nowMs, [playerId]),
@@ -297,6 +338,7 @@ export function substitutePlayer(
   playerInId: string,
   positionId: string,
   nowMs: number = Date.now(),
+  coed?: { rule?: CoedFieldRule; players: Player[] },
 ): Match {
   const derived = deriveMatchState(match, nowMs);
   const playerOutId = derived.assignments[positionId];
@@ -306,6 +348,10 @@ export function substitutePlayer(
   if (!inState || inState.status !== 'bench') {
     throw new MatchActionError('The incoming player must be on the bench.');
   }
+  const fieldIds = new Set(Object.values(derived.assignments));
+  fieldIds.delete(playerOutId);
+  fieldIds.add(playerInId);
+  guardCoedLineup(coed?.rule, coed?.players, Object.values(derived.assignments), fieldIds);
 
   const event: MatchEvent = {
     ...baseEvent(derived.matchClockMs, nowMs, [playerInId, playerOutId]),
@@ -325,6 +371,7 @@ export function changeFormation(
   match: Match,
   newFormationId: string,
   nowMs: number = Date.now(),
+  coed?: { rule?: CoedFieldRule; players: Player[] },
 ): { match: Match; summary: string } {
   const derived = deriveMatchState(match, nowMs);
   const fromFormation = getFormationById(derived.formationId);
@@ -337,6 +384,7 @@ export function changeFormation(
     toFormation,
     derived.assignments,
   );
+  guardCoedLineup(coed?.rule, coed?.players, Object.values(derived.assignments), Object.values(newAssignments));
 
   const event: MatchEvent = {
     ...baseEvent(derived.matchClockMs, nowMs, Object.values(newAssignments)),

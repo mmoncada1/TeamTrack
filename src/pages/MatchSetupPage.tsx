@@ -12,6 +12,9 @@ import { ThresholdSliders } from '../components/setup/ThresholdSliders';
 import { FieldWorkspace } from '../components/match/FieldWorkspace';
 import { deriveMatchState } from '../lib/matchEngine';
 import { jerseyLabel } from '../lib/playerSort';
+import { MatchActionError } from '../lib/matchActions';
+import { clampMinGirls, TOO_MANY_GUYS_MESSAGE } from '../lib/coed';
+import { TooManyGuysDialog } from '../components/match/TooManyGuysDialog';
 
 const FORMATS: MatchFormat[] = ['7v7', '9v9', '11v11'];
 
@@ -20,9 +23,11 @@ export function MatchSetupPage() {
   const navigate = useNavigate();
   const roster = useRosterStore();
   const activeTeam = useTeamStore((s) => s.teams.find((team) => team.id === s.activeTeamId) ?? null);
+  const teams = useTeamStore((s) => s.teams);
   const store = useMatchStore();
   const [initializing, setInitializing] = useState(true);
   const [moveSummary, setMoveSummary] = useState<string | null>(null);
+  const [coedBlocked, setCoedBlocked] = useState(false);
 
   useEffect(() => {
     if (!roster.loaded) roster.load();
@@ -275,7 +280,13 @@ export function MatchSetupPage() {
             players={roster.players.filter((p) => match.rosterPlayerIds.includes(p.id))}
             rosterPlayerIds={match.rosterPlayerIds}
             unavailablePlayerIds={match.unavailablePlayerIds}
-            onRequestMove={(playerId, toSlot) => store.movePendingPlayer(playerId, toSlot)}
+            onRequestMove={(playerId, toSlot) => {
+              try {
+                store.movePendingPlayer(playerId, toSlot);
+              } catch (err) {
+                if (err instanceof MatchActionError && err.message === TOO_MANY_GUYS_MESSAGE) setCoedBlocked(true);
+              }
+            }}
           />
         </div>
       </section>
@@ -303,13 +314,30 @@ export function MatchSetupPage() {
           variant="primary"
           disabled={validation.isBlocking}
           onClick={() => {
-            store.start();
+            try {
+              store.start();
+            } catch (err) {
+              if (err instanceof MatchActionError && err.message === TOO_MANY_GUYS_MESSAGE) {
+                setCoedBlocked(true);
+                return;
+              }
+              throw err;
+            }
             navigate(`/match/${match.id}/live`);
           }}
         >
           Start match ({Object.keys(match.pendingAssignments).length}/{MATCH_FORMAT_PLAYER_COUNT[match.settings.format]} on field)
         </Button>
       </div>
+
+      <TooManyGuysDialog
+        open={coedBlocked}
+        minGirls={(() => {
+          const matchTeam = teams.find((entry) => entry.id === match.teamId);
+          return matchTeam?.coed ? clampMinGirls(matchTeam.minGirlsOnField) : 0;
+        })()}
+        onDismiss={() => setCoedBlocked(false)}
+      />
     </div>
   );
 }

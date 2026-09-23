@@ -16,6 +16,12 @@ function coedRuleForTeam(teamId: string): CoedFieldRule | undefined {
   return { minGirlsOnField: clampMinGirls(team.minGirlsOnField) };
 }
 
+function coedGuard(teamId: string): { rule?: CoedFieldRule; players: Player[] } | undefined {
+  const rule = coedRuleForTeam(teamId);
+  if (!rule) return undefined;
+  return { rule, players: useRosterStore.getState().players };
+}
+
 interface MatchState {
   match: Match | null;
   allMatches: Match[];
@@ -105,7 +111,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
 
   createDraft: async (input, players) => {
     const draft = actions.createDraftMatch(input);
-    const { match } = actions.setPendingFormation(draft, input.formationId, players);
+    const { match } = actions.setPendingFormation(draft, input.formationId, players, coedRuleForTeam(input.teamId));
     await repo.upsertMatch(match);
     set({ match, saveStatus: 'saved' });
     return match.id;
@@ -128,7 +134,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   setPendingFormation: (formationId, players) => {
     const current = get().match;
     if (!current) return '';
-    const { match, summary } = actions.setPendingFormation(current, formationId, players);
+    const { match, summary } = actions.setPendingFormation(current, formationId, players, coedRuleForTeam(current.teamId));
     set({ match });
     persist(match);
     return summary;
@@ -139,10 +145,10 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   },
 
   movePendingPlayer: (playerId, toSlot) => {
-    applyMutation((m) => actions.movePendingPlayer(m, playerId, toSlot));
+    applyMutation((m) => actions.movePendingPlayer(m, playerId, toSlot, coedGuard(m.teamId)));
   },
 
-  start: () => applyMutation((m) => actions.startMatch(m)),
+  start: () => applyMutation((m) => actions.startMatch(m, Date.now(), coedGuard(m.teamId))),
   pause: () => applyMutation((m) => actions.pauseMatch(m)),
   resume: () => applyMutation((m) => actions.resumeMatch(m)),
   goToHalfTime: () => applyMutation((m) => actions.goToHalfTime(m)),
@@ -152,7 +158,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   movePlayer: (playerId, toSlot) =>
     applyMutation((m) =>
       actions.recomputeAlerts(
-        actions.movePlayer(m, playerId, toSlot),
+        actions.movePlayer(m, playerId, toSlot, Date.now(), coedGuard(m.teamId)),
         useRosterStore.getState().players,
         Date.now(),
         coedRuleForTeam(m.teamId),
@@ -170,7 +176,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   substitutePlayer: (playerInId, positionId) =>
     applyMutation((m) =>
       actions.recomputeAlerts(
-        actions.substitutePlayer(m, playerInId, positionId),
+        actions.substitutePlayer(m, playerInId, positionId, Date.now(), coedGuard(m.teamId)),
         useRosterStore.getState().players,
         Date.now(),
         coedRuleForTeam(m.teamId),
@@ -196,7 +202,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   changeFormation: (formationId) => {
     const current = get().match;
     if (!current) return '';
-    const { match, summary } = actions.changeFormation(current, formationId);
+    const { match, summary } = actions.changeFormation(current, formationId, Date.now(), coedGuard(current.teamId));
     set({ match });
     persist(match);
     return summary;
