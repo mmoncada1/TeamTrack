@@ -5,9 +5,12 @@ import { useMatchStore } from '../../state/matchStore';
 import { Button } from '../common/Button';
 import { Dialog } from '../common/Dialog';
 import { DEFAULT_MIN_GIRLS_ON_FIELD } from '../../lib/coed';
+import { TeamAvatar } from '../common/TeamAvatar';
+import { TeamPhotoControls } from './TeamPhotoControls';
 
 export function TeamSwitcher() {
-  const { teams, activeTeamId, loaded, load, setActiveTeam, createTeam, renameTeam, deleteTeam } = useTeamStore();
+  const { teams, activeTeamId, loaded, load, setActiveTeam, createTeam, renameTeam, setTeamPhoto, deleteTeam } =
+    useTeamStore();
   const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -15,6 +18,8 @@ export function TeamSwitcher() {
   const [coed, setCoed] = useState(false);
   const [minGirls, setMinGirls] = useState(String(DEFAULT_MIN_GIRLS_ON_FIELD));
   const [error, setError] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
 
   useEffect(() => {
     if (!loaded) load();
@@ -29,6 +34,7 @@ export function TeamSwitcher() {
 
   return (
     <div className="ml-auto flex items-center gap-2">
+      {active && <TeamAvatar team={active} size="sm" />}
       <label htmlFor="active-team" className="sr-only">
         Active team
       </label>
@@ -54,6 +60,8 @@ export function TeamSwitcher() {
           setName('');
           setCoed(false);
           setMinGirls(String(DEFAULT_MIN_GIRLS_ON_FIELD));
+          setPhotoFile(null);
+          setRemovePhoto(false);
           setError(null);
           setCreating(true);
         }}
@@ -66,6 +74,8 @@ export function TeamSwitcher() {
         disabled={!active}
         onClick={() => {
           setName(active?.name ?? '');
+          setPhotoFile(null);
+          setRemovePhoto(false);
           setError(null);
           setRenaming(true);
         }}
@@ -97,6 +107,7 @@ export function TeamSwitcher() {
                   setError(result.error);
                   return;
                 }
+                if (result.teamId && photoFile) await setTeamPhoto(result.teamId, photoFile);
                 setCreating(false);
                 await refreshAfterTeamChange();
               }}
@@ -139,6 +150,19 @@ export function TeamSwitcher() {
             </p>
           </div>
         )}
+        <TeamPhotoControls
+          name={name}
+          file={photoFile}
+          remove={removePhoto}
+          onFile={(file) => {
+            setPhotoFile(file);
+            setRemovePhoto(false);
+          }}
+          onRemove={() => {
+            setPhotoFile(null);
+            setRemovePhoto(true);
+          }}
+        />
         {error && (
           <p role="alert" className="mt-2 text-sm text-red-600">
             {error}
@@ -164,6 +188,8 @@ export function TeamSwitcher() {
                   setError(result.error);
                   return;
                 }
+                if (removePhoto) await setTeamPhoto(active.id, null);
+                else if (photoFile) await setTeamPhoto(active.id, photoFile);
                 setRenaming(false);
               }}
             >
@@ -181,6 +207,23 @@ export function TeamSwitcher() {
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
+        {active && (
+          <TeamPhotoControls
+            name={name || active.name}
+            teamId={active.id}
+            photoId={active.photoId}
+            file={photoFile}
+            remove={removePhoto}
+            onFile={(file) => {
+              setPhotoFile(file);
+              setRemovePhoto(false);
+            }}
+            onRemove={() => {
+              setPhotoFile(null);
+              setRemovePhoto(true);
+            }}
+          />
+        )}
         {error && (
           <p role="alert" className="mt-2 text-sm text-red-600">
             {error}

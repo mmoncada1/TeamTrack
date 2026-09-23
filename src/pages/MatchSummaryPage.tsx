@@ -2,6 +2,8 @@ import { useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMatchStore } from '../state/matchStore';
 import { useRosterStore } from '../state/rosterStore';
+import { useTeamStore } from '../state/teamStore';
+import { useTeamPhotoUrl } from '../hooks/usePlayerPhoto';
 import { buildMatchSummary } from '../lib/stats';
 import { formatClock } from '../lib/timer';
 import { describeEvent, eventDisplayMs } from '../lib/eventDescriptions';
@@ -16,10 +18,17 @@ export function MatchSummaryPage() {
   const navigate = useNavigate();
   const store = useMatchStore();
   const roster = useRosterStore();
+  const teams = useTeamStore((s) => s.teams);
+  const teamsLoaded = useTeamStore((s) => s.loaded);
+  const loadTeams = useTeamStore((s) => s.load);
 
   useEffect(() => {
     if (!roster.loaded) roster.load();
   }, [roster.loaded, roster.load]);
+
+  useEffect(() => {
+    if (!teamsLoaded) loadTeams();
+  }, [teamsLoaded, loadTeams]);
 
   useEffect(() => {
     if (id) store.loadMatch(id);
@@ -36,6 +45,7 @@ export function MatchSummaryPage() {
 
   const sortedEvents = [...match.events].sort((a, b) => a.matchClockMs - b.matchClockMs || a.timestamp - b.timestamp);
   const recap = buildRecap(match, playersById);
+  const ourTeam = teams.find((team) => team.id === match.teamId);
   const teamLabel = match.teamName || 'Us';
   const opponentLabel = match.opponentName || 'Opponent';
   const heading = [match.title, formatMatchDate(match.date)].filter(Boolean).join(' · ');
@@ -57,7 +67,7 @@ export function MatchSummaryPage() {
 
         <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-start gap-3 sm:gap-6">
           <div className="flex items-start justify-start gap-3 sm:gap-5">
-            <TeamMark name={teamLabel} tone="us" />
+            <TeamMark name={teamLabel} tone="us" teamId={ourTeam?.id} photoId={ourTeam?.photoId} />
             <p className="pt-1 text-4xl font-semibold tabular-nums sm:pt-2 sm:text-5xl">{summary.teamScore}</p>
           </div>
           <p className="pt-2 text-2xl font-light text-slate-400 sm:pt-4 sm:text-3xl" aria-hidden>
@@ -225,16 +235,28 @@ function buildRecap(match: Match, playersById: Map<string, Player>): { ours: Rec
   return { ours, theirs };
 }
 
-function TeamMark({ name, tone }: { name: string; tone: 'us' | 'opponent' }) {
-  const circle =
-    tone === 'us'
-      ? 'bg-emerald-600 text-white'
-      : 'bg-sky-700 text-white';
+function TeamMark({
+  name,
+  tone,
+  teamId,
+  photoId,
+}: {
+  name: string;
+  tone: 'us' | 'opponent';
+  teamId?: string;
+  photoId?: string;
+}) {
+  const photoUrl = useTeamPhotoUrl(tone === 'us' ? teamId : undefined, tone === 'us' ? photoId : undefined);
+  const circle = tone === 'us' ? 'bg-emerald-600 text-white' : 'bg-sky-700 text-white';
   return (
     <div className="flex w-16 flex-col items-center text-center sm:w-28">
-      <span className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold sm:h-16 sm:w-16 sm:text-base ${circle}`}>
-        {initials(name)}
-      </span>
+      {photoUrl ? (
+        <img src={photoUrl} alt={`Photo of ${name}`} className="h-12 w-12 rounded-full object-cover sm:h-16 sm:w-16" />
+      ) : (
+        <span className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold sm:h-16 sm:w-16 sm:text-base ${circle}`}>
+          {initials(name)}
+        </span>
+      )}
       <p className="mt-2 text-sm font-semibold leading-tight">{name}</p>
     </div>
   );

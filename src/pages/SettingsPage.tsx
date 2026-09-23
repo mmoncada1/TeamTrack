@@ -27,7 +27,8 @@ export function SettingsPage() {
     const players = await repo.listPlayers();
     const matches = await repo.listMatches();
     const photos = await repo.listPhotos();
-    await exportBackupAsJson(teams, players, matches, settings, photos);
+    const teamPhotos = await repo.listTeamPhotos();
+    await exportBackupAsJson(teams, players, matches, settings, photos, teamPhotos);
   }
 
   async function handleFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
@@ -50,6 +51,7 @@ export function SettingsPage() {
       pendingImport.backup.players,
       pendingImport.backup.matches,
       pendingImport.backup.photos,
+      pendingImport.backup.teamPhotos,
     );
     await useTeamStore.getState().load();
     await roster.load();
@@ -62,6 +64,7 @@ export function SettingsPage() {
     await db.teams.clear();
     await db.players.clear();
     await db.photos.clear();
+    await db.teamPhotos.clear();
     await db.matches.clear();
     localStorage.clear();
     setConfirmResetApp(false);
@@ -167,7 +170,8 @@ export function SettingsPage() {
             {pendingImport.valid ? (
               <p>
                 Found {pendingImport.backup?.players.length ?? 0} player(s), {pendingImport.backup?.matches.length ?? 0}{' '}
-                match(es), and {pendingImport.backup?.photos.length ?? 0} photo(s) in this backup.
+                match(es), {pendingImport.backup?.photos.length ?? 0} player photo(s), and{' '}
+                {pendingImport.backup?.teamPhotos.length ?? 0} team photo(s) in this backup.
               </p>
             ) : (
               <p className="text-red-600">This file could not be imported.</p>

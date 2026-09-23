@@ -1,16 +1,26 @@
-import type { AppBackup, AppSettings, Match, Player, PlayerPhoto, PlayingTimeSummary, Team } from '../types';
+import type { AppBackup, AppSettings, Match, Player, PlayerPhoto, PlayingTimeSummary, Team, TeamPhoto } from '../types';
 import { isValidPlayerRecord, mergeAppSettingsWithDefaults } from './validation';
 import { withPositionGroups } from './playerPositions';
 import { formatClock } from './timer';
 import { createId } from './id';
 import { blobToDataUrl, dataUrlToBlob } from './photo';
 
-export const BACKUP_VERSION = 3;
+export const BACKUP_VERSION = 4;
 
 /** JSON-safe representation of a PlayerPhoto for the exported backup file (blob -> data URL). */
 interface SerializedPhoto {
   id: string;
   playerId: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  createdAt: number;
+  dataUrl: string;
+}
+
+interface SerializedTeamPhoto {
+  id: string;
+  teamId: string;
   mimeType: string;
   width: number;
   height: number;
@@ -32,12 +42,27 @@ async function serializePhotos(photos: PlayerPhoto[]): Promise<SerializedPhoto[]
   );
 }
 
+async function serializeTeamPhotos(photos: TeamPhoto[]): Promise<SerializedTeamPhoto[]> {
+  return Promise.all(
+    photos.map(async (photo) => ({
+      id: photo.id,
+      teamId: photo.teamId,
+      mimeType: photo.mimeType,
+      width: photo.width,
+      height: photo.height,
+      createdAt: photo.createdAt,
+      dataUrl: await blobToDataUrl(photo.blob),
+    })),
+  );
+}
+
 export async function buildBackup(
   teams: Team[],
   players: Player[],
   matches: Match[],
   settings: AppSettings,
   photos: PlayerPhoto[],
+  teamPhotos: TeamPhoto[] = [],
 ): Promise<Record<string, unknown>> {
   return {
     version: BACKUP_VERSION,
@@ -46,6 +71,7 @@ export async function buildBackup(
     players,
     matches,
     photos: await serializePhotos(photos),
+    teamPhotos: await serializeTeamPhotos(teamPhotos),
     settings,
   };
 }
@@ -68,8 +94,9 @@ export async function exportBackupAsJson(
   matches: Match[],
   settings: AppSettings,
   photos: PlayerPhoto[],
+  teamPhotos: TeamPhoto[] = [],
 ): Promise<void> {
-  const backup = await buildBackup(teams, players, matches, settings, photos);
+  const backup = await buildBackup(teams, players, matches, settings, photos, teamPhotos);
   triggerDownload(
     `teamtrack-backup-${new Date().toISOString().slice(0, 10)}.json`,
     JSON.stringify(backup, null, 2),
@@ -225,6 +252,50 @@ export function validateBackup(raw: unknown): BackupValidationResult {
     errors.push(`${skippedPhotoCount} photo(s) could not be imported and would be skipped.`);
   }
 
+  const teamIdsForPhotos = new Set(teams.map((team) => team.id));
+  const rawTeamPhotos = Array.isArray((obj as { teamPhotos?: unknown }).teamPhotos)
+    ? (obj as { teamPhotos: unknown[] }).teamPhotos
+    : [];
+  let skippedTeamPhotoCount = 0;
+  const teamPhotos: TeamPhoto[] = rawTeamPhotos.flatMap((entry) => {
+    const p = entry as Partial<SerializedTeamPhoto>;
+    if (
+      !p ||
+      typeof p.id !== 'string' ||
+      typeof p.teamId !== 'string' ||
+      typeof p.dataUrl !== 'string' ||
+      typeof p.mimeType !== 'string' ||
+      typeof p.width !== 'number' ||
+      typeof p.height !== 'number'
+    ) {
+      skippedTeamPhotoCount += 1;
+      return [];
+    }
+    if (!teamIdsForPhotos.has(p.teamId)) {
+      skippedTeamPhotoCount += 1;
+      return [];
+    }
+    try {
+      return [
+        {
+          id: p.id,
+          teamId: p.teamId,
+          mimeType: p.mimeType,
+          width: p.width,
+          height: p.height,
+          createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
+          blob: dataUrlToBlob(p.dataUrl),
+        },
+      ];
+    } catch {
+      skippedTeamPhotoCount += 1;
+      return [];
+    }
+  });
+  if (skippedTeamPhotoCount > 0) {
+    errors.push(`${skippedTeamPhotoCount} team photo(s) could not be imported and would be skipped.`);
+  }
+
   return {
     valid: true,
     errors,
@@ -235,6 +306,7 @@ export function validateBackup(raw: unknown): BackupValidationResult {
       players,
       matches,
       photos,
+      teamPhotos,
       settings,
     },
   };

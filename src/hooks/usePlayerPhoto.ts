@@ -24,3 +24,25 @@ export function usePlayerPhotoUrl(playerId: string | undefined, photoId: string 
 
   return url;
 }
+
+/** Reactively resolve a team's stored photo (if any) to a displayable object URL. */
+export function useTeamPhotoUrl(teamId: string | undefined, photoId: string | undefined): string | null {
+  const photo = useLiveQuery(
+    () => (teamId ? db.teamPhotos.where('teamId').equals(teamId).first() : undefined),
+    [teamId, photoId],
+  );
+
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!photo) {
+      setUrl(null);
+      return;
+    }
+    const objectUrl = blobToObjectUrl(photo.blob);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [photo]);
+
+  return url;
+}

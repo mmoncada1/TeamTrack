@@ -44,6 +44,8 @@ export interface Team {
   coed?: boolean;
   /** Required girls on the field. Only used when `coed` is true. */
   minGirlsOnField?: number;
+  /** Foreign key into `teamPhotos`, if a crest or team photo was uploaded. */
+  photoId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -74,6 +76,17 @@ export interface PlayerPhoto {
   id: string;
   playerId: string;
   /** Compressed image data, stored as a Blob in IndexedDB. */
+  blob: Blob;
+  mimeType: string;
+  width: number;
+  height: number;
+  createdAt: number;
+}
+
+/** A locally stored team crest or team photo. */
+export interface TeamPhoto {
+  id: string;
+  teamId: string;
   blob: Blob;
   mimeType: string;
   width: number;
@@ -436,5 +449,7 @@ export interface AppBackup {
   matches: Match[];
   /** Profile pictures, ready to store (blob already reconstructed from the JSON data URL). */
   photos: PlayerPhoto[];
+  /** Team crests. Missing on backups exported before team photos existed. */
+  teamPhotos: TeamPhoto[];
   settings: AppSettings;
 }

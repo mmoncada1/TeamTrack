@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import type { Team } from '../types';
 import * as repo from '../db/repository';
 import { clampMinGirls } from '../lib/coed';
+import { compressImageFile } from '../lib/photo';
+import { createId } from '../lib/id';
 
 export interface NewTeamOptions {
   coed: boolean;
@@ -35,6 +37,8 @@ interface TeamState {
   createTeam: (name: string, options?: NewTeamOptions) => Promise<{ error?: string; teamId?: string }>;
   renameTeam: (id: string, name: string) => Promise<{ error?: string }>;
   setCoed: (id: string, coed: boolean, minGirlsOnField: number) => Promise<{ error?: string }>;
+  /** Pass a file to save a team photo, or null to remove it. */
+  setTeamPhoto: (id: string, file: File | null) => Promise<{ error?: string }>;
   deleteTeam: (id: string) => Promise<{ error?: string }>;
 }
 
@@ -79,6 +83,32 @@ export const useTeamStore = create<TeamState>((set, get) => ({
       minGirlsOnField: clampMinGirls(minGirlsOnField),
       updatedAt: Date.now(),
     };
+    await repo.upsertTeam(updated);
+    set({ teams: get().teams.map((team) => (team.id === id ? updated : team)) });
+    return {};
+  },
+
+  setTeamPhoto: async (id, file) => {
+    const existing = get().teams.find((team) => team.id === id);
+    if (!existing) return { error: 'Team not found.' };
+    const updated: Team = { ...existing, updatedAt: Date.now() };
+    if (!file) {
+      await repo.deleteTeamPhoto(id);
+      delete updated.photoId;
+    } else {
+      const photoId = createId();
+      const compressed = await compressImageFile(file, 480);
+      await repo.upsertTeamPhoto({
+        id: photoId,
+        teamId: id,
+        blob: compressed.blob,
+        mimeType: compressed.mimeType,
+        width: compressed.width,
+        height: compressed.height,
+        createdAt: Date.now(),
+      });
+      updated.photoId = photoId;
+    }
     await repo.upsertTeam(updated);
     set({ teams: get().teams.map((team) => (team.id === id ? updated : team)) });
     return {};

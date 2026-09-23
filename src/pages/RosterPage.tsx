@@ -8,6 +8,8 @@ import { PlayerForm } from '../components/roster/PlayerForm';
 import { Dialog } from '../components/common/Dialog';
 import { Button } from '../components/common/Button';
 import { PlayerAvatar } from '../components/common/PlayerAvatar';
+import { TeamAvatar } from '../components/common/TeamAvatar';
+import { TeamPhotoControls } from '../components/layout/TeamPhotoControls';
 import { jerseyLabel } from '../lib/playerSort';
 import { playerPositionGroups, positionNames } from '../lib/playerPositions';
 
@@ -15,12 +17,16 @@ export function RosterPage() {
   const { players, loaded, load, addPlayer, updatePlayer, deletePlayer } = useRosterStore();
   const activeTeam = useTeamStore((s) => s.teams.find((team) => team.id === s.activeTeamId) ?? null);
   const setCoed = useTeamStore((s) => s.setCoed);
+  const setTeamPhoto = useTeamStore((s) => s.setTeamPhoto);
   const teamPlayers = players.filter((player) => !activeTeam || player.teamId === activeTeam.id);
   const [formOpen, setFormOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Player | null>(null);
   const [search, setSearch] = useState('');
   const [groupFilter, setGroupFilter] = useState<PositionGroup | 'ALL'>('ALL');
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
   const [coedOpen, setCoedOpen] = useState(false);
   const [coedDraft, setCoedDraft] = useState(false);
   const [minGirlsDraft, setMinGirlsDraft] = useState(String(DEFAULT_MIN_GIRLS_ON_FIELD));
@@ -40,7 +46,24 @@ export function RosterPage() {
   return (
     <div className="mx-auto max-w-4xl p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div className="flex items-center gap-4">
+          {activeTeam && (
+            <div className="flex flex-col items-center">
+              <TeamAvatar team={activeTeam} size="lg" />
+              <button
+                type="button"
+                className="mt-1 text-xs font-medium text-emerald-700 underline dark:text-emerald-300"
+                onClick={() => {
+                  setPhotoFile(null);
+                  setRemovePhoto(false);
+                  setPhotoOpen(true);
+                }}
+              >
+                {activeTeam.photoId ? 'Change photo' : 'Add photo'}
+              </button>
+            </div>
+          )}
+          <div>
           <h1 className="text-2xl font-bold">{activeTeam ? `${activeTeam.name} roster` : 'Roster'}</h1>
           {activeTeam && (
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -60,6 +83,7 @@ export function RosterPage() {
               </button>
             </p>
           )}
+          </div>
         </div>
         <Button
           variant="primary"
@@ -175,6 +199,49 @@ export function RosterPage() {
             return result;
           }}
         />
+      </Dialog>
+
+      <Dialog
+        open={photoOpen}
+        title="Team photo"
+        description="Use a crest or team picture. It stays on this device."
+        onClose={() => setPhotoOpen(false)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPhotoOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!activeTeam || (!photoFile && !removePhoto)}
+              onClick={async () => {
+                if (!activeTeam) return;
+                await setTeamPhoto(activeTeam.id, removePhoto ? null : photoFile);
+                setPhotoOpen(false);
+              }}
+            >
+              Save photo
+            </Button>
+          </>
+        }
+      >
+        {activeTeam && (
+          <TeamPhotoControls
+            name={activeTeam.name}
+            teamId={activeTeam.id}
+            photoId={activeTeam.photoId}
+            file={photoFile}
+            remove={removePhoto}
+            onFile={(file) => {
+              setPhotoFile(file);
+              setRemovePhoto(false);
+            }}
+            onRemove={() => {
+              setPhotoFile(null);
+              setRemovePhoto(true);
+            }}
+          />
+        )}
       </Dialog>
 
       <Dialog

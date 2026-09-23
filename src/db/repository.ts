@@ -1,5 +1,5 @@
 import { db } from './db';
-import type { Match, Player, PlayerPhoto, Team } from '../types';
+import type { Match, Player, PlayerPhoto, Team, TeamPhoto } from '../types';
 import { isValidPlayerRecord } from '../lib/validation';
 import { comparePlayersByJersey } from '../lib/playerSort';
 import { createId } from '../lib/id';
@@ -45,13 +45,15 @@ export async function ensureTeams(): Promise<Team[]> {
 }
 
 export async function deleteTeamAndData(teamId: string): Promise<void> {
-  await db.transaction('rw', db.teams, db.players, db.photos, db.matches, async () => {
+  await db.transaction('rw', db.teams, db.players, db.photos, db.teamPhotos, db.matches, async () => {
     const players = await db.players.where('teamId').equals(teamId).toArray();
     for (const player of players) {
       const photos = await db.photos.where('playerId').equals(player.id).toArray();
       await Promise.all(photos.map((photo) => db.photos.delete(photo.id)));
       await db.players.delete(player.id);
     }
+    const teamPhotos = await db.teamPhotos.where('teamId').equals(teamId).toArray();
+    await Promise.all(teamPhotos.map((photo) => db.teamPhotos.delete(photo.id)));
     const matches = await db.matches.where('teamId').equals(teamId).toArray();
     await Promise.all(matches.map((match) => db.matches.delete(match.id)));
     await db.teams.delete(teamId);
@@ -108,6 +110,23 @@ export async function listPhotos(): Promise<PlayerPhoto[]> {
   return db.photos.toArray();
 }
 
+export async function upsertTeamPhoto(photo: TeamPhoto): Promise<void> {
+  await db.transaction('rw', db.teamPhotos, async () => {
+    const existing = await db.teamPhotos.where('teamId').equals(photo.teamId).toArray();
+    await Promise.all(existing.filter((p) => p.id !== photo.id).map((p) => db.teamPhotos.delete(p.id)));
+    await db.teamPhotos.put(photo);
+  });
+}
+
+export async function deleteTeamPhoto(teamId: string): Promise<void> {
+  const photos = await db.teamPhotos.where('teamId').equals(teamId).toArray();
+  await Promise.all(photos.map((photo) => db.teamPhotos.delete(photo.id)));
+}
+
+export async function listTeamPhotos(): Promise<TeamPhoto[]> {
+  return db.teamPhotos.toArray();
+}
+
 // ---------------------------------------------------------------------------
 // Matches
 // ---------------------------------------------------------------------------
@@ -134,15 +153,18 @@ export async function replaceAllData(
   players: Player[],
   matches: Match[],
   photos: PlayerPhoto[] = [],
+  teamPhotos: TeamPhoto[] = [],
 ): Promise<void> {
-  await db.transaction('rw', db.teams, db.players, db.photos, db.matches, async () => {
+  await db.transaction('rw', db.teams, db.players, db.photos, db.teamPhotos, db.matches, async () => {
     await db.teams.clear();
     await db.players.clear();
     await db.matches.clear();
     await db.photos.clear();
+    await db.teamPhotos.clear();
     await db.teams.bulkPut(teams);
     await db.players.bulkPut(players);
     await db.matches.bulkPut(matches);
     if (photos.length > 0) await db.photos.bulkPut(photos);
+    if (teamPhotos.length > 0) await db.teamPhotos.bulkPut(teamPhotos);
   });
 }

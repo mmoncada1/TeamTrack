@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { Match, Player, PlayerPhoto, Team } from '../types';
+import type { Match, Player, PlayerPhoto, Team, TeamPhoto } from '../types';
 import { createId } from '../lib/id';
 
 /**
@@ -10,12 +10,13 @@ import { createId } from '../lib/id';
  * Small app-level settings (theme, alert sound, etc.) intentionally live in
  * `localStorage` instead of IndexedDB — see `src/state/localSettings.ts`.
  */
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 class TeamTrackDatabase extends Dexie {
   teams!: Table<Team, string>;
   players!: Table<Player, string>;
   photos!: Table<PlayerPhoto, string>;
+  teamPhotos!: Table<TeamPhoto, string>;
   matches!: Table<Match, string>;
 
   constructor() {
@@ -27,7 +28,7 @@ class TeamTrackDatabase extends Dexie {
       matches: 'id, date, updatedAt',
     });
 
-    this.version(DB_VERSION)
+    this.version(2)
       .stores({
         teams: 'id, name',
         players: 'id, teamId, name, jerseyNumber, availability',
@@ -41,6 +42,14 @@ class TeamTrackDatabase extends Dexie {
         await tx.table('players').toCollection().modify({ teamId });
         await tx.table('matches').toCollection().modify({ teamId });
       });
+
+    this.version(DB_VERSION).stores({
+      teams: 'id, name',
+      players: 'id, teamId, name, jerseyNumber, availability',
+      photos: 'id, playerId',
+      teamPhotos: 'id, teamId',
+      matches: 'id, teamId, date, updatedAt',
+    });
   }
 }
 
