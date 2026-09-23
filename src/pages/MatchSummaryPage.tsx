@@ -81,10 +81,6 @@ export function MatchSummaryPage() {
 
       <section className="mt-4">
         <h3 className="text-lg font-semibold">Player statistics</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Players flagged below are shown as a planning aid — substantially under the team's average field time this
-          match, not a judgment of effort or ability.
-        </p>
         <div className="mt-2 overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
@@ -100,18 +96,12 @@ export function MatchSummaryPage() {
             </thead>
             <tbody>
               {summary.summaries.map((s) => {
-                const belowAverage = summary.belowAveragePlayerIds.includes(s.playerId);
                 const player = playersById.get(s.playerId);
                 return (
                   <tr key={s.playerId} className="border-b border-slate-100 dark:border-slate-700">
                     <td className="flex items-center gap-2 py-2">
                       {player && <PlayerAvatar player={player} size="sm" />}
                       {jerseyLabel(s.jerseyNumber)} {s.playerName}
-                      {belowAverage && (
-                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                          Below avg. playing time
-                        </span>
-                      )}
                     </td>
                     <td className="capitalize">{s.status.replace('_', ' ')}</td>
                     <td className="tabular-nums">{(s.totalFieldMs / 60000).toFixed(1)}</td>
