@@ -93,6 +93,14 @@ export function LiveMatchPage() {
   const activePlayers = matchPlayers.filter((p) => derived.playerStates[p.id]?.status === 'field');
   const benchPlayers = matchPlayers.filter((p) => derived.playerStates[p.id]?.status === 'bench');
   const alertPlayerIds = new Set(match.activeAlerts.filter((a) => a.status === 'active').map((a) => a.playerId));
+  const cardsByPlayer: Record<string, { yellow: number; red: number }> = {};
+  for (const event of match.events) {
+    if (event.type !== 'CARD') continue;
+    const current = cardsByPlayer[event.playerId] ?? { yellow: 0, red: 0 };
+    if (event.color === 'yellow') current.yellow += 1;
+    if (event.color === 'red') current.red += 1;
+    cardsByPlayer[event.playerId] = current;
+  }
 
   function runAction(fn: () => void) {
     try {
@@ -108,13 +116,13 @@ export function LiveMatchPage() {
   }
 
   function moveBreaksCoedRule(playerId: string, toSlot: SlotId, replacedPlayerId?: string): boolean {
-    const coedTeam = teams.find((entry) => entry.id === match.teamId);
+    const coedTeam = teams.find((entry) => entry.id === match!.teamId);
     if (!coedTeam?.coed) return false;
-    const fromSlot: SlotId = derived.playerStates[playerId]?.positionId ?? 'BENCH';
+    const fromSlot: SlotId = derived!.playerStates[playerId]?.positionId ?? 'BENCH';
     const fromField = fromSlot !== 'BENCH';
     const toField = toSlot !== 'BENCH';
     if (fromField && toField && replacedPlayerId) return false;
-    const beforeIds = Object.values(derived.assignments);
+    const beforeIds = Object.values(derived!.assignments);
     const fieldIds = new Set(beforeIds);
     if (fromField) fieldIds.delete(playerId);
     if (replacedPlayerId) fieldIds.delete(replacedPlayerId);
@@ -249,6 +257,8 @@ export function LiveMatchPage() {
               showTimers
               alertPlayerIds={alertPlayerIds}
               injuredPlayerIds={derived.injuredPlayerIds}
+              sentOffPlayerIds={derived.sentOffPlayerIds}
+              cardsByPlayer={cardsByPlayer}
               locked={appSettings.fieldLocked}
               onRequestMove={handleRequestMove}
               onEditPlayer={setEditingPlayerId}
@@ -392,6 +402,19 @@ export function LiveMatchPage() {
           setEditingPlayerId(null);
         }}
         onSaveDetails={(input) => roster.updatePlayer(editingPlayerId!, input)}
+        yellowCards={editingPlayerId ? cardsByPlayer[editingPlayerId]?.yellow ?? 0 : 0}
+        redCards={editingPlayerId ? cardsByPlayer[editingPlayerId]?.red ?? 0 : 0}
+        sentOff={editingPlayerId ? derived.sentOffPlayerIds.includes(editingPlayerId) : false}
+        onYellowCard={() => {
+          if (!editingPlayerId) return;
+          runAction(() => store.recordCard(editingPlayerId, 'yellow'));
+          setEditingPlayerId(null);
+        }}
+        onRedCard={() => {
+          if (!editingPlayerId) return;
+          runAction(() => store.recordCard(editingPlayerId, 'red'));
+          setEditingPlayerId(null);
+        }}
       />
 
       <AddMatchPlayerDialog

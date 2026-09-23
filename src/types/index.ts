@@ -157,6 +157,7 @@ export type MatchEventType =
   | 'PLAYER_AVAILABLE'
   | 'PLAYER_REMOVED'
   | 'GOAL'
+  | 'CARD'
   | 'ALERT_DISMISSED'
   | 'MATCH_ENDED'
   | 'NOTE';
@@ -260,6 +261,17 @@ export interface GoalEvent extends BaseMatchEvent {
   assisterId?: string;
 }
 
+export type CardColor = 'yellow' | 'red';
+
+/** A caution or a sending-off. A red card takes the player out for the rest of the match. */
+export interface CardEvent extends BaseMatchEvent {
+  type: 'CARD';
+  playerId: string;
+  color: CardColor;
+  /** True when this red card came from a second yellow. */
+  secondYellow?: boolean;
+}
+
 export interface AlertDismissedEvent extends BaseMatchEvent {
   type: 'ALERT_DISMISSED';
   alertId: string;
@@ -290,6 +302,7 @@ export type MatchEvent =
   | PlayerAvailableEvent
   | PlayerRemovedEvent
   | GoalEvent
+  | CardEvent
   | AlertDismissedEvent
   | MatchEndedEvent
   | NoteEvent;
@@ -385,6 +398,8 @@ export interface DerivedMatchState {
   includedPlayerIds: string[];
   /** Subset of included players marked injured during the match. */
   injuredPlayerIds: string[];
+  /** Players sent off with a red card. They cannot return. */
+  sentOffPlayerIds: string[];
   teamScore: number;
   opponentScore: number;
   /** Cumulative time across both halves. Used for playing-time math. */

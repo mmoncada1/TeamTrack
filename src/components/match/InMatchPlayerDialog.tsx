@@ -15,6 +15,11 @@ interface InMatchPlayerDialogProps {
   onReturnToBench: () => void;
   onRemove: () => void;
   onSaveDetails: (input: PlayerFormInput) => Promise<{ errors: FieldError[] }>;
+  yellowCards?: number;
+  redCards?: number;
+  sentOff?: boolean;
+  onYellowCard?: () => void;
+  onRedCard?: () => void;
 }
 
 export function InMatchPlayerDialog({
@@ -26,6 +31,11 @@ export function InMatchPlayerDialog({
   onReturnToBench,
   onRemove,
   onSaveDetails,
+  yellowCards = 0,
+  redCards = 0,
+  sentOff,
+  onYellowCard,
+  onRedCard,
 }: InMatchPlayerDialogProps) {
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [editingDetails, setEditingDetails] = useState(false);
@@ -73,13 +83,27 @@ export function InMatchPlayerDialog({
         />
       ) : (
         <div className="space-y-2">
-          {out ? (
+          {sentOff ? (
+            <p className="rounded-lg bg-red-100 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+              Sent off. They cannot return.
+            </p>
+          ) : out ? (
             <Button variant="primary" className="w-full" onClick={onReturnToBench}>
               Return to bench
             </Button>
           ) : (
             <Button variant="secondary" className="w-full" onClick={onMarkInjured}>
               Mark injured
+            </Button>
+          )}
+          {!sentOff && onYellowCard && (
+            <Button variant="secondary" className="w-full" onClick={onYellowCard}>
+              {yellowCards > 0 ? 'Second yellow' : 'Yellow card'}
+            </Button>
+          )}
+          {!sentOff && redCards === 0 && onRedCard && (
+            <Button variant="danger" className="w-full" onClick={onRedCard}>
+              Red card
             </Button>
           )}
           <Button variant="secondary" className="w-full" onClick={() => setEditingDetails(true)}>

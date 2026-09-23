@@ -2,6 +2,7 @@ import type {
   Alert,
   Assignment,
   Match,
+  CardEvent,
   MatchEvent,
   PlayerRuntimeState,
   SlotId,
@@ -24,6 +25,7 @@ const REVERSIBLE_EVENT_TYPES = new Set<MatchEvent['type']>([
   'PLAYER_AVAILABLE',
   'PLAYER_REMOVED',
   'GOAL',
+  'CARD',
   'FORMATION_CHANGED',
 ]);
 
@@ -230,6 +232,9 @@ export function returnPlayerToBench(match: Match, playerId: string, nowMs: numbe
     throw new MatchActionError('That player is not in this match.');
   }
   if (state.status !== 'unavailable') throw new MatchActionError('That player is already available.');
+  if (match.events.some((event) => event.type === 'CARD' && event.playerId === playerId && event.color === 'red')) {
+    throw new MatchActionError('That player was sent off and cannot return.');
+  }
   const event: MatchEvent = {
     ...baseEvent(derived.matchClockMs, nowMs, [playerId]),
     type: 'PLAYER_AVAILABLE',
@@ -408,6 +413,33 @@ export interface RecordGoalInput {
   scorerId?: string;
   assisterId?: string;
   note?: string;
+}
+
+export function recordCard(
+  match: Match,
+  playerId: string,
+  color: 'yellow' | 'red',
+  nowMs: number = Date.now(),
+): Match {
+  const derived = assertMatchOpen(match, nowMs);
+  if (!derived.includedPlayerIds.includes(playerId)) {
+    throw new MatchActionError('That player is not in this match.');
+  }
+  const prior = match.events.filter(
+    (event): event is CardEvent => event.type === 'CARD' && event.playerId === playerId,
+  );
+  if (prior.some((event) => event.color === 'red')) {
+    throw new MatchActionError('That player has already been sent off.');
+  }
+  const secondYellow = color === 'yellow' && prior.some((event) => event.color === 'yellow');
+  const event: MatchEvent = {
+    ...baseEvent(derived.matchClockMs, nowMs, [playerId]),
+    type: 'CARD',
+    playerId,
+    color: secondYellow ? 'red' : color,
+    secondYellow,
+  };
+  return withEvent(match, event);
 }
 
 export function recordGoal(match: Match, input: RecordGoalInput, nowMs: number = Date.now()): Match {

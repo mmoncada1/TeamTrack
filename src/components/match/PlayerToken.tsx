@@ -17,6 +17,8 @@ interface PlayerTokenProps {
   alertActive?: boolean;
   onRequestMove?: (playerId: string) => void;
   onEdit?: (playerId: string) => void;
+  yellowCards?: number;
+  redCards?: number;
   compact?: boolean;
 }
 
@@ -30,6 +32,8 @@ export function PlayerToken({
   alertActive,
   onRequestMove,
   onEdit,
+  yellowCards = 0,
+  redCards = 0,
   compact,
 }: PlayerTokenProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -105,6 +109,14 @@ export function PlayerToken({
       >
         {player.name} ({positionAbbreviations(player)})
       </span>
+      {(yellowCards > 0 || redCards > 0) && (
+        <span className="flex items-center gap-0.5" aria-label={`${yellowCards} yellow, ${redCards} red`}>
+          {Array.from({ length: yellowCards }, (_, index) => (
+            <span key={`y-${index}`} className="h-2.5 w-1.5 rounded-[2px] bg-yellow-400" title="Yellow card" />
+          ))}
+          {redCards > 0 && <span className="h-2.5 w-1.5 rounded-[2px] bg-red-600" title="Red card" />}
+        </span>
+      )}
       {showTimer && state && (
         <span
           className={clsx(

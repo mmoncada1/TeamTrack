@@ -127,6 +127,7 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
   const removed = new Set<string>();
   const joined = new Set<string>();
   const injured = new Set<string>();
+  const sentOff = new Set<string>();
 
   function leaveMatch(playerId: string, atMs: number): void {
     const state = playerStates[playerId];
@@ -217,7 +218,7 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
       }
       case 'PLAYER_AVAILABLE': {
         const state = playerStates[ev.playerId];
-        if (!state || removed.has(ev.playerId) || state.status !== 'unavailable') break;
+        if (!state || removed.has(ev.playerId) || sentOff.has(ev.playerId) || state.status !== 'unavailable') break;
         injured.delete(ev.playerId);
         openInterval(state, 'bench', undefined, ev.matchClockMs);
         break;
@@ -227,6 +228,13 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
         leaveMatch(ev.playerId, ev.matchClockMs);
         injured.delete(ev.playerId);
         removed.add(ev.playerId);
+        break;
+      }
+      case 'CARD': {
+        if (ev.color !== 'red' || !playerStates[ev.playerId] || removed.has(ev.playerId)) break;
+        leaveMatch(ev.playerId, ev.matchClockMs);
+        injured.delete(ev.playerId);
+        sentOff.add(ev.playerId);
         break;
       }
       case 'PLAYER_MOVED': {
@@ -355,6 +363,7 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
     playerStates,
     includedPlayerIds,
     injuredPlayerIds: [...injured].filter((playerId) => includedPlayerIds.includes(playerId)),
+    sentOffPlayerIds: [...sentOff].filter((playerId) => includedPlayerIds.includes(playerId)),
     teamScore,
     opponentScore,
     matchClockMs,

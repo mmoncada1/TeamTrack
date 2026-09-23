@@ -50,6 +50,11 @@ export function describeEvent(event: MatchEvent, playersById: Map<string, Player
       const assist = event.assisterId ? ` (assist: ${name(playersById, event.assisterId)})` : '';
       return `Goal: ${name(playersById, event.scorerId)}${assist}.`;
     }
+    case 'CARD': {
+      if (event.secondYellow) return `Second yellow, sent off: ${name(playersById, event.playerId)}.`;
+      if (event.color === 'red') return `Red card: ${name(playersById, event.playerId)}.`;
+      return `Yellow card: ${name(playersById, event.playerId)}.`;
+    }
     case 'ALERT_DISMISSED':
       return `Alert for ${name(playersById, event.playerId)} ${event.action === 'dismiss' ? 'dismissed' : 'snoozed'}.`;
     case 'MATCH_ENDED':

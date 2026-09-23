@@ -33,9 +33,11 @@ export function MatchSummaryPage() {
     return <div className="p-8 text-center text-slate-500">Loading summary…</div>;
   }
 
-  const sortedEvents = [...match.events].sort((a, b) => a.matchClockMs - b.matchClockMs);
-  const goalEvents = match.events.filter((e) => e.type === 'GOAL');
-  const subEvents = match.events.filter((e) => e.type === 'SUBSTITUTION');
+  const sortedEvents = [...match.events].sort((a, b) => a.matchClockMs - b.matchClockMs || a.timestamp - b.timestamp);
+  const recapEvents = sortedEvents.filter(
+    (event) => event.type === 'GOAL' || event.type === 'CARD' || event.type === 'SUBSTITUTION',
+  );
+  const hadHalfTime = match.events.some((event) => event.type === 'HALF_TIME');
 
   return (
     <div className="mx-auto max-w-4xl p-4 sm:p-6">
@@ -53,6 +55,37 @@ export function MatchSummaryPage() {
         <p className="text-sm text-slate-500 dark:text-slate-400">
           {match.date} {match.title ? `· ${match.title}` : ''} · Final time {formatClock(summary.matchClockMs)}
         </p>
+      </section>
+
+      <section className="mt-4">
+        <h3 className="text-lg font-semibold">Game recap</h3>
+        {recapEvents.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-500">No goals, cards, or substitutions.</p>
+        ) : (
+          <ol className="mt-2 space-y-1">
+            {recapEvents.map((event) => {
+              const halfIndex = match.events.findIndex((entry) => entry.type === 'HALF_TIME');
+              const eventIndex = match.events.findIndex((entry) => entry.id === event.id);
+              const half = !hadHalfTime ? null : eventIndex > halfIndex ? '2nd half' : '1st half';
+              return (
+                <li
+                  key={event.id}
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                >
+                  <span className="w-14 shrink-0 tabular-nums font-semibold">{formatClock(eventDisplayMs(match.events, event))}</span>
+                  {half && <span className="w-16 shrink-0 text-xs text-slate-500">{half}</span>}
+                  {event.type === 'CARD' && (
+                    <span
+                      className={`h-3.5 w-2.5 shrink-0 rounded-[2px] ${event.color === 'red' ? 'bg-red-600' : 'bg-yellow-400'}`}
+                      aria-hidden
+                    />
+                  )}
+                  <span>{describeEvent(event, playersById, match.settings.formationId)}</span>
+                </li>
+              );
+            })}
+          </ol>
+        )}
       </section>
 
       <section className="mt-4">
@@ -107,10 +140,6 @@ export function MatchSummaryPage() {
       </section>
 
       <section className="mt-4">
-        <h3 className="text-lg font-semibold">Goals ({goalEvents.length}) &amp; substitutions ({subEvents.length})</h3>
-      </section>
-
-      <section className="mt-2">
         <h3 className="text-lg font-semibold">Event timeline</h3>
         <ol className="mt-2 max-h-96 space-y-1 overflow-y-auto">
           {sortedEvents.map((event) => (

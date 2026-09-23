@@ -29,6 +29,8 @@ interface FieldWorkspaceProps {
   showTimers?: boolean;
   alertPlayerIds?: Set<string>;
   injuredPlayerIds?: string[];
+  sentOffPlayerIds?: string[];
+  cardsByPlayer?: Record<string, { yellow: number; red: number }>;
   locked?: boolean;
   onRequestMove: (playerId: string, toSlot: SlotId) => void;
   onEditPlayer?: (playerId: string) => void;
@@ -45,6 +47,8 @@ export function FieldWorkspace({
   showTimers,
   alertPlayerIds,
   injuredPlayerIds,
+  sentOffPlayerIds,
+  cardsByPlayer,
   locked,
   onRequestMove,
   onEditPlayer,
@@ -57,6 +61,7 @@ export function FieldWorkspace({
 
   const assignedIds = new Set(Object.values(assignments));
   const injured = new Set(injuredPlayerIds ?? []);
+  const sentOff = new Set(sentOffPlayerIds ?? []);
   const isUnavailable = (id: string) =>
     playerStates ? playerStates[id]?.status === 'unavailable' : unavailablePlayerIds.includes(id);
   const benchIds = rosterPlayerIds
@@ -65,8 +70,9 @@ export function FieldWorkspace({
     // waiting longest for their next turn on the field.
     .sort((a, b) => (playerStates?.[b]?.currentStintMs ?? 0) - (playerStates?.[a]?.currentStintMs ?? 0));
   const unavailableIds = rosterPlayerIds.filter((id) => isUnavailable(id));
-  const injuredIds = unavailableIds.filter((id) => injured.has(id));
-  const otherUnavailableIds = unavailableIds.filter((id) => !injured.has(id));
+  const sentOffIds = unavailableIds.filter((id) => sentOff.has(id));
+  const injuredIds = unavailableIds.filter((id) => injured.has(id) && !sentOff.has(id));
+  const otherUnavailableIds = unavailableIds.filter((id) => !injured.has(id) && !sentOff.has(id));
 
   // A single PointerSensor (not Pointer+Touch together) is the recommended
   // dnd-kit setup for supporting mouse, touch, AND pen/stylus input without
@@ -126,23 +132,32 @@ export function FieldWorkspace({
                     alertActive={alertPlayerIds?.has(id)}
                     onRequestMove={() => setMoveDialogPlayerId(id)}
                     onEdit={onEditPlayer}
+                    yellowCards={cardsByPlayer?.[id]?.yellow}
+                    redCards={cardsByPlayer?.[id]?.red}
                   />
                 );
               })}
             </BenchPanel>
           </div>
 
+          {sentOffIds.length > 0 && (
+            <OutSection label="Sent off">
+              {sentOffIds.map((id) => (
+                <OutToken key={id} id={id} playersById={playersById} onEdit={onEditPlayer} cardsByPlayer={cardsByPlayer} />
+              ))}
+            </OutSection>
+          )}
           {injuredIds.length > 0 && (
             <OutSection label="Injured">
               {injuredIds.map((id) => (
-                <OutToken key={id} id={id} playersById={playersById} onEdit={onEditPlayer} />
+                <OutToken key={id} id={id} playersById={playersById} onEdit={onEditPlayer} cardsByPlayer={cardsByPlayer} />
               ))}
             </OutSection>
           )}
           {otherUnavailableIds.length > 0 && (
             <OutSection label="Unavailable">
               {otherUnavailableIds.map((id) => (
-                <OutToken key={id} id={id} playersById={playersById} onEdit={onEditPlayer} />
+                <OutToken key={id} id={id} playersById={playersById} onEdit={onEditPlayer} cardsByPlayer={cardsByPlayer} />
               ))}
             </OutSection>
           )}
@@ -175,6 +190,8 @@ export function FieldWorkspace({
                         alertActive={alertPlayerIds?.has(player.id)}
                         onRequestMove={() => setMoveDialogPlayerId(player.id)}
                         onEdit={onEditPlayer}
+                        yellowCards={cardsByPlayer?.[player.id]?.yellow}
+                        redCards={cardsByPlayer?.[player.id]?.red}
                       />
                     )}
                   </DroppableSlot>
@@ -231,12 +248,24 @@ function OutToken({
   id,
   playersById,
   onEdit,
+  cardsByPlayer,
 }: {
   id: string;
   playersById: Map<string, Player>;
   onEdit?: (playerId: string) => void;
+  cardsByPlayer?: Record<string, { yellow: number; red: number }>;
 }) {
   const player = playersById.get(id);
   if (!player) return null;
-  return <PlayerToken player={player} slotId="UNAVAILABLE" disabled compact onEdit={onEdit} />;
+  return (
+    <PlayerToken
+      player={player}
+      slotId="UNAVAILABLE"
+      disabled
+      compact
+      onEdit={onEdit}
+      yellowCards={cardsByPlayer?.[id]?.yellow}
+      redCards={cardsByPlayer?.[id]?.red}
+    />
+  );
 }
