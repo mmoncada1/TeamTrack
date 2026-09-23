@@ -195,6 +195,7 @@ interface RecapLine {
   text: string;
   minute: string;
   assist?: string;
+  goal?: boolean;
   card?: 'yellow' | 'red' | 'second';
 }
 
@@ -223,10 +224,10 @@ function buildRecap(match: Match, playersById: Map<string, Player>): { ours: Rec
     const scorer = playerName(playersById, event.scorerId);
     const assist = event.assisterId ? playerName(playersById, event.assisterId) : undefined;
     const line: RecapLine = event.isOwnGoal
-      ? { id: event.id, text: scorer ? `${scorer} (og)` : 'Own goal', minute }
+      ? { id: event.id, text: scorer ? `${scorer} (og)` : 'Own goal', minute, goal: true }
       : event.team === 'opponent'
-        ? { id: event.id, text: 'Goal', minute }
-        : { id: event.id, text: scorer ?? 'Goal', minute, assist };
+        ? { id: event.id, text: 'Goal', minute, goal: true }
+        : { id: event.id, text: scorer ?? 'Goal', minute, goal: true, assist };
     if (event.isOwnGoal || event.team === 'opponent') theirs.push(line);
     else ours.push(line);
   }
@@ -266,6 +267,7 @@ function RecapList({ items, align }: { items: RecapLine[]; align: 'start' | 'end
     <ul className={`space-y-1 text-sm ${align === 'end' ? 'text-right' : 'text-left'}`}>
       {items.map((item) => (
         <li key={item.id} className={`flex items-center gap-1.5 ${align === 'end' ? 'justify-end' : 'justify-start'}`}>
+          {item.goal && <BallIcon />}
           {item.card === 'yellow' && <CardChip color="yellow" />}
           {item.card === 'red' && <CardChip color="red" />}
           {item.card === 'second' && (
@@ -282,6 +284,30 @@ function RecapList({ items, align }: { items: RecapLine[]; align: 'start' | 'end
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Soccer ball marking a goal, the counterpart to the card chips. */
+function BallIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      className="h-3.5 w-3.5 shrink-0"
+      role="img"
+      aria-label="Goal"
+    >
+      <circle cx="8" cy="8" r="7" fill="#ffffff" stroke="#1e293b" strokeWidth="1.2" />
+      <path
+        d="M8 4.1 5.6 5.9l.9 2.9h3l.9-2.9L8 4.1Z"
+        fill="#1e293b"
+      />
+      <path
+        d="M8 1.2v2.6M2.1 6.4l2.9 1M13.9 6.4l-2.9 1M4.7 13.3l1.5-2.4M11.3 13.3l-1.5-2.4"
+        stroke="#1e293b"
+        strokeWidth="1.1"
+        fill="none"
+      />
+    </svg>
   );
 }
 
