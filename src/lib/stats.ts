@@ -31,7 +31,7 @@ export function buildMatchSummary(match: Match, players: Player[], nowMs: number
       };
     })
     .filter((s): s is PlayingTimeSummary => s !== null)
-    .sort(compareSummariesByJersey);
+    .sort((a, b) => b.totalFieldMs - a.totalFieldMs || compareSummariesByJersey(a, b));
 
   const availableSummaries = summaries.filter((s) => s.status !== 'unavailable');
   const averageFieldMs =
