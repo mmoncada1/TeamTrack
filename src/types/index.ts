@@ -94,6 +94,22 @@ export interface TeamPhoto {
   createdAt: number;
 }
 
+/**
+ * A lineup the manager built ahead of time. Saved lineups are templates:
+ * editing one never touches a match that already used it.
+ */
+export interface SavedLineup {
+  id: string;
+  teamId: string;
+  name: string;
+  format: MatchFormat;
+  formationId: string;
+  /** Position id -> player id. */
+  assignments: Assignment;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /** A single position slot within a formation. */
 export interface FormationPosition {
   id: string;
@@ -355,6 +371,8 @@ export interface Match {
   teamName: string;
   opponentName: string;
   date: string; // ISO date string, yyyy-mm-dd
+  /** Kickoff time as HH:MM, if the manager set one. */
+  kickoffTime?: string;
   title?: string;
   settings: MatchSettings;
   /** Roster player IDs selected/available for this match. */
@@ -451,5 +469,7 @@ export interface AppBackup {
   photos: PlayerPhoto[];
   /** Team crests. Missing on backups exported before team photos existed. */
   teamPhotos: TeamPhoto[];
+  /** Saved lineups. Missing on backups exported before lineups existed. */
+  lineups: SavedLineup[];
   settings: AppSettings;
 }

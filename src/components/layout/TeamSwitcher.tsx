@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTeamStore } from '../../state/teamStore';
 import { useRosterStore } from '../../state/rosterStore';
 import { useMatchStore } from '../../state/matchStore';
+import { useLineupStore } from '../../state/lineupStore';
 import { Button } from '../common/Button';
 import { Dialog } from '../common/Dialog';
 import { DEFAULT_MIN_GIRLS_ON_FIELD } from '../../lib/coed';
@@ -9,11 +10,8 @@ import { TeamAvatar } from '../common/TeamAvatar';
 import { TeamPhotoControls } from './TeamPhotoControls';
 
 export function TeamSwitcher() {
-  const { teams, activeTeamId, loaded, load, setActiveTeam, createTeam, renameTeam, setTeamPhoto, deleteTeam } =
-    useTeamStore();
+  const { teams, activeTeamId, loaded, load, setActiveTeam, createTeam, setTeamPhoto } = useTeamStore();
   const [creating, setCreating] = useState(false);
-  const [renaming, setRenaming] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [name, setName] = useState('');
   const [coed, setCoed] = useState(false);
   const [minGirls, setMinGirls] = useState(String(DEFAULT_MIN_GIRLS_ON_FIELD));
@@ -29,6 +27,7 @@ export function TeamSwitcher() {
 
   async function refreshAfterTeamChange() {
     await useRosterStore.getState().load();
+    await useLineupStore.getState().load();
     await useMatchStore.getState().loadAllMatches();
   }
 
@@ -68,24 +67,6 @@ export function TeamSwitcher() {
       >
         New team
       </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={!active}
-        onClick={() => {
-          setName(active?.name ?? '');
-          setPhotoFile(null);
-          setRemovePhoto(false);
-          setError(null);
-          setRenaming(true);
-        }}
-      >
-        Rename
-      </Button>
-      <Button size="sm" variant="ghost" disabled={teams.length <= 1} onClick={() => setConfirmDelete(true)}>
-        Delete
-      </Button>
-
       <Dialog
         open={creating}
         title="New team"
@@ -170,93 +151,6 @@ export function TeamSwitcher() {
         )}
       </Dialog>
 
-      <Dialog
-        open={renaming}
-        title="Rename team"
-        onClose={() => setRenaming(false)}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setRenaming(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={async () => {
-                if (!active) return;
-                const result = await renameTeam(active.id, name);
-                if (result.error) {
-                  setError(result.error);
-                  return;
-                }
-                if (removePhoto) await setTeamPhoto(active.id, null);
-                else if (photoFile) await setTeamPhoto(active.id, photoFile);
-                setRenaming(false);
-              }}
-            >
-              Save name
-            </Button>
-          </>
-        }
-      >
-        <label htmlFor="rename-team-name" className="block text-sm font-medium">
-          Team name
-        </label>
-        <input
-          id="rename-team-name"
-          className="input mt-1"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        {active && (
-          <TeamPhotoControls
-            name={name || active.name}
-            teamId={active.id}
-            photoId={active.photoId}
-            file={photoFile}
-            remove={removePhoto}
-            onFile={(file) => {
-              setPhotoFile(file);
-              setRemovePhoto(false);
-            }}
-            onRemove={() => {
-              setPhotoFile(null);
-              setRemovePhoto(true);
-            }}
-          />
-        )}
-        {error && (
-          <p role="alert" className="mt-2 text-sm text-red-600">
-            {error}
-          </p>
-        )}
-      </Dialog>
-
-      <Dialog
-        open={confirmDelete}
-        title={`Delete ${active?.name ?? 'this team'}?`}
-        description="This removes that team's players, photos, and matches from this device."
-        onClose={() => setConfirmDelete(false)}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              onClick={async () => {
-                if (!active) return;
-                const result = await deleteTeam(active.id);
-                setConfirmDelete(false);
-                if (!result.error) await refreshAfterTeamChange();
-              }}
-            >
-              Delete team
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm">You need at least one team, so the last team cannot be deleted.</p>
-      </Dialog>
     </div>
   );
 }

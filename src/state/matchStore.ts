@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Match, Player, SlotId } from '../types';
+import type { Match, Player, SavedLineup, SlotId } from '../types';
 import * as repo from '../db/repository';
 import * as actions from '../lib/matchActions';
 import { deriveMatchState } from '../lib/matchEngine';
@@ -40,6 +40,8 @@ interface MatchState {
   setPendingFormation: (formationId: string, players: Player[]) => string;
   setPendingAssignment: (positionId: string, playerId: string | null) => void;
   movePendingPlayer: (playerId: string, toSlot: SlotId) => void;
+  applySavedLineup: (lineup: SavedLineup) => void;
+  autoFillPending: (players: Player[]) => string;
 
   start: () => void;
   pause: () => void;
@@ -147,6 +149,29 @@ export const useMatchStore = create<MatchState>((set, get) => ({
 
   movePendingPlayer: (playerId, toSlot) => {
     applyMutation((m) => actions.movePendingPlayer(m, playerId, toSlot, coedGuard(m.teamId)));
+  },
+
+  applySavedLineup: (lineup) => {
+    const teamPlayerIds = useRosterStore
+      .getState()
+      .players.filter((player) => player.teamId === lineup.teamId)
+      .map((player) => player.id);
+    applyMutation((m) => actions.applySavedLineup(m, lineup, teamPlayerIds));
+  },
+
+  /** Re-run the automatic by-position fill for the current formation. */
+  autoFillPending: (players) => {
+    const current = get().match;
+    if (!current) return '';
+    const { match, summary } = actions.setPendingFormation(
+      current,
+      current.pendingFormationId,
+      players,
+      coedRuleForTeam(current.teamId),
+    );
+    set({ match });
+    persist(match);
+    return summary;
   },
 
   start: () => applyMutation((m) => actions.startMatch(m, Date.now(), coedGuard(m.teamId))),

@@ -5,6 +5,7 @@ import { MATCH_FORMAT_PLAYER_COUNT, DEFAULT_THRESHOLDS } from '../types';
 import { useRosterStore } from '../state/rosterStore';
 import { useTeamStore } from '../state/teamStore';
 import { useMatchStore } from '../state/matchStore';
+import { useLineupStore } from '../state/lineupStore';
 import { getDefaultFormationForFormat, getFormationsForFormat } from '../formations/definitions';
 import { validateMatchSetup } from '../lib/validation';
 import { Button } from '../components/common/Button';
@@ -25,6 +26,9 @@ export function MatchSetupPage() {
   const activeTeam = useTeamStore((s) => s.teams.find((team) => team.id === s.activeTeamId) ?? null);
   const teams = useTeamStore((s) => s.teams);
   const store = useMatchStore();
+  const lineups = useLineupStore((s) => s.lineups);
+  const lineupsLoaded = useLineupStore((s) => s.loaded);
+  const loadLineups = useLineupStore((s) => s.load);
   const [initializing, setInitializing] = useState(true);
   const [moveSummary, setMoveSummary] = useState<string | null>(null);
   const [coedBlocked, setCoedBlocked] = useState(false);
@@ -32,6 +36,10 @@ export function MatchSetupPage() {
   useEffect(() => {
     if (!roster.loaded) roster.load();
   }, [roster.loaded, roster.load]);
+
+  useEffect(() => {
+    if (!lineupsLoaded) loadLineups();
+  }, [lineupsLoaded, loadLineups]);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +82,23 @@ export function MatchSetupPage() {
 
   if (initializing || !match || !derived) {
     return <div className="p-8 text-center text-slate-500">Loading match setup…</div>;
+  }
+
+  const teamLineups = lineups.filter(
+    (lineup) => lineup.teamId === match.teamId && lineup.format === match.settings.format,
+  );
+
+  /** Setup actions share the co-ed popup instead of throwing at the user. */
+  function runSetupAction(fn: () => void) {
+    try {
+      fn();
+    } catch (err) {
+      if (err instanceof MatchActionError && err.message === TOO_MANY_GUYS_MESSAGE) {
+        setCoedBlocked(true);
+        return;
+      }
+      throw err;
+    }
   }
 
   const formationsForFormat = getFormationsForFormat(match.settings.format);
@@ -143,6 +168,15 @@ export function MatchSetupPage() {
             className="input"
             value={match.date}
             onChange={(e) => store.updateDraftMeta({ date: e.target.value })}
+          />
+        </Field>
+        <Field label="Kickoff time (optional)" htmlFor="kickoffTime">
+          <input
+            id="kickoffTime"
+            type="time"
+            className="input"
+            value={match.kickoffTime ?? ''}
+            onChange={(e) => store.updateDraftMeta({ kickoffTime: e.target.value })}
           />
         </Field>
         <Field label="Match title (optional)" htmlFor="title">
@@ -266,6 +300,52 @@ export function MatchSetupPage() {
             );
           })}
         </ul>
+      </section>
+
+      <section className="mt-6">
+        <h2 className="text-lg font-semibold">Starting lineup</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Start from a saved lineup, or let TeamTrack fill the field by preferred position. You can still change
+          anything before kickoff.
+        </p>
+        <div className="mt-2 flex flex-wrap items-end gap-2">
+          <div>
+            <label htmlFor="saved-lineup" className="block text-sm font-medium">
+              Saved lineup
+            </label>
+            <select
+              id="saved-lineup"
+              className="input mt-1 max-w-xs"
+              value=""
+              onChange={(e) => {
+                const lineup = teamLineups.find((entry) => entry.id === e.target.value);
+                if (!lineup) return;
+                runSetupAction(() => {
+                  store.applySavedLineup(lineup);
+                  setMoveSummary(`Loaded the "${lineup.name}" lineup.`);
+                });
+              }}
+            >
+              <option value="">
+                {teamLineups.length > 0 ? 'Choose a saved lineup…' : 'No saved lineups yet'}
+              </option>
+              {teamLineups.map((lineup) => (
+                <option key={lineup.id} value={lineup.id}>
+                  {lineup.name} ({lineup.format})
+                </option>
+              ))}
+            </select>
+          </div>
+          <Button
+            variant="secondary"
+            onClick={() => runSetupAction(() => setMoveSummary(store.autoFillPending(roster.players)))}
+          >
+            Auto-fill by position
+          </Button>
+          <Button variant="ghost" onClick={() => navigate('/lineups')}>
+            Manage lineups
+          </Button>
+        </div>
       </section>
 
       <section className="mt-6">

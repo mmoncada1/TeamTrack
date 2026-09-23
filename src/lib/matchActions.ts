@@ -10,6 +10,7 @@ import type {
 import { createId } from './id';
 import { deriveMatchState } from './matchEngine';
 import { moveLeavesTooManyGuys, TOO_MANY_GUYS_MESSAGE, type CoedFieldRule } from './coed';
+import { moveAssignment } from './lineupAssignments';
 import { getFormationById } from '../formations/definitions';
 import { remapFormation } from '../formations/remap';
 import { fillFormationByPreference } from '../formations/fill';
@@ -93,6 +94,41 @@ export function clearPendingAssignment(match: Match, positionId: string): Match 
 }
 
 /**
+ * Copy a saved lineup onto a draft match. Players in the lineup who were not
+ * selected for this match are added to the match roster so the whole lineup
+ * shows up, and anyone the manager marked unavailable is left out.
+ */
+export function applySavedLineup(
+  match: Match,
+  lineup: { format: Match['settings']['format']; formationId: string; assignments: Assignment },
+  availablePlayerIds: string[],
+  nowMs: number = Date.now(),
+): Match {
+  const derived = deriveMatchState(match, nowMs);
+  if (derived.status !== 'setup') {
+    throw new MatchActionError('Cannot change the starting lineup after the match has started.');
+  }
+  const allowed = new Set(availablePlayerIds);
+  const unavailable = new Set(match.unavailablePlayerIds);
+  const assignments: Assignment = {};
+  for (const [positionId, playerId] of Object.entries(lineup.assignments)) {
+    if (allowed.has(playerId) && !unavailable.has(playerId)) assignments[positionId] = playerId;
+  }
+  const rosterPlayerIds = [...match.rosterPlayerIds];
+  for (const playerId of Object.values(assignments)) {
+    if (!rosterPlayerIds.includes(playerId)) rosterPlayerIds.push(playerId);
+  }
+  return {
+    ...match,
+    settings: { ...match.settings, format: lineup.format },
+    rosterPlayerIds,
+    pendingFormationId: lineup.formationId,
+    pendingAssignments: assignments,
+    updatedAt: nowMs,
+  };
+}
+
+/**
  * Move a player during setup (bench <-> field, field <-> field, or a swap
  * if the destination is occupied). Never duplicates or drops a player.
  */
@@ -102,22 +138,8 @@ export function movePendingPlayer(
   toSlot: SlotId,
   coed?: { rule?: CoedFieldRule; players: Player[] },
 ): Match {
-  const assignments = { ...match.pendingAssignments };
-  const fromSlot = (Object.keys(assignments).find((k) => assignments[k] === playerId) ?? 'BENCH') as SlotId;
-  if (fromSlot === toSlot) return match;
-
-  const occupantOfTarget = toSlot !== 'BENCH' ? assignments[toSlot] : undefined;
-
-  if (fromSlot !== 'BENCH') delete assignments[fromSlot];
-  if (toSlot !== 'BENCH') {
-    if (occupantOfTarget && occupantOfTarget !== playerId) {
-      // Bump whoever was there to the player's old spot (swap), or to the bench if they came from the bench.
-      if (fromSlot !== 'BENCH') {
-        assignments[fromSlot] = occupantOfTarget;
-      }
-    }
-    assignments[toSlot] = playerId;
-  }
+  const assignments = moveAssignment(match.pendingAssignments, playerId, toSlot);
+  if (assignments === match.pendingAssignments) return match;
 
   const next = { ...match, pendingAssignments: assignments };
   guardCoedLineup(coed?.rule, coed?.players, Object.values(match.pendingAssignments), Object.values(assignments));
@@ -572,6 +594,7 @@ export interface CreateDraftMatchInput {
   teamName: string;
   opponentName: string;
   date: string;
+  kickoffTime?: string;
   title?: string;
   format: Match['settings']['format'];
   formationId: string;
@@ -587,7 +610,7 @@ export interface CreateDraftMatchInput {
 export type DraftMetaPatch = Partial<
   Pick<
     Match,
-    'teamName' | 'opponentName' | 'date' | 'title' | 'rosterPlayerIds' | 'unavailablePlayerIds'
+    'teamName' | 'opponentName' | 'date' | 'kickoffTime' | 'title' | 'rosterPlayerIds' | 'unavailablePlayerIds'
   >
 > & { settings?: Partial<Match['settings']> };
 
@@ -625,6 +648,7 @@ export function createDraftMatch(input: CreateDraftMatchInput, nowMs: number = D
     teamName: input.teamName,
     opponentName: input.opponentName,
     date: input.date,
+    kickoffTime: input.kickoffTime,
     title: input.title,
     settings: {
       format: input.format,

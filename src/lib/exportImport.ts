@@ -1,11 +1,21 @@
-import type { AppBackup, AppSettings, Match, Player, PlayerPhoto, PlayingTimeSummary, Team, TeamPhoto } from '../types';
+import type {
+  AppBackup,
+  AppSettings,
+  Match,
+  Player,
+  PlayerPhoto,
+  PlayingTimeSummary,
+  SavedLineup,
+  Team,
+  TeamPhoto,
+} from '../types';
 import { isValidPlayerRecord, mergeAppSettingsWithDefaults } from './validation';
 import { withPositionGroups } from './playerPositions';
 import { formatClock } from './timer';
 import { createId } from './id';
 import { blobToDataUrl, dataUrlToBlob } from './photo';
 
-export const BACKUP_VERSION = 4;
+export const BACKUP_VERSION = 5;
 
 /** JSON-safe representation of a PlayerPhoto for the exported backup file (blob -> data URL). */
 interface SerializedPhoto {
@@ -63,6 +73,7 @@ export async function buildBackup(
   settings: AppSettings,
   photos: PlayerPhoto[],
   teamPhotos: TeamPhoto[] = [],
+  lineups: SavedLineup[] = [],
 ): Promise<Record<string, unknown>> {
   return {
     version: BACKUP_VERSION,
@@ -72,6 +83,7 @@ export async function buildBackup(
     matches,
     photos: await serializePhotos(photos),
     teamPhotos: await serializeTeamPhotos(teamPhotos),
+    lineups,
     settings,
   };
 }
@@ -95,8 +107,9 @@ export async function exportBackupAsJson(
   settings: AppSettings,
   photos: PlayerPhoto[],
   teamPhotos: TeamPhoto[] = [],
+  lineups: SavedLineup[] = [],
 ): Promise<void> {
-  const backup = await buildBackup(teams, players, matches, settings, photos, teamPhotos);
+  const backup = await buildBackup(teams, players, matches, settings, photos, teamPhotos, lineups);
   triggerDownload(
     `teamtrack-backup-${new Date().toISOString().slice(0, 10)}.json`,
     JSON.stringify(backup, null, 2),
@@ -296,6 +309,45 @@ export function validateBackup(raw: unknown): BackupValidationResult {
     errors.push(`${skippedTeamPhotoCount} team photo(s) could not be imported and would be skipped.`);
   }
 
+  const rawLineups = Array.isArray((obj as { lineups?: unknown }).lineups)
+    ? (obj as { lineups: unknown[] }).lineups
+    : [];
+  let skippedLineupCount = 0;
+  const lineups: SavedLineup[] = rawLineups.flatMap((entry) => {
+    const l = entry as Partial<SavedLineup>;
+    if (
+      !l ||
+      typeof l.id !== 'string' ||
+      typeof l.teamId !== 'string' ||
+      typeof l.name !== 'string' ||
+      typeof l.formationId !== 'string' ||
+      !l.assignments ||
+      typeof l.assignments !== 'object' ||
+      !teamIdsForPhotos.has(l.teamId)
+    ) {
+      skippedLineupCount += 1;
+      return [];
+    }
+    const assignments = Object.fromEntries(
+      Object.entries(l.assignments).filter(([, id]) => typeof id === 'string' && playerIds.has(id)),
+    );
+    return [
+      {
+        id: l.id,
+        teamId: l.teamId,
+        name: l.name,
+        format: l.format ?? '7v7',
+        formationId: l.formationId,
+        assignments,
+        createdAt: typeof l.createdAt === 'number' ? l.createdAt : Date.now(),
+        updatedAt: typeof l.updatedAt === 'number' ? l.updatedAt : Date.now(),
+      },
+    ];
+  });
+  if (skippedLineupCount > 0) {
+    errors.push(`${skippedLineupCount} lineup(s) could not be imported and would be skipped.`);
+  }
+
   return {
     valid: true,
     errors,
@@ -307,6 +359,7 @@ export function validateBackup(raw: unknown): BackupValidationResult {
       matches,
       photos,
       teamPhotos,
+      lineups,
       settings,
     },
   };

@@ -4,6 +4,7 @@ import { useAppSettingsStore } from '../state/appSettingsStore';
 import { useRosterStore } from '../state/rosterStore';
 import { useMatchStore } from '../state/matchStore';
 import { useTeamStore } from '../state/teamStore';
+import { useLineupStore } from '../state/lineupStore';
 import { db } from '../db/db';
 import * as repo from '../db/repository';
 import { exportBackupAsJson, validateBackup, type BackupValidationResult } from '../lib/exportImport';
@@ -28,7 +29,8 @@ export function SettingsPage() {
     const matches = await repo.listMatches();
     const photos = await repo.listPhotos();
     const teamPhotos = await repo.listTeamPhotos();
-    await exportBackupAsJson(teams, players, matches, settings, photos, teamPhotos);
+    const lineups = await repo.listLineups();
+    await exportBackupAsJson(teams, players, matches, settings, photos, teamPhotos, lineups);
   }
 
   async function handleFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
@@ -52,8 +54,10 @@ export function SettingsPage() {
       pendingImport.backup.matches,
       pendingImport.backup.photos,
       pendingImport.backup.teamPhotos,
+      pendingImport.backup.lineups,
     );
     await useTeamStore.getState().load();
+    await useLineupStore.getState().load();
     await roster.load();
     await matchStore.loadAllMatches();
     setPendingImport(null);
@@ -65,6 +69,7 @@ export function SettingsPage() {
     await db.players.clear();
     await db.photos.clear();
     await db.teamPhotos.clear();
+    await db.lineups.clear();
     await db.matches.clear();
     localStorage.clear();
     setConfirmResetApp(false);
