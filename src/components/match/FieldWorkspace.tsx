@@ -239,7 +239,7 @@ function OutSection({ label, children }: { label: string; children: ReactNode })
   return (
     <div className="mt-3 shrink-0">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</h3>
-      <div className="mt-1 flex flex-col items-center gap-2 opacity-60">{children}</div>
+      <div className="mt-1 grid grid-cols-2 justify-items-center gap-2 opacity-60">{children}</div>
     </div>
   );
 }
