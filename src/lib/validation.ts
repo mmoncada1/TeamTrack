@@ -4,6 +4,7 @@ import type {
   MatchFormat,
   MatchSettings,
   Player,
+  PlayerGender,
   PositionGroup,
   ThresholdSettings,
 } from '../types';
@@ -27,6 +28,7 @@ export interface PlayerInput {
   /** Empty string / undefined means "no jersey number assigned". */
   jerseyNumber: number | string | undefined;
   preferredGroup: PositionGroup;
+  gender?: PlayerGender | '';
   notes?: string;
   availability: 'active' | 'unavailable';
 }
@@ -35,6 +37,7 @@ export function validatePlayerInput(
   input: PlayerInput,
   existingPlayers: Player[],
   editingPlayerId?: string,
+  options?: { requireGender?: boolean },
 ): FieldError[] {
   const errors: FieldError[] = [];
   const name = input.name.trim();
@@ -63,6 +66,10 @@ export function validatePlayerInput(
 
   if (!POSITION_GROUPS.includes(input.preferredGroup)) {
     errors.push({ field: 'preferredGroup', message: 'Choose a preferred position group.' });
+  }
+
+  if (options?.requireGender && input.gender !== 'girl' && input.gender !== 'boy') {
+    errors.push({ field: 'gender', message: 'Choose girl or boy so co-ed matches can count girls on the field.' });
   }
 
   return errors;

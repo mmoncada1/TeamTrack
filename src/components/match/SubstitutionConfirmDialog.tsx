@@ -9,6 +9,7 @@ interface SubstitutionConfirmDialogProps {
   playerOut: Player | null;
   positionLabel: string;
   matchClockMs: number;
+  warning?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -19,6 +20,7 @@ export function SubstitutionConfirmDialog({
   playerOut,
   positionLabel,
   matchClockMs,
+  warning,
   onConfirm,
   onCancel,
 }: SubstitutionConfirmDialogProps) {
@@ -57,6 +59,11 @@ export function SubstitutionConfirmDialog({
           <dd className="tabular-nums">{formatClock(matchClockMs)}</dd>
         </div>
       </dl>
+      {warning && (
+        <p role="alert" className="mt-3 rounded-lg bg-red-100 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+          {warning}
+        </p>
+      )}
     </Dialog>
   );
 }

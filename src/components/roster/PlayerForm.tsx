@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { Player, PlayerAvailability, PositionGroup } from '../../types';
-import { POSITION_GROUP_LABELS } from '../../types';
+import type { Player, PlayerAvailability, PlayerGender, PositionGroup } from '../../types';
+import { PLAYER_GENDER_LABELS, POSITION_GROUP_LABELS } from '../../types';
 import type { PlayerFormInput } from '../../state/rosterStore';
 import type { FieldError } from '../../lib/validation';
 import { Button } from '../common/Button';
@@ -9,6 +9,8 @@ import { getInitials } from '../../lib/photo';
 
 interface PlayerFormProps {
   initial?: Player;
+  /** Co-ed teams must record girl or boy so matches can count girls on the field. */
+  requireGender?: boolean;
   onSubmit: (input: PlayerFormInput) => Promise<{ errors: FieldError[] }>;
   onCancel: () => void;
   submitLabel: string;
@@ -16,12 +18,13 @@ interface PlayerFormProps {
 
 const GROUPS: PositionGroup[] = ['GK', 'DEF', 'MID', 'FWD'];
 
-export function PlayerForm({ initial, onSubmit, onCancel, submitLabel }: PlayerFormProps) {
+export function PlayerForm({ initial, requireGender, onSubmit, onCancel, submitLabel }: PlayerFormProps) {
   const [name, setName] = useState(initial?.name ?? '');
   const [jerseyNumber, setJerseyNumber] = useState<string>(
     initial?.jerseyNumber != null ? String(initial.jerseyNumber) : '',
   );
   const [preferredGroup, setPreferredGroup] = useState<PositionGroup>(initial?.preferredGroup ?? 'MID');
+  const [gender, setGender] = useState<PlayerGender | ''>(initial?.gender ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [availability, setAvailability] = useState<PlayerAvailability>(initial?.availability ?? 'active');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -59,6 +62,7 @@ export function PlayerForm({ initial, onSubmit, onCancel, submitLabel }: PlayerF
       name,
       jerseyNumber,
       preferredGroup,
+      gender: requireGender ? gender : undefined,
       notes,
       availability,
       photoFile,
@@ -189,6 +193,30 @@ export function PlayerForm({ initial, onSubmit, onCancel, submitLabel }: PlayerF
           </select>
         </div>
       </div>
+
+      {requireGender && (
+        <fieldset>
+          <legend className="text-sm font-medium text-slate-700 dark:text-slate-200">Gender</legend>
+          <div className="mt-1 flex gap-4">
+            {(['girl', 'boy'] as PlayerGender[]).map((option) => (
+              <label key={option} className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="gender"
+                  checked={gender === option}
+                  onChange={() => setGender(option)}
+                />
+                {PLAYER_GENDER_LABELS[option]}
+              </label>
+            ))}
+          </div>
+          {errorFor('gender') && (
+            <p className="mt-1 text-sm text-red-600" role="alert">
+              {errorFor('gender')}
+            </p>
+          )}
+        </fieldset>
+      )}
 
       <fieldset>
         <legend className="text-sm font-medium text-slate-700 dark:text-slate-200">Availability</legend>

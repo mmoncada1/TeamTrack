@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import type { Team } from '../types';
 import * as repo from '../db/repository';
+import { clampMinGirls } from '../lib/coed';
+
+export interface NewTeamOptions {
+  coed: boolean;
+  minGirlsOnField: number;
+}
 
 const ACTIVE_TEAM_KEY = 'teamtrack:active-team-id';
 
@@ -26,8 +32,9 @@ interface TeamState {
   loaded: boolean;
   load: () => Promise<void>;
   setActiveTeam: (id: string) => void;
-  createTeam: (name: string) => Promise<{ error?: string; teamId?: string }>;
+  createTeam: (name: string, options?: NewTeamOptions) => Promise<{ error?: string; teamId?: string }>;
   renameTeam: (id: string, name: string) => Promise<{ error?: string }>;
+  setCoed: (id: string, coed: boolean, minGirlsOnField: number) => Promise<{ error?: string }>;
   deleteTeam: (id: string) => Promise<{ error?: string }>;
 }
 
@@ -50,17 +57,31 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     set({ activeTeamId: id });
   },
 
-  createTeam: async (name) => {
+  createTeam: async (name, options) => {
     const trimmed = name.trim();
     if (!trimmed) return { error: 'Team name is required.' };
     if (get().teams.some((team) => team.name.toLowerCase() === trimmed.toLowerCase())) {
       return { error: 'A team with that name already exists.' };
     }
-    const team = await repo.createTeam(trimmed);
+    const team = await repo.createTeam(trimmed, options);
     const teams = [...get().teams, team].sort((a, b) => a.name.localeCompare(b.name));
     writeActiveTeamId(team.id);
     set({ teams, activeTeamId: team.id });
     return { teamId: team.id };
+  },
+
+  setCoed: async (id, coed, minGirlsOnField) => {
+    const existing = get().teams.find((team) => team.id === id);
+    if (!existing) return { error: 'Team not found.' };
+    const updated: Team = {
+      ...existing,
+      coed,
+      minGirlsOnField: clampMinGirls(minGirlsOnField),
+      updatedAt: Date.now(),
+    };
+    await repo.upsertTeam(updated);
+    set({ teams: get().teams.map((team) => (team.id === id ? updated : team)) });
+    return {};
   },
 
   renameTeam: async (id, name) => {

@@ -78,6 +78,14 @@ export function PlayerToken({
             !
           </span>
         )}
+        {player.gender === 'girl' && (
+          <span
+            className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-600 text-[8px] font-bold text-white"
+            title="Girl"
+          >
+            G
+          </span>
+        )}
       </div>
       <span
         className={clsx(

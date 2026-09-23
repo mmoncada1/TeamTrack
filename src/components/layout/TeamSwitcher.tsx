@@ -4,6 +4,7 @@ import { useRosterStore } from '../../state/rosterStore';
 import { useMatchStore } from '../../state/matchStore';
 import { Button } from '../common/Button';
 import { Dialog } from '../common/Dialog';
+import { DEFAULT_MIN_GIRLS_ON_FIELD } from '../../lib/coed';
 
 export function TeamSwitcher() {
   const { teams, activeTeamId, loaded, load, setActiveTeam, createTeam, renameTeam, deleteTeam } = useTeamStore();
@@ -11,6 +12,8 @@ export function TeamSwitcher() {
   const [renaming, setRenaming] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [name, setName] = useState('');
+  const [coed, setCoed] = useState(false);
+  const [minGirls, setMinGirls] = useState(String(DEFAULT_MIN_GIRLS_ON_FIELD));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,6 +52,8 @@ export function TeamSwitcher() {
         variant="secondary"
         onClick={() => {
           setName('');
+          setCoed(false);
+          setMinGirls(String(DEFAULT_MIN_GIRLS_ON_FIELD));
           setError(null);
           setCreating(true);
         }}
@@ -84,7 +89,10 @@ export function TeamSwitcher() {
             <Button
               variant="primary"
               onClick={async () => {
-                const result = await createTeam(name);
+                const result = await createTeam(name, {
+                  coed,
+                  minGirlsOnField: Number(minGirls),
+                });
                 if (result.error) {
                   setError(result.error);
                   return;
@@ -108,6 +116,29 @@ export function TeamSwitcher() {
           onChange={(e) => setName(e.target.value)}
           autoFocus
         />
+        <label className="mt-3 flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={coed} onChange={(e) => setCoed(e.target.checked)} />
+          Co-ed team
+        </label>
+        {coed && (
+          <div className="mt-3">
+            <label htmlFor="new-team-min-girls" className="block text-sm font-medium">
+              Girls required on the field
+            </label>
+            <input
+              id="new-team-min-girls"
+              type="number"
+              min={1}
+              max={11}
+              className="input mt-1 w-24"
+              value={minGirls}
+              onChange={(e) => setMinGirls(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              The live match warns you when fewer girls than this are on the field.
+            </p>
+          </div>
+        )}
         {error && (
           <p role="alert" className="mt-2 text-sm text-red-600">
             {error}

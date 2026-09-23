@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Player, PositionGroup } from '../types';
-import { POSITION_GROUP_LABELS } from '../types';
+import { PLAYER_GENDER_LABELS, POSITION_GROUP_LABELS } from '../types';
 import { useRosterStore } from '../state/rosterStore';
 import { useTeamStore } from '../state/teamStore';
+import { clampMinGirls, DEFAULT_MIN_GIRLS_ON_FIELD } from '../lib/coed';
 import { PlayerForm } from '../components/roster/PlayerForm';
 import { Dialog } from '../components/common/Dialog';
 import { Button } from '../components/common/Button';
@@ -12,12 +13,16 @@ import { jerseyLabel } from '../lib/playerSort';
 export function RosterPage() {
   const { players, loaded, load, addPlayer, updatePlayer, deletePlayer } = useRosterStore();
   const activeTeam = useTeamStore((s) => s.teams.find((team) => team.id === s.activeTeamId) ?? null);
+  const setCoed = useTeamStore((s) => s.setCoed);
   const teamPlayers = players.filter((player) => !activeTeam || player.teamId === activeTeam.id);
   const [formOpen, setFormOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Player | null>(null);
   const [search, setSearch] = useState('');
   const [groupFilter, setGroupFilter] = useState<PositionGroup | 'ALL'>('ALL');
+  const [coedOpen, setCoedOpen] = useState(false);
+  const [coedDraft, setCoedDraft] = useState(false);
+  const [minGirlsDraft, setMinGirlsDraft] = useState(String(DEFAULT_MIN_GIRLS_ON_FIELD));
 
   useEffect(() => {
     if (!loaded) load();
@@ -34,7 +39,27 @@ export function RosterPage() {
   return (
     <div className="mx-auto max-w-4xl p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">{activeTeam ? `${activeTeam.name} roster` : 'Roster'}</h1>
+        <div>
+          <h1 className="text-2xl font-bold">{activeTeam ? `${activeTeam.name} roster` : 'Roster'}</h1>
+          {activeTeam && (
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {activeTeam.coed
+                ? `Co-ed · at least ${clampMinGirls(activeTeam.minGirlsOnField)} girls on the field`
+                : 'Not a co-ed team'}
+              <button
+                type="button"
+                className="ml-2 font-medium text-emerald-700 underline dark:text-emerald-300"
+                onClick={() => {
+                  setCoedDraft(Boolean(activeTeam.coed));
+                  setMinGirlsDraft(String(clampMinGirls(activeTeam.minGirlsOnField)));
+                  setCoedOpen(true);
+                }}
+              >
+                Change
+              </button>
+            </p>
+          )}
+        </div>
         <Button
           variant="primary"
           onClick={() => {
@@ -102,6 +127,16 @@ export function RosterPage() {
               </div>
               <div className="text-sm text-slate-500 dark:text-slate-400">
                 {POSITION_GROUP_LABELS[player.preferredGroup]}
+                {activeTeam?.coed && (
+                  <>
+                    {' · '}
+                    {player.gender ? (
+                      PLAYER_GENDER_LABELS[player.gender]
+                    ) : (
+                      <span className="font-medium text-amber-700 dark:text-amber-300">Set gender</span>
+                    )}
+                  </>
+                )}
                 {player.notes ? ` · ${player.notes}` : ''}
               </div>
             </div>
@@ -128,7 +163,9 @@ export function RosterPage() {
         onClose={() => setFormOpen(false)}
       >
         <PlayerForm
+          key={editingPlayer?.id ?? 'new'}
           initial={editingPlayer ?? undefined}
+          requireGender={Boolean(activeTeam?.coed)}
           submitLabel={editingPlayer ? 'Save changes' : 'Add player'}
           onCancel={() => setFormOpen(false)}
           onSubmit={async (input) => {
@@ -137,6 +174,51 @@ export function RosterPage() {
             return result;
           }}
         />
+      </Dialog>
+
+      <Dialog
+        open={coedOpen}
+        title="Co-ed team"
+        description="Co-ed leagues need a minimum number of girls on the field. Each player then needs a gender."
+        onClose={() => setCoedOpen(false)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCoedOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={async () => {
+                if (!activeTeam) return;
+                await setCoed(activeTeam.id, coedDraft, Number(minGirlsDraft));
+                setCoedOpen(false);
+              }}
+            >
+              Save
+            </Button>
+          </>
+        }
+      >
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={coedDraft} onChange={(e) => setCoedDraft(e.target.checked)} />
+          This is a co-ed team
+        </label>
+        {coedDraft && (
+          <div className="mt-3">
+            <label htmlFor="roster-min-girls" className="block text-sm font-medium">
+              Girls required on the field
+            </label>
+            <input
+              id="roster-min-girls"
+              type="number"
+              min={1}
+              max={11}
+              className="input mt-1 w-24"
+              value={minGirlsDraft}
+              onChange={(e) => setMinGirlsDraft(e.target.value)}
+            />
+          </div>
+        )}
       </Dialog>
 
       <Dialog

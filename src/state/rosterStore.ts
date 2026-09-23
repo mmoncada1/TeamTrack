@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Player, PlayerAvailability, PositionGroup } from '../types';
+import type { Player, PlayerAvailability, PlayerGender, PositionGroup } from '../types';
 import * as repo from '../db/repository';
 import { createId } from '../lib/id';
 import { compressImageFile } from '../lib/photo';
@@ -12,10 +12,19 @@ export interface PlayerFormInput {
   /** Empty string / undefined means "no jersey number assigned". */
   jerseyNumber: number | string | undefined;
   preferredGroup: PositionGroup;
+  gender?: PlayerGender | '';
   notes?: string;
   availability: PlayerAvailability;
   photoFile?: File | null;
   removePhoto?: boolean;
+}
+
+function parseGender(raw: PlayerGender | '' | undefined): PlayerGender | undefined {
+  return raw === 'girl' || raw === 'boy' ? raw : undefined;
+}
+
+function teamRequiresGender(teamId: string): boolean {
+  return Boolean(useTeamStore.getState().teams.find((team) => team.id === teamId)?.coed);
 }
 
 function parseJerseyNumber(raw: number | string | undefined): number | undefined {
@@ -49,7 +58,7 @@ export const useRosterStore = create<RosterState>((set, get) => ({
     const teamId = useTeamStore.getState().activeTeamId;
     if (!teamId) return { errors: [{ field: 'name', message: 'Choose a team before adding a player.' }] };
     const sameTeam = get().players.filter((player) => player.teamId === teamId);
-    const errors = validatePlayerInput(input, sameTeam);
+    const errors = validatePlayerInput(input, sameTeam, undefined, { requireGender: teamRequiresGender(teamId) });
     if (errors.length > 0) return { errors };
 
     const now = Date.now();
@@ -60,6 +69,7 @@ export const useRosterStore = create<RosterState>((set, get) => ({
       name: input.name.trim(),
       jerseyNumber: parseJerseyNumber(input.jerseyNumber),
       preferredGroup: input.preferredGroup,
+      gender: parseGender(input.gender),
       notes: input.notes?.trim() || undefined,
       availability: input.availability,
       createdAt: now,
@@ -94,6 +104,7 @@ export const useRosterStore = create<RosterState>((set, get) => ({
       input,
       get().players.filter((player) => player.teamId === existing.teamId),
       id,
+      { requireGender: teamRequiresGender(existing.teamId) },
     );
     if (errors.length > 0) return { errors };
 
@@ -103,6 +114,7 @@ export const useRosterStore = create<RosterState>((set, get) => ({
       name: input.name.trim(),
       jerseyNumber: parseJerseyNumber(input.jerseyNumber),
       preferredGroup: input.preferredGroup,
+      gender: parseGender(input.gender) ?? existing.gender,
       notes: input.notes?.trim() || undefined,
       availability: input.availability,
       updatedAt: now,

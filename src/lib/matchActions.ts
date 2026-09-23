@@ -8,6 +8,7 @@ import type {
 } from '../types';
 import { createId } from './id';
 import { deriveMatchState } from './matchEngine';
+import type { CoedFieldRule } from './coed';
 import { getFormationById } from '../formations/definitions';
 import { remapFormation } from '../formations/remap';
 import { fillFormationByPreference } from '../formations/fill';
@@ -334,7 +335,12 @@ export function undoLastAction(match: Match): Match {
 // Alerts
 // ---------------------------------------------------------------------------
 
-export function recomputeAlerts(match: Match, players: Player[], nowMs: number = Date.now()): Match {
+export function recomputeAlerts(
+  match: Match,
+  players: Player[],
+  nowMs: number = Date.now(),
+  coed?: CoedFieldRule,
+): Match {
   const derived = deriveMatchState(match, nowMs);
   // Also refresh during half-time and pause. The clock is frozen, but a
   // substitution still changes who is on the field, so outgoing alerts must
@@ -352,6 +358,7 @@ export function recomputeAlerts(match: Match, players: Player[], nowMs: number =
     positions: formation?.positions ?? [],
     rosterOrder: match.rosterPlayerIds,
     matchClockMs: derived.matchClockMs,
+    coed,
   });
   if (alertsEqual(alerts, match.activeAlerts)) return match;
   return { ...match, activeAlerts: alerts };

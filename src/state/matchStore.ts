@@ -4,9 +4,17 @@ import * as repo from '../db/repository';
 import * as actions from '../lib/matchActions';
 import { deriveMatchState } from '../lib/matchEngine';
 import { useRosterStore } from './rosterStore';
+import { useTeamStore } from './teamStore';
+import { clampMinGirls, type CoedFieldRule } from '../lib/coed';
 import type { RecordGoalInput, CreateDraftMatchInput, DraftMetaPatch } from '../lib/matchActions';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+function coedRuleForTeam(teamId: string): CoedFieldRule | undefined {
+  const team = useTeamStore.getState().teams.find((entry) => entry.id === teamId);
+  if (!team?.coed) return undefined;
+  return { minGirlsOnField: clampMinGirls(team.minGirlsOnField) };
+}
 
 interface MatchState {
   match: Match | null;
@@ -138,14 +146,31 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   resetMatch: () => applyMutation((m) => actions.resetMatch(m)),
 
   movePlayer: (playerId, toSlot) =>
-    applyMutation((m) => actions.recomputeAlerts(actions.movePlayer(m, playerId, toSlot), useRosterStore.getState().players)),
+    applyMutation((m) =>
+      actions.recomputeAlerts(
+        actions.movePlayer(m, playerId, toSlot),
+        useRosterStore.getState().players,
+        Date.now(),
+        coedRuleForTeam(m.teamId),
+      ),
+    ),
   swapPlayers: (positionAId, positionBId) =>
     applyMutation((m) =>
-      actions.recomputeAlerts(actions.swapPlayers(m, positionAId, positionBId), useRosterStore.getState().players),
+      actions.recomputeAlerts(
+        actions.swapPlayers(m, positionAId, positionBId),
+        useRosterStore.getState().players,
+        Date.now(),
+        coedRuleForTeam(m.teamId),
+      ),
     ),
   substitutePlayer: (playerInId, positionId) =>
     applyMutation((m) =>
-      actions.recomputeAlerts(actions.substitutePlayer(m, playerInId, positionId), useRosterStore.getState().players),
+      actions.recomputeAlerts(
+        actions.substitutePlayer(m, playerInId, positionId),
+        useRosterStore.getState().players,
+        Date.now(),
+        coedRuleForTeam(m.teamId),
+      ),
     ),
 
   changeFormation: (formationId) => {
@@ -166,7 +191,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   tick: (players) => {
     const current = get().match;
     if (!current) return;
-    const next = actions.recomputeAlerts(current, players);
+    const next = actions.recomputeAlerts(current, players, Date.now(), coedRuleForTeam(current.teamId));
     if (next !== current) {
       set({ match: next });
       persist(next);

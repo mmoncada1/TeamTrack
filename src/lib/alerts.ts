@@ -2,6 +2,7 @@ import type { Alert, FormationPosition, Player, PlayerRuntimeState, ThresholdSet
 import { createId } from './id';
 import { minutesToMs } from './timer';
 import { recommendIncomingPlayer } from './recommendations';
+import { countGirlsOnField, shouldPreferGirlReplacement, type CoedFieldRule } from './coed';
 
 export interface UpdateAlertsParams {
   existingAlerts: Alert[];
@@ -12,6 +13,8 @@ export interface UpdateAlertsParams {
   positions: FormationPosition[];
   rosterOrder: string[];
   matchClockMs: number;
+  /** Set for co-ed matches so a sub recommendation does not drop below the girls minimum. */
+  coed?: CoedFieldRule;
 }
 
 export interface UpdateAlertsResult {
@@ -28,8 +31,9 @@ export interface UpdateAlertsResult {
  * per second from the match clock tick).
  */
 export function updateAlerts(params: UpdateAlertsParams): UpdateAlertsResult {
-  const { existingAlerts, playerStates, players, thresholds, goalkeeperRotationEnabled, positions, rosterOrder, matchClockMs } =
+  const { existingAlerts, playerStates, players, thresholds, goalkeeperRotationEnabled, positions, rosterOrder, matchClockMs, coed } =
     params;
+  const girlsOnField = countGirlsOnField(players, playerStates);
 
   const playersById = new Map(players.map((p) => [p.id, p]));
   const newAlertIds: string[] = [];
@@ -46,9 +50,13 @@ export function updateAlerts(params: UpdateAlertsParams): UpdateAlertsResult {
     excludePlayerIds: claimedIncoming,
   };
 
-  function nextRecommendation(positionId: string | null | undefined) {
+  function nextRecommendation(positionId: string | null | undefined, outgoingPlayerId: string) {
     if (!positionId) return undefined;
-    const recommendation = recommendIncomingPlayer(positionId, recommendationContext);
+    const preferGirl = shouldPreferGirlReplacement(coed, girlsOnField, playersById.get(outgoingPlayerId)?.gender);
+    const recommendation = recommendIncomingPlayer(positionId, {
+      ...recommendationContext,
+      preferGender: preferGirl ? 'girl' : undefined,
+    });
     if (!recommendation) return undefined;
     claimedIncoming.add(recommendation.playerId);
     return { inPlayerId: recommendation.playerId, explanation: recommendation.explanation };
@@ -75,7 +83,7 @@ export function updateAlerts(params: UpdateAlertsParams): UpdateAlertsResult {
     result.push({
       ...alert,
       status,
-      recommendation: nextRecommendation(state.positionId),
+      recommendation: nextRecommendation(state.positionId, alert.playerId),
     });
   }
 
@@ -105,7 +113,7 @@ export function updateAlerts(params: UpdateAlertsParams): UpdateAlertsResult {
       stintStartMs: state.currentStintStartMs,
       createdAtClockMs: matchClockMs,
       status: 'active',
-      recommendation: nextRecommendation(state.positionId),
+      recommendation: nextRecommendation(state.positionId, state.playerId),
     };
     result.push(alert);
     newAlertIds.push(alert.id);

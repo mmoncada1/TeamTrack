@@ -25,10 +25,25 @@ export const MATCH_FORMAT_PLAYER_COUNT: Record<MatchFormat, number> = {
 
 export type PlayerAvailability = 'active' | 'unavailable';
 
+/** Used by co-ed teams so the match can count girls currently on the field. */
+export type PlayerGender = 'girl' | 'boy';
+
+export const PLAYER_GENDER_LABELS: Record<PlayerGender, string> = {
+  girl: 'Girl',
+  boy: 'Boy',
+};
+
 /** A club or squad the coach manages. Rosters and matches belong to one team. */
 export interface Team {
   id: string;
   name: string;
+  /**
+   * Co-ed leagues require a minimum number of girls on the field at once.
+   * Missing means a single-gender team (existing teams before this option).
+   */
+  coed?: boolean;
+  /** Required girls on the field. Only used when `coed` is true. */
+  minGirlsOnField?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -41,6 +56,8 @@ export interface Player {
   /** Optional — some rosters (e.g. very young teams) don't assign numbers. */
   jerseyNumber?: number;
   preferredGroup: PositionGroup;
+  /** Set for co-ed rosters. Omitted on older players until the coach chooses one. */
+  gender?: PlayerGender;
   notes?: string;
   availability: PlayerAvailability;
   /** Foreign key into the `photos` table, if a profile picture was uploaded. */

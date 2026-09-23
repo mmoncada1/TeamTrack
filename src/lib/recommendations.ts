@@ -1,4 +1,4 @@
-import type { FormationPosition, Player, PlayerRuntimeState, ThresholdSettings } from '../types';
+import type { FormationPosition, Player, PlayerGender, PlayerRuntimeState, ThresholdSettings } from '../types';
 import { minutesToMs } from './timer';
 
 export interface RecommendationContext {
@@ -11,6 +11,11 @@ export interface RecommendationContext {
   positions: FormationPosition[];
   /** Bench players already recommended for another alert this pass. */
   excludePlayerIds?: ReadonlySet<string>;
+  /**
+   * When set, bench players of this gender rank first. Used so a co-ed sub
+   * does not drop the number of girls on the field below the league minimum.
+   */
+  preferGender?: PlayerGender;
 }
 
 export interface ExceededCandidate {
@@ -59,10 +64,11 @@ export interface IncomingRecommendation {
  * Recommend the best bench player to replace `outgoingPlayerId` at
  * `positionId`. Ranking, in order:
  *   1. Available bench players only.
- *   2. Preferred position group matches the open position's group.
- *   3. Longest current bench stint.
- *   4. Lowest total playing time (totalFieldMs).
- *   5. Roster order (deterministic final tie-break).
+ *   2. Matching `preferGender`, when a co-ed minimum would otherwise be missed.
+ *   3. Preferred position group matches the open position's group.
+ *   4. Longest current bench stint.
+ *   5. Lowest total playing time (totalFieldMs).
+ *   6. Roster order (deterministic final tie-break).
  */
 export function recommendIncomingPlayer(
   positionId: string,
@@ -83,6 +89,12 @@ export function recommendIncomingPlayer(
   if (benchCandidates.length === 0) return null;
 
   const sorted = [...benchCandidates].sort((a, b) => {
+    if (context.preferGender) {
+      const aGender = playersById.get(a.playerId)?.gender === context.preferGender;
+      const bGender = playersById.get(b.playerId)?.gender === context.preferGender;
+      if (aGender !== bGender) return aGender ? -1 : 1;
+    }
+
     const aMatches = playersById.get(a.playerId)?.preferredGroup === positionGroup;
     const bMatches = playersById.get(b.playerId)?.preferredGroup === positionGroup;
     if (aMatches !== bMatches) return aMatches ? -1 : 1;
@@ -102,6 +114,9 @@ export function recommendIncomingPlayer(
 
   const benchMinutes = Math.round(best.currentStintMs / 60000);
   const reasonParts: string[] = [];
+  if (context.preferGender && bestPlayer?.gender === context.preferGender) {
+    reasonParts.push('keeps a girl on the field');
+  }
   if (matchesGroup && position) {
     reasonParts.push(`matches the ${position.label.toLowerCase()} role`);
   }

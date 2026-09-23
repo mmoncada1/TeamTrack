@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMatchStore } from '../state/matchStore';
 import { useRosterStore } from '../state/rosterStore';
+import { useTeamStore } from '../state/teamStore';
 import { useAppSettingsStore } from '../state/appSettingsStore';
+import { clampMinGirls, countGirlsOnField, girlsAfterSubstitution } from '../lib/coed';
 import { useNow } from '../hooks/useNow';
 import { deriveMatchState } from '../lib/matchEngine';
 import { getFormationById } from '../formations/definitions';
@@ -33,6 +35,7 @@ export function LiveMatchPage() {
   const navigate = useNavigate();
   const store = useMatchStore();
   const roster = useRosterStore();
+  const teams = useTeamStore((s) => s.teams);
   const appSettings = useAppSettingsStore((s) => s.settings);
   const now = useNow(500);
 
@@ -122,6 +125,39 @@ export function LiveMatchPage() {
     ? formation?.positions.find((p) => p.id === pendingSub.positionId)?.label ?? pendingSub.positionId
     : '';
 
+  const team = teams.find((entry) => entry.id === match.teamId);
+  const minGirls = team?.coed ? clampMinGirls(team.minGirlsOnField) : 0;
+  const girlsNow = team?.coed ? countGirlsOnField(matchPlayers, derived.playerStates) : 0;
+  const unsetGender = team?.coed ? matchPlayers.filter((player) => !player.gender).length : 0;
+  const girlsShort = team?.coed && girlsNow < minGirls;
+  const coedStatus = team?.coed ? (
+    <div
+      className={`shrink-0 rounded-lg px-2 py-1 text-xs font-semibold ${
+        girlsShort
+          ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200'
+          : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
+      }`}
+    >
+      Girls on field {girlsNow}/{minGirls}
+      {unsetGender > 0 && (
+        <span className="mt-0.5 block font-normal">
+          Set gender for {unsetGender} player{unsetGender === 1 ? '' : 's'} on the roster.
+        </span>
+      )}
+    </div>
+  ) : null;
+
+  const coedWarning = (() => {
+    if (!pendingSub || !team?.coed) return null;
+    const next = girlsAfterSubstitution(
+      girlsNow,
+      playersById.get(pendingSub.playerOutId)?.gender,
+      playersById.get(pendingSub.playerInId)?.gender,
+    );
+    if (next >= minGirls) return null;
+    return `This leaves ${next} ${next === 1 ? 'girl' : 'girls'} on the field. Co-ed needs at least ${minGirls}.`;
+  })();
+
   const alertsPanel = (
     <AlertsPanel
       alerts={match.activeAlerts}
@@ -150,13 +186,17 @@ export function LiveMatchPage() {
       )}
 
       {/* Mobile: alerts shown full-width above the workspace. sm+: they become the left sidebar column below. */}
-      <div className="mt-3 shrink-0 sm:hidden">{alertsPanel}</div>
+      <div className="mt-3 shrink-0 space-y-2 sm:hidden">
+        {coedStatus}
+        {alertsPanel}
+      </div>
 
       <div className="mt-3 flex min-h-0 flex-1 flex-col gap-2 sm:mt-0 sm:flex-row">
         <div className="hidden min-w-52 flex-col sm:flex sm:h-full sm:flex-1">
           <h1 className="flex h-7 shrink-0 items-center truncate text-base font-bold">
             {match.teamName || 'Us'} vs {match.opponentName || 'Opponent'}
           </h1>
+          {coedStatus && <div className="mb-1">{coedStatus}</div>}
           <div className="min-h-0 flex-1 overflow-y-auto">{alertsPanel}</div>
         </div>
 
@@ -280,6 +320,7 @@ export function LiveMatchPage() {
         playerOut={pendingSub ? playersById.get(pendingSub.playerOutId) ?? null : null}
         positionLabel={pendingSubPositionLabel}
         matchClockMs={derived.displayClockMs}
+        warning={coedWarning}
         onCancel={() => setPendingSub(null)}
         onConfirm={() => {
           if (pendingSub) runAction(() => store.substitutePlayer(pendingSub.playerInId, pendingSub.positionId));

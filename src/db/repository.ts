@@ -3,6 +3,7 @@ import type { Match, Player, PlayerPhoto, Team } from '../types';
 import { isValidPlayerRecord } from '../lib/validation';
 import { comparePlayersByJersey } from '../lib/playerSort';
 import { createId } from '../lib/id';
+import { clampMinGirls } from '../lib/coed';
 
 // ---------------------------------------------------------------------------
 // Teams
@@ -17,9 +18,19 @@ export async function upsertTeam(team: Team): Promise<void> {
   await db.teams.put(team);
 }
 
-export async function createTeam(name: string): Promise<Team> {
+export async function createTeam(
+  name: string,
+  options?: { coed?: boolean; minGirlsOnField?: number },
+): Promise<Team> {
   const now = Date.now();
-  const team: Team = { id: createId(), name: name.trim(), createdAt: now, updatedAt: now };
+  const coed = Boolean(options?.coed);
+  const team: Team = {
+    id: createId(),
+    name: name.trim(),
+    createdAt: now,
+    updatedAt: now,
+    ...(coed ? { coed: true, minGirlsOnField: clampMinGirls(options?.minGirlsOnField) } : {}),
+  };
   await db.teams.add(team);
   return team;
 }
