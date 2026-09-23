@@ -6,6 +6,7 @@ import { useTeamStore } from '../state/teamStore';
 import { useAppSettingsStore } from '../state/appSettingsStore';
 import { clampMinGirls, countGirlsOnField, moveLeavesTooManyGuys, TOO_MANY_GUYS_MESSAGE } from '../lib/coed';
 import { TooManyGuysDialog } from '../components/match/TooManyGuysDialog';
+import { GoalConfetti } from '../components/match/GoalConfetti';
 import { useNow } from '../hooks/useNow';
 import { deriveMatchState } from '../lib/matchEngine';
 import { getFormationById } from '../formations/definitions';
@@ -51,6 +52,7 @@ export function LiveMatchPage() {
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [addPlayerOpen, setAddPlayerOpen] = useState(false);
   const [coedBlocked, setCoedBlocked] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {
     if (!roster.loaded) roster.load();
@@ -159,7 +161,12 @@ export function LiveMatchPage() {
   }
 
   function handleGoal(input: RecordGoalInput) {
-    runAction(() => store.recordGoal(input));
+    let saved = false;
+    runAction(() => {
+      store.recordGoal(input);
+      saved = true;
+    });
+    if (saved && input.team === 'us' && !input.isOwnGoal && !appSettings.reducedMotion) setShowConfetti(true);
   }
 
   const pendingSubPositionLabel = pendingSub
@@ -338,6 +345,8 @@ export function LiveMatchPage() {
           Reset match…
         </Button>
       </div>
+
+      {showConfetti && <GoalConfetti onDone={() => setShowConfetti(false)} />}
 
       <TooManyGuysDialog open={coedBlocked} minGirls={minGirls} onDismiss={() => setCoedBlocked(false)} />
 
