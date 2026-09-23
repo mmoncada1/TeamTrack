@@ -9,6 +9,7 @@ import { exportPlayerSummaryAsCsv } from '../lib/exportImport';
 import { Button } from '../components/common/Button';
 import { PlayerAvatar } from '../components/common/PlayerAvatar';
 import { jerseyLabel } from '../lib/playerSort';
+import type { CardEvent, GoalEvent, Match, MatchEvent, Player } from '../types';
 
 export function MatchSummaryPage() {
   const { id } = useParams();
@@ -34,10 +35,10 @@ export function MatchSummaryPage() {
   }
 
   const sortedEvents = [...match.events].sort((a, b) => a.matchClockMs - b.matchClockMs || a.timestamp - b.timestamp);
-  const recapEvents = sortedEvents.filter(
-    (event) => event.type === 'GOAL' || event.type === 'CARD' || event.type === 'SUBSTITUTION',
-  );
-  const hadHalfTime = match.events.some((event) => event.type === 'HALF_TIME');
+  const recap = buildRecap(match, playersById);
+  const teamLabel = match.teamName || 'Us';
+  const opponentLabel = match.opponentName || 'Opponent';
+  const heading = [match.title, formatMatchDate(match.date)].filter(Boolean).join(' · ');
 
   return (
     <div className="mx-auto max-w-4xl p-4 sm:p-6">
@@ -48,43 +49,33 @@ export function MatchSummaryPage() {
         </Button>
       </div>
 
-      <section className="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-        <h2 className="text-lg font-semibold">
-          {match.teamName || 'Us'} {summary.teamScore} – {summary.opponentScore} {match.opponentName || 'Opponent'}
-        </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          {match.date} {match.title ? `· ${match.title}` : ''} · Final time {formatClock(summary.matchClockMs)}
-        </p>
-      </section>
+      <section className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-5 dark:border-slate-700 dark:bg-slate-800 sm:px-8">
+        <div className="flex items-center justify-between gap-3 text-sm text-slate-500 dark:text-slate-400">
+          <p>{heading}</p>
+          <p>Full-time</p>
+        </div>
 
-      <section className="mt-4">
-        <h3 className="text-lg font-semibold">Game recap</h3>
-        {recapEvents.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-500">No goals, cards, or substitutions.</p>
+        <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-start gap-3 sm:gap-6">
+          <div className="flex items-start justify-start gap-3 sm:gap-5">
+            <TeamMark name={teamLabel} tone="us" />
+            <p className="pt-1 text-4xl font-semibold tabular-nums sm:pt-2 sm:text-5xl">{summary.teamScore}</p>
+          </div>
+          <p className="pt-2 text-2xl font-light text-slate-400 sm:pt-4 sm:text-3xl" aria-hidden>
+            –
+          </p>
+          <div className="flex items-start justify-end gap-3 sm:gap-5">
+            <p className="pt-1 text-4xl font-semibold tabular-nums sm:pt-2 sm:text-5xl">{summary.opponentScore}</p>
+            <TeamMark name={opponentLabel} tone="opponent" />
+          </div>
+        </div>
+
+        {recap.ours.length === 0 && recap.theirs.length === 0 ? (
+          <p className="mt-6 text-sm text-slate-500">No goals or cards.</p>
         ) : (
-          <ol className="mt-2 space-y-1">
-            {recapEvents.map((event) => {
-              const halfIndex = match.events.findIndex((entry) => entry.type === 'HALF_TIME');
-              const eventIndex = match.events.findIndex((entry) => entry.id === event.id);
-              const half = !hadHalfTime ? null : eventIndex > halfIndex ? '2nd half' : '1st half';
-              return (
-                <li
-                  key={event.id}
-                  className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
-                >
-                  <span className="w-14 shrink-0 tabular-nums font-semibold">{formatClock(eventDisplayMs(match.events, event))}</span>
-                  {half && <span className="w-16 shrink-0 text-xs text-slate-500">{half}</span>}
-                  {event.type === 'CARD' && (
-                    <span
-                      className={`h-3.5 w-2.5 shrink-0 rounded-[2px] ${event.color === 'red' ? 'bg-red-600' : 'bg-yellow-400'}`}
-                      aria-hidden
-                    />
-                  )}
-                  <span>{describeEvent(event, playersById, match.settings.formationId)}</span>
-                </li>
-              );
-            })}
-          </ol>
+          <div className="mt-6 grid grid-cols-2 gap-6">
+            <RecapList items={recap.ours} align="start" />
+            <RecapList items={recap.theirs} align="end" />
+          </div>
         )}
       </section>
 
@@ -163,5 +154,132 @@ export function MatchSummaryPage() {
         </Button>
       </section>
     </div>
+  );
+}
+
+function formatMatchDate(iso: string): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  if (!year || !month || !day) return iso;
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
+}
+
+/** Minute mark in the style of a league scoreboard, including added time. */
+function minuteMark(match: Match, event: MatchEvent): string {
+  const halfLength = match.settings.halfLengthMinutes;
+  const elapsedMs = eventDisplayMs(match.events, event);
+  const minuteInPeriod = Math.floor(Math.max(0, elapsedMs) / 60000) + 1;
+  const halfIndex = match.events.findIndex((entry) => entry.type === 'HALF_TIME');
+  const eventIndex = match.events.findIndex((entry) => entry.id === event.id);
+  const secondHalf = halfIndex !== -1 && eventIndex > halfIndex;
+  if (!secondHalf) {
+    if (halfLength > 0 && minuteInPeriod > halfLength) return `${halfLength}+${minuteInPeriod - halfLength}'`;
+    return `${minuteInPeriod}'`;
+  }
+  const cumulative = halfLength + minuteInPeriod;
+  const fullTime = halfLength * 2;
+  if (halfLength > 0 && cumulative > fullTime) return `${fullTime}+${cumulative - fullTime}'`;
+  return `${cumulative}'`;
+}
+
+interface RecapLine {
+  id: string;
+  text: string;
+  minute: string;
+  assist?: string;
+  card?: 'yellow' | 'red' | 'second';
+}
+
+function playerName(playersById: Map<string, Player>, id: string | undefined): string | undefined {
+  if (!id) return undefined;
+  return playersById.get(id)?.name;
+}
+
+function buildRecap(match: Match, playersById: Map<string, Player>): { ours: RecapLine[]; theirs: RecapLine[] } {
+  const ordered = [...match.events]
+    .filter((event): event is GoalEvent | CardEvent => event.type === 'GOAL' || event.type === 'CARD')
+    .sort((a, b) => a.matchClockMs - b.matchClockMs || a.timestamp - b.timestamp);
+  const ours: RecapLine[] = [];
+  const theirs: RecapLine[] = [];
+  for (const event of ordered) {
+    const minute = minuteMark(match, event);
+    if (event.type === 'CARD') {
+      ours.push({
+        id: event.id,
+        text: playerName(playersById, event.playerId) ?? 'Player',
+        minute,
+        card: event.secondYellow ? 'second' : event.color,
+      });
+      continue;
+    }
+    const scorer = playerName(playersById, event.scorerId);
+    const assist = event.assisterId ? playerName(playersById, event.assisterId) : undefined;
+    const line: RecapLine = event.isOwnGoal
+      ? { id: event.id, text: scorer ? `${scorer} (og)` : 'Own goal', minute }
+      : event.team === 'opponent'
+        ? { id: event.id, text: 'Goal', minute }
+        : { id: event.id, text: scorer ?? 'Goal', minute, assist };
+    if (event.isOwnGoal || event.team === 'opponent') theirs.push(line);
+    else ours.push(line);
+  }
+  return { ours, theirs };
+}
+
+function TeamMark({ name, tone }: { name: string; tone: 'us' | 'opponent' }) {
+  const circle =
+    tone === 'us'
+      ? 'bg-emerald-600 text-white'
+      : 'bg-sky-700 text-white';
+  return (
+    <div className="flex w-16 flex-col items-center text-center sm:w-28">
+      <span className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold sm:h-16 sm:w-16 sm:text-base ${circle}`}>
+        {initials(name)}
+      </span>
+      <p className="mt-2 text-sm font-semibold leading-tight">{name}</p>
+    </div>
+  );
+}
+
+function RecapList({ items, align }: { items: RecapLine[]; align: 'start' | 'end' }) {
+  if (items.length === 0) return <div />;
+  return (
+    <ul className={`space-y-1 text-sm ${align === 'end' ? 'text-right' : 'text-left'}`}>
+      {items.map((item) => (
+        <li key={item.id} className={`flex items-center gap-1.5 ${align === 'end' ? 'justify-end' : 'justify-start'}`}>
+          {item.card === 'yellow' && <CardChip color="yellow" />}
+          {item.card === 'red' && <CardChip color="red" />}
+          {item.card === 'second' && (
+            <>
+              <CardChip color="yellow" />
+              <CardChip color="red" />
+            </>
+          )}
+          <span>
+            {item.text}
+            {item.assist ? <span className="text-slate-500 dark:text-slate-400"> ({item.assist})</span> : null}{' '}
+            <span className="text-slate-600 dark:text-slate-300">{item.minute}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CardChip({ color }: { color: 'yellow' | 'red' }) {
+  return (
+    <span
+      className={`inline-block h-3.5 w-2.5 shrink-0 rounded-[2px] ${color === 'red' ? 'bg-red-600' : 'bg-yellow-400'}`}
+      aria-label={color === 'red' ? 'Red card' : 'Yellow card'}
+    />
   );
 }
