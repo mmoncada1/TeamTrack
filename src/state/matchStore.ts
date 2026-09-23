@@ -45,6 +45,10 @@ interface MatchState {
   movePlayer: (playerId: string, toSlot: SlotId) => void;
   swapPlayers: (positionAId: string, positionBId: string) => void;
   substitutePlayer: (playerInId: string, positionId: string) => void;
+  addPlayerToMatch: (playerId: string) => void;
+  markPlayerInjured: (playerId: string) => void;
+  returnPlayerToBench: (playerId: string) => void;
+  removePlayerFromMatch: (playerId: string) => void;
   changeFormation: (formationId: string) => string;
   recordGoal: (input: RecordGoalInput) => void;
   deleteEvent: (eventId: string) => void;
@@ -171,6 +175,22 @@ export const useMatchStore = create<MatchState>((set, get) => ({
         Date.now(),
         coedRuleForTeam(m.teamId),
       ),
+    ),
+  addPlayerToMatch: (playerId) =>
+    applyMutation((m) =>
+      actions.recomputeAlerts(actions.addPlayerToMatch(m, playerId), useRosterStore.getState().players, Date.now(), coedRuleForTeam(m.teamId)),
+    ),
+  markPlayerInjured: (playerId) =>
+    applyMutation((m) =>
+      actions.recomputeAlerts(actions.markPlayerInjured(m, playerId), useRosterStore.getState().players, Date.now(), coedRuleForTeam(m.teamId)),
+    ),
+  returnPlayerToBench: (playerId) =>
+    applyMutation((m) =>
+      actions.recomputeAlerts(actions.returnPlayerToBench(m, playerId), useRosterStore.getState().players, Date.now(), coedRuleForTeam(m.teamId)),
+    ),
+  removePlayerFromMatch: (playerId) =>
+    applyMutation((m) =>
+      actions.recomputeAlerts(actions.removePlayerFromMatch(m, playerId), useRosterStore.getState().players, Date.now(), coedRuleForTeam(m.teamId)),
     ),
 
   changeFormation: (formationId) => {

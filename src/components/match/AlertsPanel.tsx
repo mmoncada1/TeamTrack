@@ -1,6 +1,6 @@
 import type { Alert, Player } from '../../types';
 import { Button } from '../common/Button';
-import { POSITION_COLORS } from './positionColors';
+import { positionAbbreviations } from '../../lib/playerPositions';
 
 interface AlertsPanelProps {
   alerts: Alert[];
@@ -24,12 +24,8 @@ export function AlertsPanel({ alerts, playersById, onAccept, onDismiss }: Alerts
       {visible.map((alert) => {
         const player = playersById.get(alert.playerId);
         const inPlayer = alert.recommendation ? playersById.get(alert.recommendation.inPlayerId) : undefined;
-        const name = player
-          ? `${player.name} (${POSITION_COLORS[player.preferredGroup].abbr})`
-          : 'Player';
-        const inLabel = inPlayer
-          ? `Sub in ${inPlayer.name} (${POSITION_COLORS[inPlayer.preferredGroup].abbr})`
-          : '';
+        const name = player ? `${player.name} (${positionAbbreviations(player)})` : 'Player';
+        const inLabel = inPlayer ? `Sub in ${inPlayer.name} (${positionAbbreviations(inPlayer)})` : '';
         return (
           <div
             key={alert.id}

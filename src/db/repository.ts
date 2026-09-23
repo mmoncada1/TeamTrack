@@ -4,6 +4,7 @@ import { isValidPlayerRecord } from '../lib/validation';
 import { comparePlayersByJersey } from '../lib/playerSort';
 import { createId } from '../lib/id';
 import { clampMinGirls } from '../lib/coed';
+import { withPositionGroups } from '../lib/playerPositions';
 
 // ---------------------------------------------------------------------------
 // Teams
@@ -67,7 +68,7 @@ export async function listPlayers(): Promise<Player[]> {
   if (valid.length !== raw.length) {
     console.warn(`Dropped ${raw.length - valid.length} corrupt player record(s) while loading.`);
   }
-  return valid.sort(comparePlayersByJersey);
+  return valid.map(withPositionGroups).sort(comparePlayersByJersey);
 }
 
 export async function upsertPlayer(player: Player): Promise<void> {

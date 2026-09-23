@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -16,6 +16,7 @@ import { BenchPanel } from './BenchPanel';
 import { MoveDialog } from './MoveDialog';
 import { PlayerAvatar } from '../common/PlayerAvatar';
 import { POSITION_COLORS, POSITION_COLOR_ORDER } from './positionColors';
+import { positionAbbreviations, primaryPositionGroup } from '../../lib/playerPositions';
 import { POSITION_GROUP_LABELS } from '../../types';
 
 interface FieldWorkspaceProps {
@@ -27,8 +28,11 @@ interface FieldWorkspaceProps {
   playerStates?: Record<string, PlayerRuntimeState>;
   showTimers?: boolean;
   alertPlayerIds?: Set<string>;
+  injuredPlayerIds?: string[];
   locked?: boolean;
   onRequestMove: (playerId: string, toSlot: SlotId) => void;
+  onEditPlayer?: (playerId: string) => void;
+  onAddPlayer?: () => void;
 }
 
 export function FieldWorkspace({
@@ -40,8 +44,11 @@ export function FieldWorkspace({
   playerStates,
   showTimers,
   alertPlayerIds,
+  injuredPlayerIds,
   locked,
   onRequestMove,
+  onEditPlayer,
+  onAddPlayer,
 }: FieldWorkspaceProps) {
   const [moveDialogPlayerId, setMoveDialogPlayerId] = useState<string | null>(null);
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null);
@@ -49,12 +56,17 @@ export function FieldWorkspace({
   const playersById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
 
   const assignedIds = new Set(Object.values(assignments));
+  const injured = new Set(injuredPlayerIds ?? []);
+  const isUnavailable = (id: string) =>
+    playerStates ? playerStates[id]?.status === 'unavailable' : unavailablePlayerIds.includes(id);
   const benchIds = rosterPlayerIds
-    .filter((id) => !assignedIds.has(id) && !unavailablePlayerIds.includes(id))
+    .filter((id) => !assignedIds.has(id) && !isUnavailable(id))
     // Longest current bench stint first, so the coach can spot who's been
     // waiting longest for their next turn on the field.
     .sort((a, b) => (playerStates?.[b]?.currentStintMs ?? 0) - (playerStates?.[a]?.currentStintMs ?? 0));
-  const unavailableIds = rosterPlayerIds.filter((id) => unavailablePlayerIds.includes(id));
+  const unavailableIds = rosterPlayerIds.filter((id) => isUnavailable(id));
+  const injuredIds = unavailableIds.filter((id) => injured.has(id));
+  const otherUnavailableIds = unavailableIds.filter((id) => !injured.has(id));
 
   // A single PointerSensor (not Pointer+Touch together) is the recommended
   // dnd-kit setup for supporting mouse, touch, AND pen/stylus input without
@@ -98,7 +110,7 @@ export function FieldWorkspace({
       <div className="flex flex-col gap-4 sm:h-full sm:min-h-0 sm:flex-row sm:items-start sm:gap-2">
         <div className="flex w-full flex-col sm:h-full sm:min-h-0 sm:w-48 sm:flex-shrink-0">
           <div className="sm:min-h-0 sm:flex-1">
-            <BenchPanel count={benchIds.length}>
+            <BenchPanel count={benchIds.length} onAddPlayer={onAddPlayer}>
               {benchIds.map((id) => {
                 const player = playersById.get(id);
                 if (!player) return null;
@@ -113,23 +125,26 @@ export function FieldWorkspace({
                     showTimer={showTimers}
                     alertActive={alertPlayerIds?.has(id)}
                     onRequestMove={() => setMoveDialogPlayerId(id)}
+                    onEdit={onEditPlayer}
                   />
                 );
               })}
             </BenchPanel>
           </div>
 
-          {unavailableIds.length > 0 && (
-            <div className="mt-3 shrink-0">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Unavailable</h3>
-              <div className="mt-1 flex flex-col items-center gap-2 opacity-60">
-                {unavailableIds.map((id) => {
-                  const player = playersById.get(id);
-                  if (!player) return null;
-                  return <PlayerToken key={id} player={player} slotId="UNAVAILABLE" disabled compact />;
-                })}
-              </div>
-            </div>
+          {injuredIds.length > 0 && (
+            <OutSection label="Injured">
+              {injuredIds.map((id) => (
+                <OutToken key={id} id={id} playersById={playersById} onEdit={onEditPlayer} />
+              ))}
+            </OutSection>
+          )}
+          {otherUnavailableIds.length > 0 && (
+            <OutSection label="Unavailable">
+              {otherUnavailableIds.map((id) => (
+                <OutToken key={id} id={id} playersById={playersById} onEdit={onEditPlayer} />
+              ))}
+            </OutSection>
           )}
         </div>
 
@@ -159,6 +174,7 @@ export function FieldWorkspace({
                         showTimer={showTimers}
                         alertActive={alertPlayerIds?.has(player.id)}
                         onRequestMove={() => setMoveDialogPlayerId(player.id)}
+                        onEdit={onEditPlayer}
                       />
                     )}
                   </DroppableSlot>
@@ -175,12 +191,12 @@ export function FieldWorkspace({
             <PlayerAvatar
               player={draggingPlayer}
               size="xl"
-              ringClassName={POSITION_COLORS[draggingPlayer.preferredGroup].ring}
+              ringClassName={POSITION_COLORS[primaryPositionGroup(draggingPlayer)].ring}
             />
             <span
-              className={`mt-1 w-full truncate rounded px-1 text-center text-xs font-bold ${POSITION_COLORS[draggingPlayer.preferredGroup].badge}`}
+              className={`mt-1 w-full truncate rounded px-1 text-center text-xs font-bold ${POSITION_COLORS[primaryPositionGroup(draggingPlayer)].badge}`}
             >
-              {draggingPlayer.name} ({POSITION_COLORS[draggingPlayer.preferredGroup].abbr})
+              {draggingPlayer.name} ({positionAbbreviations(draggingPlayer)})
             </span>
           </div>
         ) : null}
@@ -200,4 +216,27 @@ export function FieldWorkspace({
       />
     </DndContext>
   );
+}
+
+function OutSection({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="mt-3 shrink-0">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</h3>
+      <div className="mt-1 flex flex-col items-center gap-2 opacity-60">{children}</div>
+    </div>
+  );
+}
+
+function OutToken({
+  id,
+  playersById,
+  onEdit,
+}: {
+  id: string;
+  playersById: Map<string, Player>;
+  onEdit?: (playerId: string) => void;
+}) {
+  const player = playersById.get(id);
+  if (!player) return null;
+  return <PlayerToken player={player} slotId="UNAVAILABLE" disabled compact onEdit={onEdit} />;
 }

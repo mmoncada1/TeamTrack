@@ -124,6 +124,20 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
   let firstHalfEndMs: number | null = null;
 
   const events: MatchEvent[] = match.events;
+  const removed = new Set<string>();
+  const joined = new Set<string>();
+  const injured = new Set<string>();
+
+  function leaveMatch(playerId: string, atMs: number): void {
+    const state = playerStates[playerId];
+    if (!state) return;
+    if (state.positionId && assignments[state.positionId] === playerId) {
+      delete assignments[state.positionId];
+    }
+    if (state.status !== 'unavailable') closeInterval(state, atMs);
+    state.status = 'unavailable';
+    state.positionId = null;
+  }
 
   for (const ev of events) {
     switch (ev.type) {
@@ -172,10 +186,47 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
         const positionByPlayer = new Map(Object.entries(assignments).map(([pos, pid]) => [pid, pos]));
         for (const playerId of match.rosterPlayerIds) {
           const state = playerStates[playerId];
-          if (state.status === 'unavailable') continue;
+          if (!state || state.status === 'unavailable' || removed.has(playerId)) continue;
           const positionId = positionByPlayer.get(playerId);
           placePlayer(state, positionId ? 'field' : 'bench', positionId, ev.matchClockMs);
         }
+        for (const playerId of joined) {
+          const state = playerStates[playerId];
+          if (!state || state.status === 'unavailable' || removed.has(playerId)) continue;
+          const positionId = positionByPlayer.get(playerId);
+          placePlayer(state, positionId ? 'field' : 'bench', positionId, ev.matchClockMs);
+        }
+        break;
+      }
+      case 'PLAYER_JOINED': {
+        if (removed.has(ev.playerId)) removed.delete(ev.playerId);
+        joined.add(ev.playerId);
+        injured.delete(ev.playerId);
+        if (!playerStates[ev.playerId]) playerStates[ev.playerId] = freshState(ev.playerId);
+        const state = playerStates[ev.playerId];
+        if (state.status === 'unavailable' || state.currentStintStartMs == null) {
+          openInterval(state, 'bench', undefined, ev.matchClockMs);
+        }
+        break;
+      }
+      case 'PLAYER_UNAVAILABLE': {
+        if (!playerStates[ev.playerId] || removed.has(ev.playerId)) break;
+        leaveMatch(ev.playerId, ev.matchClockMs);
+        injured.add(ev.playerId);
+        break;
+      }
+      case 'PLAYER_AVAILABLE': {
+        const state = playerStates[ev.playerId];
+        if (!state || removed.has(ev.playerId) || state.status !== 'unavailable') break;
+        injured.delete(ev.playerId);
+        openInterval(state, 'bench', undefined, ev.matchClockMs);
+        break;
+      }
+      case 'PLAYER_REMOVED': {
+        if (!playerStates[ev.playerId]) break;
+        leaveMatch(ev.playerId, ev.matchClockMs);
+        injured.delete(ev.playerId);
+        removed.add(ev.playerId);
         break;
       }
       case 'PLAYER_MOVED': {
@@ -262,18 +313,23 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
         ? Math.max(0, matchClockMs - firstHalfEndMs)
         : matchClockMs;
 
-  for (const playerId of match.rosterPlayerIds) {
+  const trackedIds = new Set<string>(match.rosterPlayerIds);
+  for (const playerId of joined) trackedIds.add(playerId);
+
+  for (const playerId of trackedIds) {
     const state = playerStates[playerId];
-    if (state.status === 'unavailable') continue;
-    if (!started) {
-      // Setup phase: reflect pending assignments without timers running.
-      const pendingPositionId = Object.entries(match.pendingAssignments).find(
-        ([, pid]) => pid === playerId,
-      )?.[0];
-      state.status = pendingPositionId ? 'field' : 'bench';
-      state.positionId = pendingPositionId ?? null;
+    if (!state) continue;
+    if (!removed.has(playerId) && state.status !== 'unavailable') {
+      if (!started) {
+        // Setup phase: reflect pending assignments without timers running.
+        const pendingPositionId = Object.entries(match.pendingAssignments).find(
+          ([, pid]) => pid === playerId,
+        )?.[0];
+        state.status = pendingPositionId ? 'field' : 'bench';
+        state.positionId = pendingPositionId ?? null;
+      }
+      state.positionGroup = getPositionGroup(formationId, state.positionId);
     }
-    state.positionGroup = getPositionGroup(formationId, state.positionId);
 
     let totalField = 0;
     let totalBench = 0;
@@ -289,12 +345,16 @@ export function deriveMatchState(match: Match, nowMs: number = Date.now()): Deri
       state.currentStintStartMs != null ? Math.max(0, closingClockMs - state.currentStintStartMs) : 0;
   }
 
+  const includedPlayerIds = [...trackedIds].filter((playerId) => !removed.has(playerId));
+
   return {
     status,
     currentHalf,
     assignments: started ? assignments : { ...match.pendingAssignments },
     formationId: started ? formationId : match.pendingFormationId,
     playerStates,
+    includedPlayerIds,
+    injuredPlayerIds: [...injured].filter((playerId) => includedPlayerIds.includes(playerId)),
     teamScore,
     opponentScore,
     matchClockMs,

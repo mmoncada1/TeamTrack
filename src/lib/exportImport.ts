@@ -1,5 +1,6 @@
 import type { AppBackup, AppSettings, Match, Player, PlayerPhoto, PlayingTimeSummary, Team } from '../types';
 import { isValidPlayerRecord, mergeAppSettingsWithDefaults } from './validation';
+import { withPositionGroups } from './playerPositions';
 import { formatClock } from './timer';
 import { createId } from './id';
 import { blobToDataUrl, dataUrlToBlob } from './photo';
@@ -170,10 +171,12 @@ export function validateBackup(raw: unknown): BackupValidationResult {
     errors.push(`${invalidCount} player record(s) are invalid and would be skipped.`);
   }
 
-  const players = stampedPlayers.filter(isValidPlayerRecord).map((player) => ({
-    ...player,
-    teamId: player.teamId && teamIds.has(player.teamId) ? player.teamId : fallbackTeamId,
-  }));
+  const players = stampedPlayers.filter(isValidPlayerRecord).map((player) =>
+    withPositionGroups({
+      ...player,
+      teamId: player.teamId && teamIds.has(player.teamId) ? player.teamId : fallbackTeamId,
+    }),
+  );
   const matches = (Array.isArray(obj.matches) ? (obj.matches as Match[]) : []).map((match) => ({
     ...match,
     teamId: match.teamId && teamIds.has(match.teamId) ? match.teamId : fallbackTeamId,

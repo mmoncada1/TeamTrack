@@ -6,15 +6,23 @@ interface BenchPanelProps {
   children: ReactNode;
   unavailableSection?: ReactNode;
   count: number;
+  onAddPlayer?: () => void;
 }
 
-export function BenchPanel({ children, unavailableSection, count }: BenchPanelProps) {
+export function BenchPanel({ children, unavailableSection, count, onAddPlayer }: BenchPanelProps) {
   const { setNodeRef, isOver } = useDroppable({ id: 'BENCH' });
 
   return (
     <div className="flex flex-col sm:h-full sm:min-h-0">
-      <h2 className="flex h-7 shrink-0 items-center text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        Bench <span className="font-normal">({count})</span>
+      <h2 className="flex h-7 shrink-0 items-center justify-between text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <span>
+          Bench <span className="font-normal">({count})</span>
+        </span>
+        {onAddPlayer && (
+          <button type="button" onClick={onAddPlayer} className="text-xs font-semibold normal-case text-emerald-700 hover:underline dark:text-emerald-300">
+            Add
+          </button>
+        )}
       </h2>
       <div
         ref={setNodeRef}

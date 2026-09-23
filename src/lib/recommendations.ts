@@ -1,5 +1,6 @@
-import type { FormationPosition, Player, PlayerGender, PlayerRuntimeState, ThresholdSettings } from '../types';
+import type { FormationPosition, Player, PlayerGender, PlayerRuntimeState, PositionGroup, ThresholdSettings } from '../types';
 import { minutesToMs } from './timer';
+import { playerPositionGroups } from './playerPositions';
 
 export interface RecommendationContext {
   players: Player[];
@@ -70,6 +71,10 @@ export interface IncomingRecommendation {
  *   5. Lowest total playing time (totalFieldMs).
  *   6. Roster order (deterministic final tie-break).
  */
+function matchesPosition(player: Player | undefined, positionGroup: PositionGroup): boolean {
+  return !!player && playerPositionGroups(player).includes(positionGroup);
+}
+
 export function recommendIncomingPlayer(
   positionId: string,
   context: RecommendationContext,
@@ -95,8 +100,8 @@ export function recommendIncomingPlayer(
       if (aGender !== bGender) return aGender ? -1 : 1;
     }
 
-    const aMatches = playersById.get(a.playerId)?.preferredGroup === positionGroup;
-    const bMatches = playersById.get(b.playerId)?.preferredGroup === positionGroup;
+    const aMatches = positionGroup != null && matchesPosition(playersById.get(a.playerId), positionGroup);
+    const bMatches = positionGroup != null && matchesPosition(playersById.get(b.playerId), positionGroup);
     if (aMatches !== bMatches) return aMatches ? -1 : 1;
 
     if (a.currentStintMs !== b.currentStintMs) return b.currentStintMs - a.currentStintMs;
@@ -110,7 +115,7 @@ export function recommendIncomingPlayer(
 
   const best = sorted[0];
   const bestPlayer = playersById.get(best.playerId);
-  const matchesGroup = bestPlayer?.preferredGroup === positionGroup;
+  const matchesGroup = positionGroup != null && matchesPosition(bestPlayer, positionGroup);
 
   const benchMinutes = Math.round(best.currentStintMs / 60000);
   const reasonParts: string[] = [];

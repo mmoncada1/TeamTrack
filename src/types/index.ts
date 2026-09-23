@@ -55,7 +55,10 @@ export interface Player {
   name: string;
   /** Optional — some rosters (e.g. very young teams) don't assign numbers. */
   jerseyNumber?: number;
+  /** First selected position. Token color follows this. Kept so older saves still load. */
   preferredGroup: PositionGroup;
+  /** Every position this player can play, in the order the coach chose. */
+  preferredGroups?: PositionGroup[];
   /** Set for co-ed rosters. Omitted on older players until the coach chooses one. */
   gender?: PlayerGender;
   notes?: string;
@@ -149,6 +152,10 @@ export type MatchEventType =
   | 'PLAYER_MOVED'
   | 'PLAYERS_SWAPPED'
   | 'SUBSTITUTION'
+  | 'PLAYER_JOINED'
+  | 'PLAYER_UNAVAILABLE'
+  | 'PLAYER_AVAILABLE'
+  | 'PLAYER_REMOVED'
   | 'GOAL'
   | 'ALERT_DISMISSED'
   | 'MATCH_ENDED'
@@ -220,6 +227,31 @@ export interface SubstitutionEvent extends BaseMatchEvent {
   positionId: string;
 }
 
+/** A roster player joined this match after it started, on the bench. */
+export interface PlayerJoinedEvent extends BaseMatchEvent {
+  type: 'PLAYER_JOINED';
+  playerId: string;
+}
+
+/** Left the field or bench at this moment (injured). Time already played is kept. */
+export interface PlayerUnavailableEvent extends BaseMatchEvent {
+  type: 'PLAYER_UNAVAILABLE';
+  playerId: string;
+  reason: 'injured';
+}
+
+/** Returned from injured/unavailable onto the bench. */
+export interface PlayerAvailableEvent extends BaseMatchEvent {
+  type: 'PLAYER_AVAILABLE';
+  playerId: string;
+}
+
+/** Taken out of this match. Time already played is kept. */
+export interface PlayerRemovedEvent extends BaseMatchEvent {
+  type: 'PLAYER_REMOVED';
+  playerId: string;
+}
+
 export interface GoalEvent extends BaseMatchEvent {
   type: 'GOAL';
   team: 'us' | 'opponent';
@@ -253,6 +285,10 @@ export type MatchEvent =
   | PlayerMovedEvent
   | PlayersSwappedEvent
   | SubstitutionEvent
+  | PlayerJoinedEvent
+  | PlayerUnavailableEvent
+  | PlayerAvailableEvent
+  | PlayerRemovedEvent
   | GoalEvent
   | AlertDismissedEvent
   | MatchEndedEvent
@@ -345,6 +381,10 @@ export interface DerivedMatchState {
   assignments: Assignment;
   formationId: string;
   playerStates: Record<string, PlayerRuntimeState>;
+  /** Players currently in this match: kickoff roster, plus late additions, minus removals. */
+  includedPlayerIds: string[];
+  /** Subset of included players marked injured during the match. */
+  injuredPlayerIds: string[];
   teamScore: number;
   opponentScore: number;
   /** Cumulative time across both halves. Used for playing-time math. */

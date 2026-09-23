@@ -19,6 +19,10 @@ const REVERSIBLE_EVENT_TYPES = new Set<MatchEvent['type']>([
   'PLAYER_MOVED',
   'PLAYERS_SWAPPED',
   'SUBSTITUTION',
+  'PLAYER_JOINED',
+  'PLAYER_UNAVAILABLE',
+  'PLAYER_AVAILABLE',
+  'PLAYER_REMOVED',
   'GOAL',
   'FORMATION_CHANGED',
 ]);
@@ -164,6 +168,75 @@ export function endMatch(match: Match, nowMs: number = Date.now()): Match {
 // ---------------------------------------------------------------------------
 // Movement / substitutions (live match)
 // ---------------------------------------------------------------------------
+
+function assertMatchOpen(match: Match, nowMs: number) {
+  const derived = deriveMatchState(match, nowMs);
+  if (derived.status === 'setup' || derived.status === 'ended') {
+    throw new MatchActionError('Players can only be added or removed while the match is underway.');
+  }
+  return derived;
+}
+
+/** Add a roster player to this match, on the bench, starting now. */
+export function addPlayerToMatch(match: Match, playerId: string, nowMs: number = Date.now()): Match {
+  const derived = assertMatchOpen(match, nowMs);
+  if (derived.includedPlayerIds.includes(playerId)) {
+    throw new MatchActionError('That player is already in this match.');
+  }
+  const event: MatchEvent = {
+    ...baseEvent(derived.matchClockMs, nowMs, [playerId]),
+    type: 'PLAYER_JOINED',
+    playerId,
+  };
+  return withEvent(match, event);
+}
+
+/** Pull a player off the field or bench because they are injured. Time already played is kept. */
+export function markPlayerInjured(match: Match, playerId: string, nowMs: number = Date.now()): Match {
+  const derived = assertMatchOpen(match, nowMs);
+  const state = derived.playerStates[playerId];
+  if (!state || !derived.includedPlayerIds.includes(playerId)) {
+    throw new MatchActionError('That player is not in this match.');
+  }
+  if (state.status === 'unavailable') throw new MatchActionError('That player is already out of the match.');
+  const event: MatchEvent = {
+    ...baseEvent(derived.matchClockMs, nowMs, [playerId]),
+    type: 'PLAYER_UNAVAILABLE',
+    playerId,
+    reason: 'injured',
+  };
+  return withEvent(match, event);
+}
+
+/** Send an injured or previously unavailable player back to the bench. */
+export function returnPlayerToBench(match: Match, playerId: string, nowMs: number = Date.now()): Match {
+  const derived = assertMatchOpen(match, nowMs);
+  const state = derived.playerStates[playerId];
+  if (!state || !derived.includedPlayerIds.includes(playerId)) {
+    throw new MatchActionError('That player is not in this match.');
+  }
+  if (state.status !== 'unavailable') throw new MatchActionError('That player is already available.');
+  const event: MatchEvent = {
+    ...baseEvent(derived.matchClockMs, nowMs, [playerId]),
+    type: 'PLAYER_AVAILABLE',
+    playerId,
+  };
+  return withEvent(match, event);
+}
+
+/** Take a player out of this match. Time already played is kept. */
+export function removePlayerFromMatch(match: Match, playerId: string, nowMs: number = Date.now()): Match {
+  const derived = assertMatchOpen(match, nowMs);
+  if (!derived.includedPlayerIds.includes(playerId)) {
+    throw new MatchActionError('That player is not in this match.');
+  }
+  const event: MatchEvent = {
+    ...baseEvent(derived.matchClockMs, nowMs, [playerId]),
+    type: 'PLAYER_REMOVED',
+    playerId,
+  };
+  return withEvent(match, event);
+}
 
 function assertSlotEmpty(assignments: Assignment, slot: SlotId, excludePlayerId?: string): void {
   if (slot === 'BENCH') return;

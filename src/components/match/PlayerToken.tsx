@@ -1,10 +1,10 @@
 import { useDraggable } from '@dnd-kit/core';
 import clsx from 'clsx';
 import type { Player, PlayerRuntimeState } from '../../types';
-import { POSITION_GROUP_LABELS } from '../../types';
 import { PlayerAvatar } from '../common/PlayerAvatar';
 import { formatClock } from '../../lib/timer';
 import { POSITION_COLORS } from './positionColors';
+import { positionAbbreviations, positionNames, primaryPositionGroup } from '../../lib/playerPositions';
 
 interface PlayerTokenProps {
   player: Player;
@@ -16,6 +16,7 @@ interface PlayerTokenProps {
   showTimer?: boolean;
   alertActive?: boolean;
   onRequestMove?: (playerId: string) => void;
+  onEdit?: (playerId: string) => void;
   compact?: boolean;
 }
 
@@ -28,6 +29,7 @@ export function PlayerToken({
   showTimer,
   alertActive,
   onRequestMove,
+  onEdit,
   compact,
 }: PlayerTokenProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -37,8 +39,8 @@ export function PlayerToken({
   });
 
   const timerMs = state ? state.currentStintMs : 0;
-  const colors = POSITION_COLORS[player.preferredGroup];
-  const positionLabel = POSITION_GROUP_LABELS[player.preferredGroup];
+  const colors = POSITION_COLORS[primaryPositionGroup(player)];
+  const positionLabel = positionNames(player);
 
   return (
     <div
@@ -47,6 +49,13 @@ export function PlayerToken({
         isDragging && 'opacity-30',
         compact ? 'w-12' : 'w-20',
       )}
+      onDoubleClick={(event) => {
+        if (!onEdit) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onEdit(player.id);
+      }}
+      title={onEdit ? `${player.name}. Double-click to edit.` : undefined}
     >
       <div
         ref={setNodeRef}
@@ -94,7 +103,7 @@ export function PlayerToken({
         )}
         title={`${player.name}, preferred ${positionLabel}`}
       >
-        {player.name} ({colors.abbr})
+        {player.name} ({positionAbbreviations(player)})
       </span>
       {showTimer && state && (
         <span
@@ -108,14 +117,27 @@ export function PlayerToken({
           {formatClock(timerMs)}
         </span>
       )}
-      {onRequestMove && (
-        <button
-          type="button"
-          onClick={() => onRequestMove(player.id)}
-          className="rounded border border-slate-300 bg-white/90 px-1 py-0.5 text-[9px] font-medium text-slate-700 opacity-0 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200"
-        >
-          Move…
-        </button>
+      {(onRequestMove || onEdit) && (
+        <div className="flex gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+          {onEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(player.id)}
+              className="rounded border border-slate-300 bg-white/90 px-1 py-0.5 text-[9px] font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200"
+            >
+              Edit
+            </button>
+          )}
+          {onRequestMove && (
+            <button
+              type="button"
+              onClick={() => onRequestMove(player.id)}
+              className="rounded border border-slate-300 bg-white/90 px-1 py-0.5 text-[9px] font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200"
+            >
+              Move…
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

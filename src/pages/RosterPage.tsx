@@ -9,6 +9,7 @@ import { Dialog } from '../components/common/Dialog';
 import { Button } from '../components/common/Button';
 import { PlayerAvatar } from '../components/common/PlayerAvatar';
 import { jerseyLabel } from '../lib/playerSort';
+import { playerPositionGroups, positionNames } from '../lib/playerPositions';
 
 export function RosterPage() {
   const { players, loaded, load, addPlayer, updatePlayer, deletePlayer } = useRosterStore();
@@ -30,7 +31,7 @@ export function RosterPage() {
 
   const filtered = useMemo(() => {
     return teamPlayers.filter((p) => {
-      if (groupFilter !== 'ALL' && p.preferredGroup !== groupFilter) return false;
+      if (groupFilter !== 'ALL' && !playerPositionGroups(p).includes(groupFilter)) return false;
       if (search.trim() && !p.name.toLowerCase().includes(search.trim().toLowerCase())) return false;
       return true;
     });
@@ -126,7 +127,7 @@ export function RosterPage() {
                 )}
               </div>
               <div className="text-sm text-slate-500 dark:text-slate-400">
-                {POSITION_GROUP_LABELS[player.preferredGroup]}
+                {positionNames(player)}
                 {activeTeam?.coed && (
                   <>
                     {' · '}

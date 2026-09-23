@@ -5,13 +5,14 @@ import { createId } from '../lib/id';
 import { compressImageFile } from '../lib/photo';
 import { validatePlayerInput, type FieldError } from '../lib/validation';
 import { comparePlayersByJersey } from '../lib/playerSort';
+import { normalizePositionGroups } from '../lib/playerPositions';
 import { useTeamStore } from './teamStore';
 
 export interface PlayerFormInput {
   name: string;
   /** Empty string / undefined means "no jersey number assigned". */
   jerseyNumber: number | string | undefined;
-  preferredGroup: PositionGroup;
+  preferredGroups: PositionGroup[];
   gender?: PlayerGender | '';
   notes?: string;
   availability: PlayerAvailability;
@@ -68,7 +69,8 @@ export const useRosterStore = create<RosterState>((set, get) => ({
       teamId,
       name: input.name.trim(),
       jerseyNumber: parseJerseyNumber(input.jerseyNumber),
-      preferredGroup: input.preferredGroup,
+      preferredGroup: normalizePositionGroups(input.preferredGroups)[0] ?? 'MID',
+      preferredGroups: normalizePositionGroups(input.preferredGroups),
       gender: parseGender(input.gender),
       notes: input.notes?.trim() || undefined,
       availability: input.availability,
@@ -113,7 +115,8 @@ export const useRosterStore = create<RosterState>((set, get) => ({
       ...existing,
       name: input.name.trim(),
       jerseyNumber: parseJerseyNumber(input.jerseyNumber),
-      preferredGroup: input.preferredGroup,
+      preferredGroup: normalizePositionGroups(input.preferredGroups)[0] ?? 'MID',
+      preferredGroups: normalizePositionGroups(input.preferredGroups),
       gender: parseGender(input.gender) ?? existing.gender,
       notes: input.notes?.trim() || undefined,
       availability: input.availability,

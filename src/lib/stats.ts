@@ -19,7 +19,7 @@ export function buildMatchSummary(match: Match, players: Player[], nowMs: number
   const derived = deriveMatchState(match, nowMs);
   const playersById = new Map(players.map((p) => [p.id, p]));
 
-  const summaries: PlayingTimeSummary[] = match.rosterPlayerIds
+  const summaries: PlayingTimeSummary[] = Object.keys(derived.playerStates)
     .map((playerId): PlayingTimeSummary | null => {
       const state = derived.playerStates[playerId];
       const player = playersById.get(playerId);

@@ -27,7 +27,8 @@ export interface PlayerInput {
   name: string;
   /** Empty string / undefined means "no jersey number assigned". */
   jerseyNumber: number | string | undefined;
-  preferredGroup: PositionGroup;
+  preferredGroup?: PositionGroup;
+  preferredGroups?: PositionGroup[];
   gender?: PlayerGender | '';
   notes?: string;
   availability: 'active' | 'unavailable';
@@ -64,8 +65,9 @@ export function validatePlayerInput(
     }
   }
 
-  if (!POSITION_GROUPS.includes(input.preferredGroup)) {
-    errors.push({ field: 'preferredGroup', message: 'Choose a preferred position group.' });
+  const groups = (input.preferredGroups ?? []).filter((group) => POSITION_GROUPS.includes(group));
+  if (groups.length === 0 && !POSITION_GROUPS.includes(input.preferredGroup as PositionGroup)) {
+    errors.push({ field: 'preferredGroup', message: 'Choose at least one position.' });
   }
 
   if (options?.requireGender && input.gender !== 'girl' && input.gender !== 'boy') {
@@ -241,8 +243,8 @@ export function isValidPlayerRecord(raw: unknown): raw is Player {
     typeof p.teamId === 'string' &&
     typeof p.name === 'string' &&
     (p.jerseyNumber === undefined || typeof p.jerseyNumber === 'number') &&
-    typeof p.preferredGroup === 'string' &&
-    POSITION_GROUPS.includes(p.preferredGroup as PositionGroup) &&
+    ((typeof p.preferredGroup === 'string' && POSITION_GROUPS.includes(p.preferredGroup as PositionGroup)) ||
+      (Array.isArray(p.preferredGroups) && p.preferredGroups.some((group) => POSITION_GROUPS.includes(group as PositionGroup)))) &&
     (p.availability === 'active' || p.availability === 'unavailable')
   );
 }

@@ -6,6 +6,7 @@ import type { FieldError } from '../../lib/validation';
 import { Button } from '../common/Button';
 import { usePlayerPhotoUrl } from '../../hooks/usePlayerPhoto';
 import { getInitials } from '../../lib/photo';
+import { playerPositionGroups } from '../../lib/playerPositions';
 
 interface PlayerFormProps {
   initial?: Player;
@@ -23,7 +24,9 @@ export function PlayerForm({ initial, requireGender, onSubmit, onCancel, submitL
   const [jerseyNumber, setJerseyNumber] = useState<string>(
     initial?.jerseyNumber != null ? String(initial.jerseyNumber) : '',
   );
-  const [preferredGroup, setPreferredGroup] = useState<PositionGroup>(initial?.preferredGroup ?? 'MID');
+  const [preferredGroups, setPreferredGroups] = useState<PositionGroup[]>(
+    initial ? playerPositionGroups(initial) : ['MID'],
+  );
   const [gender, setGender] = useState<PlayerGender | ''>(initial?.gender ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [availability, setAvailability] = useState<PlayerAvailability>(initial?.availability ?? 'active');
@@ -61,7 +64,7 @@ export function PlayerForm({ initial, requireGender, onSubmit, onCancel, submitL
     const result = await onSubmit({
       name,
       jerseyNumber,
-      preferredGroup,
+      preferredGroups,
       gender: requireGender ? gender : undefined,
       notes,
       availability,
@@ -175,23 +178,33 @@ export function PlayerForm({ initial, requireGender, onSubmit, onCancel, submitL
           )}
         </div>
 
-        <div>
-          <label htmlFor={groupId} className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-            Preferred position
-          </label>
-          <select
-            id={groupId}
-            value={preferredGroup}
-            onChange={(e) => setPreferredGroup(e.target.value as PositionGroup)}
-            className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-700"
-          >
-            {GROUPS.map((g) => (
-              <option key={g} value={g}>
-                {POSITION_GROUP_LABELS[g]}
-              </option>
+        <fieldset>
+          <legend id={groupId} className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+            Positions
+          </legend>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Check every position they can play. The first one sets their color.</p>
+          <div className="mt-1 flex flex-col gap-1">
+            {GROUPS.map((group) => (
+              <label key={group} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={preferredGroups.includes(group)}
+                  onChange={() =>
+                    setPreferredGroups((current) =>
+                      current.includes(group) ? current.filter((item) => item !== group) : [...current, group],
+                    )
+                  }
+                />
+                {POSITION_GROUP_LABELS[group]}
+              </label>
             ))}
-          </select>
-        </div>
+          </div>
+          {errorFor('preferredGroup') && (
+            <p className="mt-1 text-sm text-red-600" role="alert">
+              {errorFor('preferredGroup')}
+            </p>
+          )}
+        </fieldset>
       </div>
 
       {requireGender && (

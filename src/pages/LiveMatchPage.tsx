@@ -14,6 +14,8 @@ import { ScoreBoard } from '../components/match/ScoreBoard';
 import { GoalDialog } from '../components/match/GoalDialog';
 import { AlertsPanel } from '../components/match/AlertsPanel';
 import { FieldWorkspace } from '../components/match/FieldWorkspace';
+import { InMatchPlayerDialog } from '../components/match/InMatchPlayerDialog';
+import { AddMatchPlayerDialog } from '../components/match/AddMatchPlayerDialog';
 import { SubstitutionConfirmDialog } from '../components/match/SubstitutionConfirmDialog';
 import { EventLog } from '../components/match/EventLog';
 import { PlayingTimePanel } from '../components/match/PlayingTimePanel';
@@ -45,6 +47,8 @@ export function LiveMatchPage() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [formationSummary, setFormationSummary] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [addPlayerOpen, setAddPlayerOpen] = useState(false);
 
   useEffect(() => {
     if (!roster.loaded) roster.load();
@@ -79,7 +83,9 @@ export function LiveMatchPage() {
 
   const formation = getFormationById(derived.formationId);
   const playersById = new Map(roster.players.map((p) => [p.id, p]));
-  const matchPlayers = roster.players.filter((p) => match.rosterPlayerIds.includes(p.id));
+  const includedIds = new Set(derived.includedPlayerIds);
+  const matchPlayers = roster.players.filter((p) => includedIds.has(p.id));
+  const addablePlayers = roster.players.filter((p) => p.teamId === match.teamId && !includedIds.has(p.id));
   const activePlayers = matchPlayers.filter((p) => derived.playerStates[p.id]?.status === 'field');
   const benchPlayers = matchPlayers.filter((p) => derived.playerStates[p.id]?.status === 'bench');
   const alertPlayerIds = new Set(match.activeAlerts.filter((a) => a.status === 'active').map((a) => a.playerId));
@@ -206,13 +212,16 @@ export function LiveMatchPage() {
               positions={formation.positions}
               assignments={derived.assignments}
               players={matchPlayers}
-              rosterPlayerIds={match.rosterPlayerIds}
+              rosterPlayerIds={derived.includedPlayerIds}
               unavailablePlayerIds={match.unavailablePlayerIds}
               playerStates={derived.playerStates}
               showTimers
               alertPlayerIds={alertPlayerIds}
+              injuredPlayerIds={derived.injuredPlayerIds}
               locked={appSettings.fieldLocked}
               onRequestMove={handleRequestMove}
+              onEditPlayer={setEditingPlayerId}
+              onAddPlayer={() => setAddPlayerOpen(true)}
             />
           )}
         </div>
@@ -325,6 +334,48 @@ export function LiveMatchPage() {
         onConfirm={() => {
           if (pendingSub) runAction(() => store.substitutePlayer(pendingSub.playerInId, pendingSub.positionId));
           setPendingSub(null);
+        }}
+      />
+
+      <InMatchPlayerDialog
+        player={editingPlayerId ? playersById.get(editingPlayerId) ?? null : null}
+        state={editingPlayerId ? derived.playerStates[editingPlayerId] : undefined}
+        requireGender={Boolean(team?.coed)}
+        onClose={() => setEditingPlayerId(null)}
+        onMarkInjured={() => {
+          if (!editingPlayerId) return;
+          runAction(() => store.markPlayerInjured(editingPlayerId));
+          setEditingPlayerId(null);
+        }}
+        onReturnToBench={() => {
+          if (!editingPlayerId) return;
+          runAction(() => store.returnPlayerToBench(editingPlayerId));
+          setEditingPlayerId(null);
+        }}
+        onRemove={() => {
+          if (!editingPlayerId) return;
+          runAction(() => store.removePlayerFromMatch(editingPlayerId));
+          setEditingPlayerId(null);
+        }}
+        onSaveDetails={(input) => roster.updatePlayer(editingPlayerId!, input)}
+      />
+
+      <AddMatchPlayerDialog
+        open={addPlayerOpen}
+        players={addablePlayers}
+        requireGender={Boolean(team?.coed)}
+        onClose={() => setAddPlayerOpen(false)}
+        onAdd={(playerId) => {
+          runAction(() => store.addPlayerToMatch(playerId));
+          setAddPlayerOpen(false);
+        }}
+        onCreate={async (input) => {
+          const result = await roster.addPlayer(input);
+          if (result.playerId) {
+            runAction(() => store.addPlayerToMatch(result.playerId!));
+            setAddPlayerOpen(false);
+          }
+          return result;
         }}
       />
 

@@ -36,6 +36,14 @@ export function describeEvent(event: MatchEvent, playersById: Map<string, Player
         playersById,
         event.playerOutId,
       )} at ${positionLabel(formationId, event.positionId)}.`;
+    case 'PLAYER_JOINED':
+      return `${name(playersById, event.playerId)} joined the match on the bench.`;
+    case 'PLAYER_UNAVAILABLE':
+      return `${name(playersById, event.playerId)} is injured and left the match.`;
+    case 'PLAYER_AVAILABLE':
+      return `${name(playersById, event.playerId)} returned to the bench.`;
+    case 'PLAYER_REMOVED':
+      return `${name(playersById, event.playerId)} was removed from the match.`;
     case 'GOAL': {
       if (event.isOwnGoal) return `Own goal (against us) involving ${name(playersById, event.scorerId)}.`;
       if (event.team === 'opponent') return 'Opponent goal.';

@@ -1,16 +1,29 @@
-import type { Assignment, Formation, Player } from '../types';
+import type { Assignment, Formation, Player, PositionGroup } from '../types';
 import { comparePlayersByJersey } from '../lib/playerSort';
+import { playerPositionGroups } from '../lib/playerPositions';
 
 export interface FillResult {
   assignments: Assignment;
   summary: string;
 }
 
+function compareForSlot(a: Player, b: Player, group: PositionGroup): number {
+  const aGroups = playerPositionGroups(a);
+  const bGroups = playerPositionGroups(b);
+  const aPrimary = aGroups[0] === group ? 0 : 1;
+  const bPrimary = bGroups[0] === group ? 0 : 1;
+  if (aPrimary !== bPrimary) return aPrimary - bPrimary;
+  const aOnly = aGroups.length === 1 ? 0 : 1;
+  const bOnly = bGroups.length === 1 ? 0 : 1;
+  if (aOnly !== bOnly) return aOnly - bOnly;
+  return comparePlayersByJersey(a, b);
+}
+
 /**
- * Place roster players into formation slots using each player's preferred
- * position group. Within a group, lower jersey numbers (then name) are
- * assigned first. Extra players stay on the bench. Slots with no matching
- * player are left open. A player is never assigned twice.
+ * Place roster players into formation slots using each player's positions.
+ * A player who lists the slot as their first position is chosen before
+ * someone who only lists it as an extra. Within that, lower jersey numbers
+ * go first. Extra players stay on the bench. A player is never assigned twice.
  */
 export function fillFormationByPreference(
   formation: Formation,
@@ -24,18 +37,14 @@ export function fillFormationByPreference(
     .filter((player) => roster.has(player.id) && !unavailable.has(player.id))
     .sort(comparePlayersByJersey);
 
-  const queues = new Map<Player['preferredGroup'], Player[]>();
-  for (const player of eligible) {
-    const queue = queues.get(player.preferredGroup) ?? [];
-    queue.push(player);
-    queues.set(player.preferredGroup, queue);
-  }
-
+  const used = new Set<string>();
   const assignments: Assignment = {};
   for (const position of formation.positions) {
-    const queue = queues.get(position.group);
-    const player = queue?.shift();
+    const player = eligible
+      .filter((candidate) => !used.has(candidate.id) && playerPositionGroups(candidate).includes(position.group))
+      .sort((a, b) => compareForSlot(a, b, position.group))[0];
     if (!player) continue;
+    used.add(player.id);
     assignments[position.id] = player.id;
   }
 
