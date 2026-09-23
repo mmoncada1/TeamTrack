@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { RosterPage } from './pages/RosterPage';
 import { LineupsPage } from './pages/LineupsPage';
 import { MatchHistoryPage } from './pages/MatchHistoryPage';
-import { TeamManagementPage } from './pages/TeamManagementPage';
 import { TeamSettingsPage } from './pages/TeamSettingsPage';
 import { WhiteboardPage } from './pages/WhiteboardPage';
 import { MatchSetupPage } from './pages/MatchSetupPage';
@@ -51,7 +50,7 @@ function App() {
           <Route path="/roster" element={<RosterPage />} />
           <Route path="/lineups" element={<LineupsPage />} />
           <Route path="/matches" element={<MatchHistoryPage />} />
-          <Route path="/team" element={<TeamManagementPage />} />
+          <Route path="/team" element={<Navigate to="/team/settings" replace />} />
           <Route path="/team/settings" element={<TeamSettingsPage />} />
           <Route path="/whiteboard" element={<WhiteboardPage />} />
           <Route path="/settings" element={<SettingsPage />} />

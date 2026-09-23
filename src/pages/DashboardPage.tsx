@@ -95,8 +95,8 @@ export function DashboardPage() {
         />
         <HubCard
           title="Team management"
-          detail="Roster, team name, photo, and co-ed rules."
-          onClick={() => navigate('/team')}
+          detail="Team name, photo, and co-ed rules."
+          onClick={() => navigate('/team/settings')}
         />
         <HubCard
           title="Whiteboard"

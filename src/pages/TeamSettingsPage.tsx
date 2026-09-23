@@ -70,8 +70,8 @@ export function TeamSettingsPage() {
     <div className="mx-auto max-w-2xl p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">Team settings</h1>
-        <Button variant="ghost" onClick={() => navigate('/team')}>
-          Back to team management
+        <Button variant="ghost" onClick={() => navigate('/')}>
+          Back to dashboard
         </Button>
       </div>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
