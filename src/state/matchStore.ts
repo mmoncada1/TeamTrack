@@ -59,6 +59,7 @@ interface MatchState {
   removePlayerFromMatch: (playerId: string) => void;
   changeFormation: (formationId: string) => string;
   recordGoal: (input: RecordGoalInput) => void;
+  updateGoal: (eventId: string, input: RecordGoalInput) => void;
   recordCard: (playerId: string, color: 'yellow' | 'red') => void;
   deleteEvent: (eventId: string) => void;
   undoLastAction: () => void;
@@ -235,6 +236,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   },
 
   recordGoal: (input) => applyMutation((m) => actions.recordGoal(m, input)),
+  updateGoal: (eventId, input) => applyMutation((m) => actions.updateGoal(m, eventId, input)),
   recordCard: (playerId, color) =>
     applyMutation((m) =>
       actions.recomputeAlerts(actions.recordCard(m, playerId, color), useRosterStore.getState().players, Date.now(), coedRuleForTeam(m.teamId)),

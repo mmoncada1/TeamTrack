@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMatchStore } from '../state/matchStore';
 import { useRosterStore } from '../state/rosterStore';
@@ -6,10 +6,20 @@ import { useTeamStore } from '../state/teamStore';
 import { useTeamPhotoUrl } from '../hooks/usePlayerPhoto';
 import { buildMatchSummary } from '../lib/stats';
 import { formatClock } from '../lib/timer';
-import { describeEvent, eventDisplayMs } from '../lib/eventDescriptions';
+import {
+  describeEvent,
+  displayClockToMatchClockMs,
+  eventClockParts,
+  eventDisplayMs,
+  isAfterHalfTime,
+} from '../lib/eventDescriptions';
+import { MatchActionError, type RecordGoalInput } from '../lib/matchActions';
 import { exportPlayerSummaryAsCsv } from '../lib/exportImport';
+import { comparePlayersByJersey } from '../lib/playerSort';
 import { Button } from '../components/common/Button';
+import { Dialog } from '../components/common/Dialog';
 import { PlayerAvatar } from '../components/common/PlayerAvatar';
+import { GoalDialog, goalKindFromEvent } from '../components/match/GoalDialog';
 import type { CardEvent, GoalEvent, Match, MatchEvent, Player } from '../types';
 
 export function MatchSummaryPage() {
@@ -20,6 +30,10 @@ export function MatchSummaryPage() {
   const teams = useTeamStore((s) => s.teams);
   const teamsLoaded = useTeamStore((s) => s.loaded);
   const loadTeams = useTeamStore((s) => s.load);
+  const [goalDialogOpen, setGoalDialogOpen] = useState(false);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [goalToRemoveId, setGoalToRemoveId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!roster.loaded) roster.load();
@@ -37,6 +51,18 @@ export function MatchSummaryPage() {
   const match = store.match?.id === id ? store.match : null;
   const summary = useMemo(() => (match ? buildMatchSummary(match, roster.players) : null), [match, roster.players]);
   const playersById = useMemo(() => new Map(roster.players.map((p) => [p.id, p])), [roster.players]);
+  const goalPlayers = useMemo(() => {
+    if (!match) return [];
+    const ids = new Set(match.rosterPlayerIds);
+    for (const event of match.events) {
+      if (event.type === 'PLAYER_JOINED') ids.add(event.playerId);
+      if (event.type === 'GOAL') {
+        if (event.scorerId) ids.add(event.scorerId);
+        if (event.assisterId) ids.add(event.assisterId);
+      }
+    }
+    return roster.players.filter((player) => ids.has(player.id)).sort(comparePlayersByJersey);
+  }, [match, roster.players]);
 
   if (!match || !summary) {
     return <div className="p-8 text-center text-slate-500">Loading summary…</div>;
@@ -48,6 +74,37 @@ export function MatchSummaryPage() {
   const teamLabel = match.teamName || 'Us';
   const opponentLabel = match.opponentName || 'Opponent';
   const heading = [match.title, formatMatchDate(match.date)].filter(Boolean).join(' · ');
+  const editingGoal = editingGoalId
+    ? match.events.find((event): event is GoalEvent => event.type === 'GOAL' && event.id === editingGoalId)
+    : undefined;
+  const goalToRemove = goalToRemoveId
+    ? match.events.find((event): event is GoalEvent => event.type === 'GOAL' && event.id === goalToRemoveId)
+    : undefined;
+  const clockSource = editingGoal ?? match.events.find((event) => event.type === 'MATCH_ENDED');
+  const clockParts = clockSource
+    ? eventClockParts(match.events, clockSource)
+    : { half: 1 as const, minutes: 0, seconds: 0 };
+  const showSecondHalf = match.events.some((event) => event.type === 'HALF_TIME');
+
+  function openAddGoal() {
+    setEditingGoalId(null);
+    setGoalDialogOpen(true);
+  }
+
+  function openEditGoal(eventId: string) {
+    setEditingGoalId(eventId);
+    setGoalDialogOpen(true);
+  }
+
+  function handleGoal(input: RecordGoalInput) {
+    try {
+      setActionError(null);
+      if (editingGoalId) store.updateGoal(editingGoalId, input);
+      else store.recordGoal(input);
+    } catch (err) {
+      setActionError(err instanceof MatchActionError ? err.message : 'Could not save that goal.');
+    }
+  }
 
   return (
     <div className="mx-auto max-w-4xl p-4 sm:p-6">
@@ -82,9 +139,21 @@ export function MatchSummaryPage() {
           <p className="mt-6 text-sm text-slate-500">No goals or cards.</p>
         ) : (
           <div className="mt-6 grid grid-cols-2 gap-6">
-            <RecapList items={recap.ours} align="start" />
-            <RecapList items={recap.theirs} align="end" />
+            <RecapList items={recap.ours} align="start" onEditGoal={openEditGoal} onRemoveGoal={setGoalToRemoveId} />
+            <RecapList items={recap.theirs} align="end" onEditGoal={openEditGoal} onRemoveGoal={setGoalToRemoveId} />
           </div>
+        )}
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-slate-500 dark:text-slate-400">Add a missed goal, or correct the scorer and assist.</p>
+          <Button size="sm" variant="secondary" onClick={openAddGoal}>
+            Add goal
+          </Button>
+        </div>
+        {actionError && (
+          <p role="alert" className="mt-2 text-sm text-red-600">
+            {actionError}
+          </p>
         )}
       </section>
 
@@ -132,9 +201,22 @@ export function MatchSummaryPage() {
         <h3 className="text-lg font-semibold">Event timeline</h3>
         <ol className="mt-2 max-h-96 space-y-1 overflow-y-auto">
           {sortedEvents.map((event) => (
-            <li key={event.id} className="flex gap-2 rounded border border-slate-200 px-2 py-1.5 text-sm dark:border-slate-700">
+            <li
+              key={event.id}
+              className="flex flex-wrap items-center gap-2 rounded border border-slate-200 px-2 py-1.5 text-sm dark:border-slate-700"
+            >
               <span className="tabular-nums text-slate-500">{formatClock(eventDisplayMs(match.events, event))}</span>
-              <span>{describeEvent(event, playersById, match.settings.formationId)}</span>
+              <span className="flex-1">{describeEvent(event, playersById, match.settings.formationId)}</span>
+              {event.type === 'GOAL' && (
+                <span className="flex shrink-0">
+                  <Button size="sm" variant="ghost" onClick={() => openEditGoal(event.id)}>
+                    Edit
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setGoalToRemoveId(event.id)}>
+                    Remove
+                  </Button>
+                </span>
+              )}
             </li>
           ))}
         </ol>
@@ -151,6 +233,56 @@ export function MatchSummaryPage() {
           Full backup / export…
         </Button>
       </section>
+
+      <GoalDialog
+        key={editingGoalId ?? 'new-goal'}
+        open={goalDialogOpen}
+        title={editingGoal ? 'Edit goal' : 'Add goal'}
+        submitLabel={editingGoal ? 'Save changes' : 'Save goal'}
+        initialKind={editingGoal ? goalKindFromEvent(editingGoal) : 'team'}
+        initialScorerId={editingGoal?.scorerId ?? ''}
+        initialAssisterId={editingGoal?.assisterId ?? ''}
+        showClock
+        showSecondHalf={showSecondHalf}
+        initialHalf={clockParts.half}
+        initialMinutes={clockParts.minutes}
+        initialSeconds={clockParts.seconds}
+        toMatchClockMs={(half, minutes, seconds) => displayClockToMatchClockMs(match.events, half, minutes, seconds)}
+        onClose={() => {
+          setGoalDialogOpen(false);
+          setEditingGoalId(null);
+        }}
+        onSubmit={handleGoal}
+        activePlayers={goalPlayers}
+        benchPlayers={[]}
+      />
+
+      <Dialog
+        open={!!goalToRemove}
+        title="Remove this goal?"
+        description="The score and player statistics update immediately."
+        onClose={() => setGoalToRemoveId(null)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setGoalToRemoveId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (goalToRemoveId) store.deleteEvent(goalToRemoveId);
+                setGoalToRemoveId(null);
+              }}
+            >
+              Remove goal
+            </Button>
+          </>
+        }
+      >
+        {goalToRemove && (
+          <p className="text-sm">{describeEvent(goalToRemove, playersById, match.settings.formationId)}</p>
+        )}
+      </Dialog>
     </div>
   );
 }
@@ -177,9 +309,7 @@ function minuteMark(match: Match, event: MatchEvent): string {
   const halfLength = match.settings.halfLengthMinutes;
   const elapsedMs = eventDisplayMs(match.events, event);
   const minuteInPeriod = Math.floor(Math.max(0, elapsedMs) / 60000) + 1;
-  const halfIndex = match.events.findIndex((entry) => entry.type === 'HALF_TIME');
-  const eventIndex = match.events.findIndex((entry) => entry.id === event.id);
-  const secondHalf = halfIndex !== -1 && eventIndex > halfIndex;
+  const secondHalf = isAfterHalfTime(match.events, event);
   if (!secondHalf) {
     if (halfLength > 0 && minuteInPeriod > halfLength) return `${halfLength}+${minuteInPeriod - halfLength}'`;
     return `${minuteInPeriod}'`;
@@ -261,12 +391,22 @@ function TeamMark({
   );
 }
 
-function RecapList({ items, align }: { items: RecapLine[]; align: 'start' | 'end' }) {
+function RecapList({
+  items,
+  align,
+  onEditGoal,
+  onRemoveGoal,
+}: {
+  items: RecapLine[];
+  align: 'start' | 'end';
+  onEditGoal: (eventId: string) => void;
+  onRemoveGoal: (eventId: string) => void;
+}) {
   if (items.length === 0) return <div />;
   return (
     <ul className={`space-y-1 text-sm ${align === 'end' ? 'text-right' : 'text-left'}`}>
       {items.map((item) => (
-        <li key={item.id} className={`flex items-center gap-1.5 ${align === 'end' ? 'justify-end' : 'justify-start'}`}>
+        <li key={item.id} className={`flex flex-wrap items-center gap-1.5 ${align === 'end' ? 'justify-end' : 'justify-start'}`}>
           {item.goal && <BallIcon />}
           {item.card === 'yellow' && <CardChip color="yellow" />}
           {item.card === 'red' && <CardChip color="red" />}
@@ -281,6 +421,16 @@ function RecapList({ items, align }: { items: RecapLine[]; align: 'start' | 'end
             {item.assist ? <span className="text-slate-500 dark:text-slate-400"> ({item.assist})</span> : null}{' '}
             <span className="text-slate-600 dark:text-slate-300">{item.minute}</span>
           </span>
+          {item.goal && (
+            <span className="inline-flex shrink-0">
+              <Button size="sm" variant="ghost" onClick={() => onEditGoal(item.id)} aria-label={`Edit ${item.text}`}>
+                Edit
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => onRemoveGoal(item.id)} aria-label={`Remove ${item.text}`}>
+                Remove
+              </Button>
+            </span>
+          )}
         </li>
       ))}
     </ul>

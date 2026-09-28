@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { makeMatch, makePlayer } from './testHelpers';
 import { deriveMatchState } from './matchEngine';
-import { startMatch, substitutePlayer, pauseMatch, resumeMatch, recordGoal, deleteEvent } from './matchActions';
+import {
+  startMatch,
+  substitutePlayer,
+  pauseMatch,
+  resumeMatch,
+  goToHalfTime,
+  endMatch,
+  recordGoal,
+  updateGoal,
+  deleteEvent,
+} from './matchActions';
+import { displayClockToMatchClockMs, eventClockParts, eventDisplayMs } from './eventDescriptions';
 
 function setup() {
   const gk = makePlayer({ name: 'Goalie', jerseyNumber: 1, preferredGroup: 'GK' });
@@ -112,6 +123,63 @@ describe('deriveMatchState', () => {
     m = deleteEvent(m, goalEvent.id);
 
     derived = deriveMatchState(m, t0 + 120_000);
+    expect(derived.teamScore).toBe(0);
+    expect(derived.opponentScore).toBe(1);
+    expect(derived.playerStates[fwd.id].goals).toBe(0);
+    expect(derived.playerStates[midC.id].assists).toBe(0);
+  });
+
+  it('moves a goal to a different scorer and assist without changing its time', () => {
+    const { match, fwd, midC, benchA } = setup();
+    const t0 = 0;
+    let m = startMatch(match, t0);
+    m = recordGoal(m, { team: 'us', isOwnGoal: false, scorerId: fwd.id, assisterId: midC.id }, t0 + 60_000);
+    const goal = m.events.find((event) => event.type === 'GOAL');
+    if (!goal || goal.type !== 'GOAL') throw new Error('expected a goal');
+
+    m = updateGoal(m, goal.id, { team: 'us', isOwnGoal: false, scorerId: benchA.id, assisterId: fwd.id });
+
+    const updated = m.events.find((event) => event.id === goal.id);
+    expect(updated?.matchClockMs).toBe(60_000);
+    const derived = deriveMatchState(m, t0 + 120_000);
+    expect(derived.teamScore).toBe(1);
+    expect(derived.playerStates[fwd.id].goals).toBe(0);
+    expect(derived.playerStates[fwd.id].assists).toBe(1);
+    expect(derived.playerStates[benchA.id].goals).toBe(1);
+    expect(derived.playerStates[midC.id].assists).toBe(0);
+  });
+
+  it('counts a goal added after full time and keeps a first-half correction in the first half', () => {
+    const { match, fwd } = setup();
+    let m = startMatch(match, 0);
+    m = goToHalfTime(m, 20 * 60_000);
+    m = resumeMatch(m, 20 * 60_000);
+    m = endMatch(m, 40 * 60_000);
+    m = recordGoal(m, { team: 'us', isOwnGoal: false, scorerId: fwd.id, matchClockMs: 5 * 60_000 }, 50 * 60_000);
+
+    const goal = m.events.find((event) => event.type === 'GOAL');
+    if (!goal) throw new Error('expected a goal');
+    const derived = deriveMatchState(m, 50 * 60_000);
+    expect(derived.status).toBe('ended');
+    expect(derived.teamScore).toBe(1);
+    expect(derived.playerStates[fwd.id].goals).toBe(1);
+    expect(eventDisplayMs(m.events, goal)).toBe(5 * 60_000);
+    expect(eventClockParts(m.events, goal)).toEqual({ half: 1, minutes: 5, seconds: 0 });
+    expect(displayClockToMatchClockMs(m.events, 1, 5, 0)).toBe(5 * 60_000);
+
+    const halfTime = m.events.find((event) => event.type === 'HALF_TIME');
+    if (!halfTime) throw new Error('expected half time');
+    expect(displayClockToMatchClockMs(m.events, 2, 3, 15)).toBe(halfTime.matchClockMs + 3 * 60_000 + 15_000);
+  });
+
+  it('drops the assist when a goal is changed to an opponent goal', () => {
+    const { match, fwd, midC } = setup();
+    let m = startMatch(match, 0);
+    m = recordGoal(m, { team: 'us', isOwnGoal: false, scorerId: fwd.id, assisterId: midC.id }, 60_000);
+    const goal = m.events.find((event) => event.type === 'GOAL');
+    if (!goal) throw new Error('expected a goal');
+    m = updateGoal(m, goal.id, { team: 'opponent', isOwnGoal: false });
+    const derived = deriveMatchState(m, 120_000);
     expect(derived.teamScore).toBe(0);
     expect(derived.opponentScore).toBe(1);
     expect(derived.playerStates[fwd.id].goals).toBe(0);

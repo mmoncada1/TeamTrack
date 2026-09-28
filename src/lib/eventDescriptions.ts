@@ -66,16 +66,58 @@ export function describeEvent(event: MatchEvent, playersById: Map<string, Player
   }
 }
 
+function halfTimeEvent(events: MatchEvent[]): MatchEvent | undefined {
+  return events.find((entry) => entry.type === 'HALF_TIME');
+}
+
 /**
- * Time to show next to an event. After half-time the match clock resets, so
+ * True when this event belongs to the second half. The match clock keeps
+ * counting through half-time, so a correction logged after the final whistle
+ * still lands in the half its clock falls in.
+ */
+export function isAfterHalfTime(events: MatchEvent[], event: MatchEvent): boolean {
+  const halfTime = halfTimeEvent(events);
+  if (!halfTime || event.id === halfTime.id) return false;
+  if (event.matchClockMs > halfTime.matchClockMs) return true;
+  if (event.matchClockMs < halfTime.matchClockMs) return false;
+  const halfIndex = events.findIndex((entry) => entry.id === halfTime.id);
+  const eventIndex = events.findIndex((entry) => entry.id === event.id);
+  return eventIndex > halfIndex;
+}
+
+/**
+ * Time to show next to an event. After half-time the clock keeps counting, so
  * later events are shown as time elapsed in the second half.
  */
 export function eventDisplayMs(events: MatchEvent[], event: MatchEvent): number {
-  const halfIndex = events.findIndex((entry) => entry.type === 'HALF_TIME');
-  if (halfIndex === -1) return event.matchClockMs;
-  const eventIndex = events.findIndex((entry) => entry.id === event.id);
-  if (eventIndex <= halfIndex) return event.matchClockMs;
-  return Math.max(0, event.matchClockMs - events[halfIndex].matchClockMs);
+  const halfTime = halfTimeEvent(events);
+  if (!halfTime || !isAfterHalfTime(events, event)) return event.matchClockMs;
+  return Math.max(0, event.matchClockMs - halfTime.matchClockMs);
+}
+
+/** Minute and second within the half, for editing a goal's time. */
+export function eventClockParts(
+  events: MatchEvent[],
+  event: MatchEvent,
+): { half: 1 | 2; minutes: number; seconds: number } {
+  const totalSeconds = Math.max(0, Math.floor(eventDisplayMs(events, event) / 1000));
+  return {
+    half: isAfterHalfTime(events, event) ? 2 : 1,
+    minutes: Math.floor(totalSeconds / 60),
+    seconds: totalSeconds % 60,
+  };
+}
+
+/** Convert a half plus a minute:second back into the cumulative match clock. */
+export function displayClockToMatchClockMs(
+  events: MatchEvent[],
+  half: 1 | 2,
+  minutes: number,
+  seconds: number,
+): number {
+  const within = Math.max(0, Math.floor(minutes)) * 60_000 + Math.min(59, Math.max(0, Math.floor(seconds))) * 1000;
+  if (half !== 2) return within;
+  return (halfTimeEvent(events)?.matchClockMs ?? 0) + within;
 }
 
 export function eventTimeLabel(events: MatchEvent[], event: MatchEvent): string {

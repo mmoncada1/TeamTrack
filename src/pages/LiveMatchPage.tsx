@@ -10,10 +10,11 @@ import { GoalConfetti } from '../components/match/GoalConfetti';
 import { useNow } from '../hooks/useNow';
 import { deriveMatchState } from '../lib/matchEngine';
 import { getFormationById } from '../formations/definitions';
+import { describeEvent, eventTimeLabel } from '../lib/eventDescriptions';
 import { MatchActionError, type RecordGoalInput } from '../lib/matchActions';
 import { MatchClock } from '../components/match/MatchClock';
 import { ScoreBoard } from '../components/match/ScoreBoard';
-import { GoalDialog } from '../components/match/GoalDialog';
+import { GoalDialog, goalKindFromEvent } from '../components/match/GoalDialog';
 import { AlertsPanel } from '../components/match/AlertsPanel';
 import { FieldWorkspace } from '../components/match/FieldWorkspace';
 import { InMatchPlayerDialog } from '../components/match/InMatchPlayerDialog';
@@ -25,7 +26,7 @@ import { FormationSwitcher } from '../components/match/FormationSwitcher';
 import { ThresholdSliders } from '../components/setup/ThresholdSliders';
 import { Dialog } from '../components/common/Dialog';
 import { Button } from '../components/common/Button';
-import type { Alert, SlotId } from '../types';
+import type { Alert, GoalEvent, SlotId } from '../types';
 import { canUndo as canUndoFn } from '../lib/matchActions';
 
 interface PendingSub {
@@ -44,6 +45,8 @@ export function LiveMatchPage() {
   const now = useNow(500);
 
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [goalToRemove, setGoalToRemove] = useState<GoalEvent | null>(null);
   const [pendingSub, setPendingSub] = useState<PendingSub | null>(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -92,6 +95,14 @@ export function LiveMatchPage() {
   const addablePlayers = roster.players.filter((p) => p.teamId === match.teamId && !includedIds.has(p.id));
   const activePlayers = matchPlayers.filter((p) => derived.playerStates[p.id]?.status === 'field');
   const benchPlayers = matchPlayers.filter((p) => derived.playerStates[p.id]?.status === 'bench');
+  const editingGoal = editingGoalId
+    ? match.events.find((event): event is GoalEvent => event.type === 'GOAL' && event.id === editingGoalId)
+    : undefined;
+  const recordedGoals = match.events
+    .filter((event): event is GoalEvent => event.type === 'GOAL')
+    .sort((a, b) => a.matchClockMs - b.matchClockMs || a.timestamp - b.timestamp);
+  const creditedIds = [editingGoal?.scorerId, editingGoal?.assisterId].filter((id): id is string => !!id);
+  const extraGoalPlayers = roster.players.filter((player) => creditedIds.includes(player.id) && !includedIds.has(player.id));
   const alertPlayerIds = new Set(match.activeAlerts.filter((a) => a.status === 'active').map((a) => a.playerId));
   const cardsByPlayer: Record<string, { yellow: number; red: number }> = {};
   for (const event of match.events) {
@@ -168,7 +179,21 @@ export function LiveMatchPage() {
     setPendingSub({ playerInId: alert.recommendation.inPlayerId, playerOutId: alert.playerId, positionId: state.positionId });
   }
 
+  function openNewGoal() {
+    setEditingGoalId(null);
+    setGoalDialogOpen(true);
+  }
+
+  function openEditGoal(eventId: string) {
+    setEditingGoalId(eventId);
+    setGoalDialogOpen(true);
+  }
+
   function handleGoal(input: RecordGoalInput) {
+    if (editingGoalId) {
+      runAction(() => store.updateGoal(editingGoalId, input));
+      return;
+    }
     let saved = false;
     runAction(() => {
       store.recordGoal(input);
@@ -288,9 +313,32 @@ export function LiveMatchPage() {
             opponentName={match.opponentName}
             teamScore={derived.teamScore}
             opponentScore={derived.opponentScore}
-            onRecordGoal={() => setGoalDialogOpen(true)}
+            onRecordGoal={openNewGoal}
             disabled={derived.status === 'setup'}
           />
+          {recordedGoals.length > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+              <h2 className="text-xs font-semibold">Goals</h2>
+              <ul className="mt-2 space-y-1">
+                {recordedGoals.map((goal) => (
+                  <li key={goal.id} className="flex items-start justify-between gap-2 text-sm">
+                    <span>
+                      {describeEvent(goal, playersById, derived.formationId)}{' '}
+                      <span className="tabular-nums text-slate-500">{eventTimeLabel(match.events, goal)}</span>
+                    </span>
+                    <span className="flex shrink-0">
+                      <Button size="sm" variant="ghost" onClick={() => openEditGoal(goal.id)}>
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setGoalToRemove(goal)}>
+                        Remove
+                      </Button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
             <FormationSwitcher
               format={match.settings.format}
@@ -344,6 +392,7 @@ export function LiveMatchPage() {
             formationId={derived.formationId}
             canUndo={canUndoFn(match)}
             onUndo={() => runAction(() => store.undoLastAction())}
+            onEditGoal={openEditGoal}
             onDeleteEvent={(eventId) => runAction(() => store.deleteEvent(eventId))}
           />
           </div>
@@ -361,11 +410,20 @@ export function LiveMatchPage() {
       <TooManyGuysDialog open={coedBlocked} minGirls={minGirls} onDismiss={() => setCoedBlocked(false)} />
 
       <GoalDialog
+        key={editingGoalId ?? 'new-goal'}
         open={goalDialogOpen}
-        onClose={() => setGoalDialogOpen(false)}
+        title={editingGoal ? 'Edit goal' : 'Record goal'}
+        submitLabel={editingGoal ? 'Save changes' : 'Save goal'}
+        initialKind={editingGoal ? goalKindFromEvent(editingGoal) : 'team'}
+        initialScorerId={editingGoal?.scorerId ?? ''}
+        initialAssisterId={editingGoal?.assisterId ?? ''}
+        onClose={() => {
+          setGoalDialogOpen(false);
+          setEditingGoalId(null);
+        }}
         onSubmit={handleGoal}
         activePlayers={activePlayers}
-        benchPlayers={benchPlayers}
+        benchPlayers={[...benchPlayers, ...extraGoalPlayers]}
       />
 
       <SubstitutionConfirmDialog
@@ -437,9 +495,36 @@ export function LiveMatchPage() {
       />
 
       <Dialog
+        open={!!goalToRemove}
+        title="Remove this goal?"
+        description="The score and player statistics update immediately."
+        onClose={() => setGoalToRemove(null)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setGoalToRemove(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (goalToRemove) runAction(() => store.deleteEvent(goalToRemove.id));
+                setGoalToRemove(null);
+              }}
+            >
+              Remove goal
+            </Button>
+          </>
+        }
+      >
+        {goalToRemove && (
+          <p className="text-sm">{describeEvent(goalToRemove, playersById, derived.formationId)}</p>
+        )}
+      </Dialog>
+
+      <Dialog
         open={confirmEnd}
         title="End match?"
-        description="This stops the clock permanently. You can review the summary afterward."
+        description="This stops the clock. You can still add or correct goals from the summary."
         onClose={() => setConfirmEnd(false)}
         footer={
           <>
@@ -458,7 +543,7 @@ export function LiveMatchPage() {
           </>
         }
       >
-        <p className="text-sm">The match clock will stop and the summary will be available.</p>
+        <p className="text-sm">The match clock will stop. Scorers, assists, and missed goals can be fixed on the summary.</p>
       </Dialog>
 
       <Dialog

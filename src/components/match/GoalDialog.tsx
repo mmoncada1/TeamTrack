@@ -11,22 +11,68 @@ interface GoalDialogProps {
   onSubmit: (input: RecordGoalInput) => void;
   activePlayers: Player[];
   benchPlayers: Player[];
+  title?: string;
+  submitLabel?: string;
+  initialKind?: GoalKind;
+  initialScorerId?: string;
+  initialAssisterId?: string;
+  /** Ask for the half and minute. Used when correcting a finished match. */
+  showClock?: boolean;
+  showSecondHalf?: boolean;
+  initialHalf?: 1 | 2;
+  initialMinutes?: number;
+  initialSeconds?: number;
+  toMatchClockMs?: (half: 1 | 2, minutes: number, seconds: number) => number;
 }
 
-type GoalKind = 'team' | 'opponent' | 'own';
+export type GoalKind = 'team' | 'opponent' | 'own';
 
-export function GoalDialog({ open, onClose, onSubmit, activePlayers, benchPlayers }: GoalDialogProps) {
-  const [kind, setKind] = useState<GoalKind>('team');
-  const [scorerId, setScorerId] = useState('');
-  const [assisterId, setAssisterId] = useState('');
+export function goalKindFromEvent(event: { isOwnGoal: boolean; team: 'us' | 'opponent' }): GoalKind {
+  if (event.isOwnGoal) return 'own';
+  return event.team === 'opponent' ? 'opponent' : 'team';
+}
+
+function clampWhole(value: string, max?: number): number {
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return max == null ? parsed : Math.min(max, parsed);
+}
+
+export function GoalDialog({
+  open,
+  onClose,
+  onSubmit,
+  activePlayers,
+  benchPlayers,
+  title = 'Record goal',
+  submitLabel = 'Save goal',
+  initialKind = 'team',
+  initialScorerId = '',
+  initialAssisterId = '',
+  showClock = false,
+  showSecondHalf = false,
+  initialHalf = 1,
+  initialMinutes = 0,
+  initialSeconds = 0,
+  toMatchClockMs,
+}: GoalDialogProps) {
+  const [kind, setKind] = useState<GoalKind>(initialKind);
+  const [scorerId, setScorerId] = useState(initialScorerId);
+  const [assisterId, setAssisterId] = useState(initialAssisterId);
+  const [half, setHalf] = useState<1 | 2>(initialHalf);
+  const [minutes, setMinutes] = useState(initialMinutes);
+  const [seconds, setSeconds] = useState(initialSeconds);
   const [error, setError] = useState<string | null>(null);
 
   const allSelectable = [...activePlayers, ...benchPlayers.filter((b) => !activePlayers.some((a) => a.id === b.id))];
 
   function reset() {
-    setKind('team');
-    setScorerId('');
-    setAssisterId('');
+    setKind(initialKind);
+    setScorerId(initialScorerId);
+    setAssisterId(initialAssisterId);
+    setHalf(initialHalf);
+    setMinutes(initialMinutes);
+    setSeconds(initialSeconds);
     setError(null);
   }
 
@@ -44,11 +90,13 @@ export function GoalDialog({ open, onClose, onSubmit, activePlayers, benchPlayer
       setError('The scorer and assister cannot be the same player.');
       return;
     }
+    const matchClockMs = showClock && toMatchClockMs ? toMatchClockMs(half, minutes, seconds) : undefined;
     onSubmit({
       team: kind === 'opponent' ? 'opponent' : 'us',
       isOwnGoal: kind === 'own',
       scorerId: kind === 'team' ? scorerId : kind === 'own' ? scorerId || undefined : undefined,
       assisterId: kind === 'team' ? assisterId || undefined : undefined,
+      ...(matchClockMs != null ? { matchClockMs } : {}),
     });
     handleClose();
   }
@@ -56,7 +104,7 @@ export function GoalDialog({ open, onClose, onSubmit, activePlayers, benchPlayer
   return (
     <Dialog
       open={open}
-      title="Record goal"
+      title={title}
       onClose={handleClose}
       footer={
         <>
@@ -64,7 +112,7 @@ export function GoalDialog({ open, onClose, onSubmit, activePlayers, benchPlayer
             Cancel
           </Button>
           <Button variant="primary" onClick={handleSubmit}>
-            Save goal
+            {submitLabel}
           </Button>
         </>
       }
@@ -118,6 +166,50 @@ export function GoalDialog({ open, onClose, onSubmit, activePlayers, benchPlayer
               ))}
             </select>
           </div>
+        )}
+
+        {showClock && (
+          <fieldset>
+            <legend className="text-sm font-medium">Match clock</legend>
+            <div className={`mt-1 grid gap-3 ${showSecondHalf ? 'grid-cols-3' : 'grid-cols-2'}`}>
+              {showSecondHalf && (
+                <label className="block text-sm">
+                  Half
+                  <select
+                    className="input mt-1"
+                    value={half}
+                    onChange={(e) => setHalf(e.target.value === '2' ? 2 : 1)}
+                  >
+                    <option value={1}>1st half</option>
+                    <option value={2}>2nd half</option>
+                  </select>
+                </label>
+              )}
+              <label className="block text-sm">
+                Minutes
+                <input
+                  className="input mt-1"
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={minutes}
+                  onChange={(e) => setMinutes(clampWhole(e.target.value))}
+                />
+              </label>
+              <label className="block text-sm">
+                Seconds
+                <input
+                  className="input mt-1"
+                  type="number"
+                  min={0}
+                  max={59}
+                  inputMode="numeric"
+                  value={seconds}
+                  onChange={(e) => setSeconds(clampWhole(e.target.value, 59))}
+                />
+              </label>
+            </div>
+          </fieldset>
         )}
 
         {error && (

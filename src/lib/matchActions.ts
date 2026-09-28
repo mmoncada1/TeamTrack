@@ -3,6 +3,7 @@ import type {
   Assignment,
   Match,
   CardEvent,
+  GoalEvent,
   MatchEvent,
   PlayerRuntimeState,
   SlotId,
@@ -435,6 +436,34 @@ export interface RecordGoalInput {
   scorerId?: string;
   assisterId?: string;
   note?: string;
+  /**
+   * Cumulative match clock for this goal. Omit it to use the clock at the
+   * moment the goal is recorded. Set it when correcting a finished match.
+   */
+  matchClockMs?: number;
+}
+
+function goalEventBody(input: RecordGoalInput): {
+  team: 'us' | 'opponent';
+  isOwnGoal: boolean;
+  scorerId?: string;
+  assisterId?: string;
+  playerIds: string[];
+} {
+  const isOwnGoal = input.isOwnGoal;
+  const team: 'us' | 'opponent' = isOwnGoal ? 'us' : input.team;
+  const scorerId = team === 'opponent' ? undefined : input.scorerId || undefined;
+  const assisterId = team === 'us' && !isOwnGoal ? input.assisterId || undefined : undefined;
+  if (scorerId && assisterId && scorerId === assisterId) {
+    throw new MatchActionError('The scorer and assister cannot be the same player.');
+  }
+  return {
+    team,
+    isOwnGoal,
+    scorerId,
+    assisterId,
+    playerIds: [scorerId, assisterId].filter((id): id is string => !!id),
+  };
 }
 
 export function recordCard(
@@ -465,22 +494,37 @@ export function recordCard(
 }
 
 export function recordGoal(match: Match, input: RecordGoalInput, nowMs: number = Date.now()): Match {
-  if (input.scorerId && input.assisterId && input.scorerId === input.assisterId) {
-    throw new MatchActionError('The scorer and assister cannot be the same player.');
-  }
+  const body = goalEventBody(input);
   const derived = deriveMatchState(match, nowMs);
-  const playerIds = [input.scorerId, input.assisterId].filter((id): id is string => !!id);
+  const matchClockMs = input.matchClockMs ?? derived.matchClockMs;
 
   const event: MatchEvent = {
-    ...baseEvent(derived.matchClockMs, nowMs, playerIds),
+    ...baseEvent(matchClockMs, nowMs, body.playerIds),
     type: 'GOAL',
-    team: input.team,
-    isOwnGoal: input.isOwnGoal,
-    scorerId: input.scorerId,
-    assisterId: input.assisterId,
+    team: body.team,
+    isOwnGoal: body.isOwnGoal,
+    scorerId: body.scorerId,
+    assisterId: body.assisterId,
     note: input.note,
   };
   return withEvent(match, event);
+}
+
+/** Correct a goal already on the log. The original minute is kept unless a new clock is given. */
+export function updateGoal(match: Match, eventId: string, input: RecordGoalInput, nowMs: number = Date.now()): Match {
+  const index = match.events.findIndex((event) => event.id === eventId);
+  const existing = index === -1 ? undefined : match.events[index];
+  if (!existing || existing.type !== 'GOAL') throw new MatchActionError('Goal not found.');
+  const body = goalEventBody(input);
+  const updated: GoalEvent = {
+    ...existing,
+    ...body,
+    matchClockMs: input.matchClockMs ?? existing.matchClockMs,
+    ...(input.note !== undefined ? { note: input.note } : {}),
+  };
+  const events = match.events.slice();
+  events[index] = updated;
+  return { ...match, events, updatedAt: nowMs };
 }
 
 // ---------------------------------------------------------------------------
