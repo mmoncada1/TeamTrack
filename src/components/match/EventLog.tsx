@@ -11,10 +11,9 @@ interface EventLogProps {
   canUndo: boolean;
   onUndo: () => void;
   onDeleteEvent: (eventId: string) => void;
-  onEditGoal?: (eventId: string) => void;
 }
 
-export function EventLog({ events, playersById, formationId, canUndo, onUndo, onDeleteEvent, onEditGoal }: EventLogProps) {
+export function EventLog({ events, playersById, formationId, canUndo, onUndo, onDeleteEvent }: EventLogProps) {
   const [deleteTarget, setDeleteTarget] = useState<MatchEvent | null>(null);
   const sorted = [...events].sort((a, b) => b.matchClockMs - a.matchClockMs || b.timestamp - a.timestamp);
 
@@ -35,18 +34,8 @@ export function EventLog({ events, playersById, formationId, canUndo, onUndo, on
           >
             <span className="tabular-nums text-slate-500">{eventTimeLabel(events, event)}</span>
             <span className="flex-1">{describeEvent(event, playersById, formationId)}</span>
-            {event.type === 'GOAL' && onEditGoal && (
-              <Button size="sm" variant="ghost" onClick={() => onEditGoal(event.id)}>
-                Edit
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setDeleteTarget(event)}
-              aria-label={event.type === 'GOAL' ? 'Remove goal' : 'Delete event'}
-            >
-              {event.type === 'GOAL' ? 'Remove' : '✕'}
+            <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(event)} aria-label="Delete event">
+              ✕
             </Button>
           </li>
         ))}
@@ -54,7 +43,7 @@ export function EventLog({ events, playersById, formationId, canUndo, onUndo, on
 
       <Dialog
         open={!!deleteTarget}
-        title={deleteTarget?.type === 'GOAL' ? 'Remove this goal?' : 'Delete this event?'}
+        title="Delete this event?"
         description="Score and player statistics will be recalculated automatically. This cannot be undone."
         onClose={() => setDeleteTarget(null)}
         footer={
@@ -69,7 +58,7 @@ export function EventLog({ events, playersById, formationId, canUndo, onUndo, on
                 setDeleteTarget(null);
               }}
             >
-              {deleteTarget?.type === 'GOAL' ? 'Remove goal' : 'Delete event'}
+              Delete event
             </Button>
           </>
         }

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -36,8 +36,13 @@ async function renderSummary() {
     </MemoryRouter>,
   );
 
-  expect(await screen.findByRole('button', { name: 'Add goal' })).toBeInTheDocument();
+  expect(await screen.findByRole('button', { name: 'Edit' })).toBeInTheDocument();
   return { scorer, assist, match };
+}
+
+async function openEditMenu(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Edit' }));
+  return screen.getByRole('dialog', { name: 'Edit goals' });
 }
 
 describe('MatchSummaryPage goal corrections', () => {
@@ -50,12 +55,12 @@ describe('MatchSummaryPage goal corrections', () => {
     const user = userEvent.setup();
     await renderSummary();
 
-    expect(screen.getByRole('button', { name: 'Remove Forward' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Remove Forward' }));
-    await user.click(screen.getByRole('button', { name: 'Remove goal' }));
+    const menu = await openEditMenu(user);
+    await user.click(within(menu).getByRole('button', { name: 'Remove' }));
+    await user.click(within(menu).getByRole('button', { name: 'Remove goal' }));
 
-    expect(screen.queryByRole('button', { name: 'Remove Forward' })).not.toBeInTheDocument();
     expect(screen.getByText('No goals or cards.')).toBeInTheDocument();
+    expect(within(menu).queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
   });
 
   it('changes the assist on a finished match', async () => {
@@ -63,28 +68,30 @@ describe('MatchSummaryPage goal corrections', () => {
     await renderSummary();
 
     expect(screen.getByText(/\(Mid\)/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Edit Forward' }));
-    expect(screen.getByRole('dialog', { name: 'Edit goal' })).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText('Assist (optional)'), '');
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    const menu = await openEditMenu(user);
+    await user.click(within(menu).getByRole('button', { name: 'Edit' }));
+    const form = screen.getByRole('dialog', { name: 'Edit goal' });
+    await user.selectOptions(within(form).getByLabelText('Assist (optional)'), '');
+    await user.click(within(form).getByRole('button', { name: 'Save changes' }));
 
     expect(screen.queryByRole('dialog', { name: 'Edit goal' })).not.toBeInTheDocument();
     expect(screen.queryByText(/\(Mid\)/)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit Forward' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Edit goals' })).toBeInTheDocument();
   });
 
   it('adds a missed goal to a finished match', async () => {
     const user = userEvent.setup();
     const { scorer } = await renderSummary();
-    await user.click(screen.getByRole('button', { name: 'Remove Forward' }));
-    await user.click(screen.getByRole('button', { name: 'Remove goal' }));
+    const menu = await openEditMenu(user);
+    await user.click(within(menu).getByRole('button', { name: 'Remove' }));
+    await user.click(within(menu).getByRole('button', { name: 'Remove goal' }));
 
-    await user.click(screen.getByRole('button', { name: 'Add goal' }));
-    expect(screen.getByRole('dialog', { name: 'Add goal' })).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText('Scorer'), scorer.id);
-    await user.click(screen.getByRole('button', { name: 'Save goal' }));
+    await user.click(within(menu).getByRole('button', { name: 'Add goal' }));
+    const form = screen.getByRole('dialog', { name: 'Add goal' });
+    await user.selectOptions(within(form).getByLabelText('Scorer'), scorer.id);
+    await user.click(within(form).getByRole('button', { name: 'Save goal' }));
 
-    expect(screen.getByRole('button', { name: 'Edit Forward' })).toBeInTheDocument();
     expect(screen.queryByText('No goals or cards.')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Edit goals' })).toBeInTheDocument();
   });
 });

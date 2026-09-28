@@ -11,15 +11,16 @@ import {
   displayClockToMatchClockMs,
   eventClockParts,
   eventDisplayMs,
+  eventTimeLabel,
   isAfterHalfTime,
 } from '../lib/eventDescriptions';
 import { MatchActionError, type RecordGoalInput } from '../lib/matchActions';
 import { exportPlayerSummaryAsCsv } from '../lib/exportImport';
 import { comparePlayersByJersey } from '../lib/playerSort';
 import { Button } from '../components/common/Button';
-import { Dialog } from '../components/common/Dialog';
 import { PlayerAvatar } from '../components/common/PlayerAvatar';
 import { GoalDialog, goalKindFromEvent } from '../components/match/GoalDialog';
+import { GoalEditMenu } from '../components/match/GoalEditMenu';
 import type { CardEvent, GoalEvent, Match, MatchEvent, Player } from '../types';
 
 export function MatchSummaryPage() {
@@ -30,9 +31,10 @@ export function MatchSummaryPage() {
   const teams = useTeamStore((s) => s.teams);
   const teamsLoaded = useTeamStore((s) => s.loaded);
   const loadTeams = useTeamStore((s) => s.load);
+  const [editMenuOpen, setEditMenuOpen] = useState(false);
+  const [returnToEditMenu, setReturnToEditMenu] = useState(false);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
-  const [goalToRemoveId, setGoalToRemoveId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,23 +79,33 @@ export function MatchSummaryPage() {
   const editingGoal = editingGoalId
     ? match.events.find((event): event is GoalEvent => event.type === 'GOAL' && event.id === editingGoalId)
     : undefined;
-  const goalToRemove = goalToRemoveId
-    ? match.events.find((event): event is GoalEvent => event.type === 'GOAL' && event.id === goalToRemoveId)
-    : undefined;
   const clockSource = editingGoal ?? match.events.find((event) => event.type === 'MATCH_ENDED');
   const clockParts = clockSource
     ? eventClockParts(match.events, clockSource)
     : { half: 1 as const, minutes: 0, seconds: 0 };
   const showSecondHalf = match.events.some((event) => event.type === 'HALF_TIME');
 
-  function openAddGoal() {
-    setEditingGoalId(null);
+  const goalMenuItems = match.events
+    .filter((event): event is GoalEvent => event.type === 'GOAL')
+    .sort((a, b) => a.matchClockMs - b.matchClockMs || a.timestamp - b.timestamp)
+    .map((goal) => ({
+      id: goal.id,
+      label: `${describeEvent(goal, playersById, match.settings.formationId)} ${eventTimeLabel(match.events, goal)}`,
+    }));
+
+  function openGoalForm(eventId: string | null) {
+    setReturnToEditMenu(true);
+    setEditingGoalId(eventId);
+    setEditMenuOpen(false);
     setGoalDialogOpen(true);
   }
 
-  function openEditGoal(eventId: string) {
-    setEditingGoalId(eventId);
-    setGoalDialogOpen(true);
+  function closeGoalDialog() {
+    const reopen = returnToEditMenu;
+    setGoalDialogOpen(false);
+    setEditingGoalId(null);
+    setReturnToEditMenu(false);
+    if (reopen) setEditMenuOpen(true);
   }
 
   function handleGoal(input: RecordGoalInput) {
@@ -110,9 +122,14 @@ export function MatchSummaryPage() {
     <div className="mx-auto max-w-4xl p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">Match summary</h1>
-        <Button variant="ghost" onClick={() => navigate('/')}>
-          Back to dashboard
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => setEditMenuOpen(true)}>
+            Edit
+          </Button>
+          <Button variant="ghost" onClick={() => navigate('/')}>
+            Back to dashboard
+          </Button>
+        </div>
       </div>
 
       <section className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-5 dark:border-slate-700 dark:bg-slate-800 sm:px-8">
@@ -139,19 +156,13 @@ export function MatchSummaryPage() {
           <p className="mt-6 text-sm text-slate-500">No goals or cards.</p>
         ) : (
           <div className="mt-6 grid grid-cols-2 gap-6">
-            <RecapList items={recap.ours} align="start" onEditGoal={openEditGoal} onRemoveGoal={setGoalToRemoveId} />
-            <RecapList items={recap.theirs} align="end" onEditGoal={openEditGoal} onRemoveGoal={setGoalToRemoveId} />
+            <RecapList items={recap.ours} align="start" />
+            <RecapList items={recap.theirs} align="end" />
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-slate-500 dark:text-slate-400">Add a missed goal, or correct the scorer and assist.</p>
-          <Button size="sm" variant="secondary" onClick={openAddGoal}>
-            Add goal
-          </Button>
-        </div>
         {actionError && (
-          <p role="alert" className="mt-2 text-sm text-red-600">
+          <p role="alert" className="mt-4 text-sm text-red-600">
             {actionError}
           </p>
         )}
@@ -201,22 +212,9 @@ export function MatchSummaryPage() {
         <h3 className="text-lg font-semibold">Event timeline</h3>
         <ol className="mt-2 max-h-96 space-y-1 overflow-y-auto">
           {sortedEvents.map((event) => (
-            <li
-              key={event.id}
-              className="flex flex-wrap items-center gap-2 rounded border border-slate-200 px-2 py-1.5 text-sm dark:border-slate-700"
-            >
+            <li key={event.id} className="flex gap-2 rounded border border-slate-200 px-2 py-1.5 text-sm dark:border-slate-700">
               <span className="tabular-nums text-slate-500">{formatClock(eventDisplayMs(match.events, event))}</span>
-              <span className="flex-1">{describeEvent(event, playersById, match.settings.formationId)}</span>
-              {event.type === 'GOAL' && (
-                <span className="flex shrink-0">
-                  <Button size="sm" variant="ghost" onClick={() => openEditGoal(event.id)}>
-                    Edit
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setGoalToRemoveId(event.id)}>
-                    Remove
-                  </Button>
-                </span>
-              )}
+              <span>{describeEvent(event, playersById, match.settings.formationId)}</span>
             </li>
           ))}
         </ol>
@@ -248,41 +246,20 @@ export function MatchSummaryPage() {
         initialMinutes={clockParts.minutes}
         initialSeconds={clockParts.seconds}
         toMatchClockMs={(half, minutes, seconds) => displayClockToMatchClockMs(match.events, half, minutes, seconds)}
-        onClose={() => {
-          setGoalDialogOpen(false);
-          setEditingGoalId(null);
-        }}
+        onClose={closeGoalDialog}
         onSubmit={handleGoal}
         activePlayers={goalPlayers}
         benchPlayers={[]}
       />
 
-      <Dialog
-        open={!!goalToRemove}
-        title="Remove this goal?"
-        description="The score and player statistics update immediately."
-        onClose={() => setGoalToRemoveId(null)}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setGoalToRemoveId(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                if (goalToRemoveId) store.deleteEvent(goalToRemoveId);
-                setGoalToRemoveId(null);
-              }}
-            >
-              Remove goal
-            </Button>
-          </>
-        }
-      >
-        {goalToRemove && (
-          <p className="text-sm">{describeEvent(goalToRemove, playersById, match.settings.formationId)}</p>
-        )}
-      </Dialog>
+      <GoalEditMenu
+        open={editMenuOpen}
+        onClose={() => setEditMenuOpen(false)}
+        goals={goalMenuItems}
+        onEdit={(eventId) => openGoalForm(eventId)}
+        onAdd={() => openGoalForm(null)}
+        onRemove={(eventId) => store.deleteEvent(eventId)}
+      />
     </div>
   );
 }
@@ -391,22 +368,12 @@ function TeamMark({
   );
 }
 
-function RecapList({
-  items,
-  align,
-  onEditGoal,
-  onRemoveGoal,
-}: {
-  items: RecapLine[];
-  align: 'start' | 'end';
-  onEditGoal: (eventId: string) => void;
-  onRemoveGoal: (eventId: string) => void;
-}) {
+function RecapList({ items, align }: { items: RecapLine[]; align: 'start' | 'end' }) {
   if (items.length === 0) return <div />;
   return (
     <ul className={`space-y-1 text-sm ${align === 'end' ? 'text-right' : 'text-left'}`}>
       {items.map((item) => (
-        <li key={item.id} className={`flex flex-wrap items-center gap-1.5 ${align === 'end' ? 'justify-end' : 'justify-start'}`}>
+        <li key={item.id} className={`flex items-center gap-1.5 ${align === 'end' ? 'justify-end' : 'justify-start'}`}>
           {item.goal && <BallIcon />}
           {item.card === 'yellow' && <CardChip color="yellow" />}
           {item.card === 'red' && <CardChip color="red" />}
@@ -421,16 +388,6 @@ function RecapList({
             {item.assist ? <span className="text-slate-500 dark:text-slate-400"> ({item.assist})</span> : null}{' '}
             <span className="text-slate-600 dark:text-slate-300">{item.minute}</span>
           </span>
-          {item.goal && (
-            <span className="inline-flex shrink-0">
-              <Button size="sm" variant="ghost" onClick={() => onEditGoal(item.id)} aria-label={`Edit ${item.text}`}>
-                Edit
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => onRemoveGoal(item.id)} aria-label={`Remove ${item.text}`}>
-                Remove
-              </Button>
-            </span>
-          )}
         </li>
       ))}
     </ul>

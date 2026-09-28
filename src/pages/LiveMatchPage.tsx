@@ -15,6 +15,7 @@ import { MatchActionError, type RecordGoalInput } from '../lib/matchActions';
 import { MatchClock } from '../components/match/MatchClock';
 import { ScoreBoard } from '../components/match/ScoreBoard';
 import { GoalDialog, goalKindFromEvent } from '../components/match/GoalDialog';
+import { GoalEditMenu } from '../components/match/GoalEditMenu';
 import { AlertsPanel } from '../components/match/AlertsPanel';
 import { FieldWorkspace } from '../components/match/FieldWorkspace';
 import { InMatchPlayerDialog } from '../components/match/InMatchPlayerDialog';
@@ -44,9 +45,10 @@ export function LiveMatchPage() {
   const appSettings = useAppSettingsStore((s) => s.settings);
   const now = useNow(500);
 
+  const [editMenuOpen, setEditMenuOpen] = useState(false);
+  const [returnToEditMenu, setReturnToEditMenu] = useState(false);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
-  const [goalToRemove, setGoalToRemove] = useState<GoalEvent | null>(null);
   const [pendingSub, setPendingSub] = useState<PendingSub | null>(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -180,13 +182,24 @@ export function LiveMatchPage() {
   }
 
   function openNewGoal() {
+    setReturnToEditMenu(false);
     setEditingGoalId(null);
     setGoalDialogOpen(true);
   }
 
-  function openEditGoal(eventId: string) {
+  function openGoalForm(eventId: string | null) {
+    setReturnToEditMenu(true);
     setEditingGoalId(eventId);
+    setEditMenuOpen(false);
     setGoalDialogOpen(true);
+  }
+
+  function closeGoalDialog() {
+    const reopen = returnToEditMenu;
+    setGoalDialogOpen(false);
+    setEditingGoalId(null);
+    setReturnToEditMenu(false);
+    if (reopen) setEditMenuOpen(true);
   }
 
   function handleGoal(input: RecordGoalInput) {
@@ -318,22 +331,17 @@ export function LiveMatchPage() {
           />
           {recordedGoals.length > 0 && (
             <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
-              <h2 className="text-xs font-semibold">Goals</h2>
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-xs font-semibold">Goals</h2>
+                <Button size="sm" variant="secondary" onClick={() => setEditMenuOpen(true)}>
+                  Edit
+                </Button>
+              </div>
               <ul className="mt-2 space-y-1">
                 {recordedGoals.map((goal) => (
-                  <li key={goal.id} className="flex items-start justify-between gap-2 text-sm">
-                    <span>
-                      {describeEvent(goal, playersById, derived.formationId)}{' '}
-                      <span className="tabular-nums text-slate-500">{eventTimeLabel(match.events, goal)}</span>
-                    </span>
-                    <span className="flex shrink-0">
-                      <Button size="sm" variant="ghost" onClick={() => openEditGoal(goal.id)}>
-                        Edit
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setGoalToRemove(goal)}>
-                        Remove
-                      </Button>
-                    </span>
+                  <li key={goal.id} className="text-sm">
+                    {describeEvent(goal, playersById, derived.formationId)}{' '}
+                    <span className="tabular-nums text-slate-500">{eventTimeLabel(match.events, goal)}</span>
                   </li>
                 ))}
               </ul>
@@ -392,7 +400,6 @@ export function LiveMatchPage() {
             formationId={derived.formationId}
             canUndo={canUndoFn(match)}
             onUndo={() => runAction(() => store.undoLastAction())}
-            onEditGoal={openEditGoal}
             onDeleteEvent={(eventId) => runAction(() => store.deleteEvent(eventId))}
           />
           </div>
@@ -417,10 +424,7 @@ export function LiveMatchPage() {
         initialKind={editingGoal ? goalKindFromEvent(editingGoal) : 'team'}
         initialScorerId={editingGoal?.scorerId ?? ''}
         initialAssisterId={editingGoal?.assisterId ?? ''}
-        onClose={() => {
-          setGoalDialogOpen(false);
-          setEditingGoalId(null);
-        }}
+        onClose={closeGoalDialog}
         onSubmit={handleGoal}
         activePlayers={activePlayers}
         benchPlayers={[...benchPlayers, ...extraGoalPlayers]}
@@ -494,32 +498,18 @@ export function LiveMatchPage() {
         }}
       />
 
-      <Dialog
-        open={!!goalToRemove}
-        title="Remove this goal?"
-        description="The score and player statistics update immediately."
-        onClose={() => setGoalToRemove(null)}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setGoalToRemove(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                if (goalToRemove) runAction(() => store.deleteEvent(goalToRemove.id));
-                setGoalToRemove(null);
-              }}
-            >
-              Remove goal
-            </Button>
-          </>
-        }
-      >
-        {goalToRemove && (
-          <p className="text-sm">{describeEvent(goalToRemove, playersById, derived.formationId)}</p>
-        )}
-      </Dialog>
+      <GoalEditMenu
+        open={editMenuOpen}
+        onClose={() => setEditMenuOpen(false)}
+        goals={recordedGoals.map((goal) => ({
+          id: goal.id,
+          label: `${describeEvent(goal, playersById, derived.formationId)} ${eventTimeLabel(match.events, goal)}`,
+        }))}
+        onEdit={(eventId) => openGoalForm(eventId)}
+        onAdd={() => openGoalForm(null)}
+        onRemove={(eventId) => runAction(() => store.deleteEvent(eventId))}
+        description="Add a goal, or change the scorer and assist."
+      />
 
       <Dialog
         open={confirmEnd}

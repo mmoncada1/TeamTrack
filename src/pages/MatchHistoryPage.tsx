@@ -1,9 +1,10 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMatchStore } from '../state/matchStore';
 import { useTeamStore } from '../state/teamStore';
 import { deriveMatchState } from '../lib/matchEngine';
 import { Button } from '../components/common/Button';
+import { Dialog } from '../components/common/Dialog';
 import type { Match, MatchStatus } from '../types';
 
 const STATUS_LABEL: Record<MatchStatus, string> = {
@@ -18,6 +19,7 @@ export function MatchHistoryPage() {
   const navigate = useNavigate();
   const { allMatches, loadAllMatches, deleteMatchById } = useMatchStore();
   const activeTeam = useTeamStore((s) => s.teams.find((team) => team.id === s.activeTeamId) ?? null);
+  const [matchToDelete, setMatchToDelete] = useState<Match | null>(null);
 
   useEffect(() => {
     loadAllMatches();
@@ -91,10 +93,39 @@ export function MatchHistoryPage() {
             match={match}
             status={status}
             onOpen={() => goTo(match, status)}
-            onDelete={() => deleteMatchById(match.id)}
+            onDelete={() => setMatchToDelete(match)}
           />
         ))}
       </Section>
+
+      <Dialog
+        open={!!matchToDelete}
+        title="Are you sure you want to delete this?"
+        description={
+          matchToDelete
+            ? `${matchToDelete.teamName || 'Us'} vs ${matchToDelete.opponentName || 'Opponent'} on ${matchToDelete.date} will be permanently removed.`
+            : undefined
+        }
+        onClose={() => setMatchToDelete(null)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setMatchToDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (matchToDelete) deleteMatchById(matchToDelete.id);
+                setMatchToDelete(null);
+              }}
+            >
+              Delete match
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm">This removes the score, events, and player statistics for this match.</p>
+      </Dialog>
     </div>
   );
 }

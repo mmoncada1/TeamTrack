@@ -53,6 +53,8 @@ describe('LiveMatchPage goal corrections', () => {
     const goals = screen.getByRole('heading', { name: 'Goals' }).parentElement;
     if (!goals) throw new Error('Goals list was not rendered.');
     await user.click(within(goals).getByRole('button', { name: 'Edit' }));
+    const menu = screen.getByRole('dialog', { name: 'Edit goals' });
+    await user.click(within(menu).getByRole('button', { name: 'Edit' }));
     const editDialog = screen.getByRole('dialog', { name: 'Edit goal' });
     await user.selectOptions(within(editDialog).getByLabelText('Scorer'), scorer.id);
     await user.selectOptions(within(editDialog).getByLabelText('Assist (optional)'), '');
@@ -67,9 +69,12 @@ describe('LiveMatchPage goal corrections', () => {
     const user = userEvent.setup();
     await renderLive();
 
-    await user.click(screen.getAllByRole('button', { name: 'Remove' })[0]);
-    const confirm = screen.getByRole('dialog', { name: 'Remove this goal?' });
-    await user.click(within(confirm).getByRole('button', { name: 'Remove goal' }));
+    const goals = screen.getByRole('heading', { name: 'Goals' }).parentElement;
+    if (!goals) throw new Error('Goals list was not rendered.');
+    await user.click(within(goals).getByRole('button', { name: 'Edit' }));
+    const menu = screen.getByRole('dialog', { name: 'Edit goals' });
+    await user.click(within(menu).getByRole('button', { name: 'Remove' }));
+    await user.click(within(menu).getByRole('button', { name: 'Remove goal' }));
 
     expect(screen.queryByRole('heading', { name: 'Goals' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Goal: Forward/)).not.toBeInTheDocument();
