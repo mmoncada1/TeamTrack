@@ -11,7 +11,7 @@ def position_names(groups: list[str]) -> str {
     labels = {"GK": "Goalkeeper", "DEF": "Defender", "MID": "Midfielder", "FWD": "Forward"};
     return ", ".join([labels[group] for group in normalize_position_groups(groups)]);
 }
-def jersey_label(number: int | None) -> str { return "—" if number is None else f"#{number}"; }
+def:pub jersey_label(number: int | None) -> str { return "—" if number is None else f"#{number}"; }
 def validate_player(name: str, jersey_number: int | None, groups: list[str], gender: str | None,
     require_gender: bool, existing_players: list[Player], editing_player_id: str | None = None) -> list[FieldError] {
     errors: list[FieldError] = [];
