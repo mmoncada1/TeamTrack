@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type { Match, Player, PlayerPhoto, SavedLineup, Team, TeamPhoto } from '../types';
 import { createId } from '../lib/id';
+import type { DrivePlan, FootballFormation, FootballPlay, FootballWhiteboard } from '../football/types';
 
 /**
  * Current schema version. Bump this and add a Dexie `.version(n)` block
@@ -10,7 +11,7 @@ import { createId } from '../lib/id';
  * Small app-level settings (theme, alert sound, etc.) intentionally live in
  * `localStorage` instead of IndexedDB — see `src/state/localSettings.ts`.
  */
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 class TeamTrackDatabase extends Dexie {
   teams!: Table<Team, string>;
@@ -19,6 +20,10 @@ class TeamTrackDatabase extends Dexie {
   teamPhotos!: Table<TeamPhoto, string>;
   lineups!: Table<SavedLineup, string>;
   matches!: Table<Match, string>;
+  footballFormations!: Table<FootballFormation, string>;
+  footballPlays!: Table<FootballPlay, string>;
+  drivePlans!: Table<DrivePlan, string>;
+  footballWhiteboards!: Table<FootballWhiteboard, string>;
 
   constructor() {
     super('teamtrack');
@@ -52,13 +57,22 @@ class TeamTrackDatabase extends Dexie {
       matches: 'id, teamId, date, updatedAt',
     });
 
-    this.version(DB_VERSION).stores({
+    this.version(4).stores({
       teams: 'id, name',
       players: 'id, teamId, name, jerseyNumber, availability',
       photos: 'id, playerId',
       teamPhotos: 'id, teamId',
       lineups: 'id, teamId, name',
       matches: 'id, teamId, date, updatedAt',
+    });
+    this.version(5).stores({
+      teams: 'id, name, sport',
+      footballFormations: 'id, teamId, name, updatedAt',
+      footballPlays: 'id, teamId, name, updatedAt, *tags',
+      drivePlans: 'id, teamId, name, updatedAt',
+      footballWhiteboards: 'id, teamId',
+    }).upgrade(async tx => {
+      await tx.table('teams').toCollection().modify(team => { team.sport ??= 'soccer'; });
     });
   }
 }

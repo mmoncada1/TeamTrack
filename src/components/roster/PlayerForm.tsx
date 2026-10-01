@@ -9,6 +9,7 @@ import { getInitials } from '../../lib/photo';
 import { playerPositionGroups } from '../../lib/playerPositions';
 
 interface PlayerFormProps {
+  showSoccerPositions?: boolean;
   initial?: Player;
   /** Co-ed teams must record girl or boy so matches can count girls on the field. */
   requireGender?: boolean;
@@ -19,7 +20,7 @@ interface PlayerFormProps {
 
 const GROUPS: PositionGroup[] = ['GK', 'DEF', 'MID', 'FWD'];
 
-export function PlayerForm({ initial, requireGender, onSubmit, onCancel, submitLabel }: PlayerFormProps) {
+export function PlayerForm({ initial, requireGender, onSubmit, onCancel, submitLabel, showSoccerPositions = true }: PlayerFormProps) {
   const [name, setName] = useState(initial?.name ?? '');
   const [jerseyNumber, setJerseyNumber] = useState<string>(
     initial?.jerseyNumber != null ? String(initial.jerseyNumber) : '',
@@ -178,7 +179,7 @@ export function PlayerForm({ initial, requireGender, onSubmit, onCancel, submitL
           )}
         </div>
 
-        <fieldset>
+        {showSoccerPositions && <fieldset>
           <legend id={groupId} className="block text-sm font-medium text-slate-700 dark:text-slate-200">
             Positions
           </legend>
@@ -204,7 +205,7 @@ export function PlayerForm({ initial, requireGender, onSubmit, onCancel, submitL
               {errorFor('preferredGroup')}
             </p>
           )}
-        </fieldset>
+        </fieldset>}
       </div>
 
       {requireGender && (

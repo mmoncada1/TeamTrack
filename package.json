@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:browser": "node scripts/browser-smoke.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {

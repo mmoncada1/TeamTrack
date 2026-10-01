@@ -4,8 +4,10 @@ import * as repo from '../db/repository';
 import { clampMinGirls } from '../lib/coed';
 import { compressImageFile } from '../lib/photo';
 import { createId } from '../lib/id';
+import type { Sport } from '../lib/sports';
 
 export interface NewTeamOptions {
+  sport?: Sport;
   coed: boolean;
   minGirlsOnField: number;
 }

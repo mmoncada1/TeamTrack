@@ -12,10 +12,12 @@ import { PlayerAvatar } from '../components/common/PlayerAvatar';
 import { TeamAvatar } from '../components/common/TeamAvatar';
 import { jerseyLabel } from '../lib/playerSort';
 import { playerPositionGroups, positionNames } from '../lib/playerPositions';
+import { teamSport } from '../lib/sports';
 
 export function RosterPage() {
   const { players, loaded, load, addPlayer, updatePlayer, deletePlayer } = useRosterStore();
   const activeTeam = useTeamStore((s) => s.teams.find((team) => team.id === s.activeTeamId) ?? null);
+  const soccer = teamSport(activeTeam) === 'soccer';
   const teamPlayers = players.filter((player) => !activeTeam || player.teamId === activeTeam.id);
   const [formOpen, setFormOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
@@ -29,11 +31,11 @@ export function RosterPage() {
 
   const filtered = useMemo(() => {
     return teamPlayers.filter((p) => {
-      if (groupFilter !== 'ALL' && !playerPositionGroups(p).includes(groupFilter)) return false;
+      if (soccer && groupFilter !== 'ALL' && !playerPositionGroups(p).includes(groupFilter)) return false;
       if (search.trim() && !p.name.toLowerCase().includes(search.trim().toLowerCase())) return false;
       return true;
     });
-  }, [teamPlayers, search, groupFilter]);
+  }, [teamPlayers, search, groupFilter, soccer]);
 
   return (
     <div className="mx-auto max-w-4xl p-4 sm:p-6">
@@ -44,7 +46,7 @@ export function RosterPage() {
             <h1 className="text-2xl font-bold">{activeTeam ? `${activeTeam.name} roster` : 'Roster'}</h1>
             {activeTeam && (
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                {activeTeam.coed
+                {!soccer ? '7v7 flag football' : activeTeam.coed
                   ? `Co-ed · at least ${clampMinGirls(activeTeam.minGirlsOnField)} girls on the field`
                   : 'Not a co-ed team'}
                 <Link to="/team/settings" className="ml-2 font-medium text-emerald-700 underline dark:text-emerald-300">
@@ -79,7 +81,7 @@ export function RosterPage() {
             className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
           />
         </div>
-        <div>
+        {soccer && <div>
           <label htmlFor="roster-filter" className="sr-only">
             Filter by position group
           </label>
@@ -96,7 +98,7 @@ export function RosterPage() {
               </option>
             ))}
           </select>
-        </div>
+        </div>}
       </div>
 
       {teamPlayers.length === 0 && loaded && (
@@ -120,7 +122,7 @@ export function RosterPage() {
                 )}
               </div>
               <div className="text-sm text-slate-500 dark:text-slate-400">
-                {positionNames(player)}
+                {soccer ? positionNames(player) : 'Assign roles in formations and plays'}
                 {activeTeam?.coed && (
                   <>
                     {' · '}
@@ -159,6 +161,7 @@ export function RosterPage() {
         <PlayerForm
           key={editingPlayer?.id ?? 'new'}
           initial={editingPlayer ?? undefined}
+          showSoccerPositions={soccer}
           requireGender={Boolean(activeTeam?.coed)}
           submitLabel={editingPlayer ? 'Save changes' : 'Add player'}
           onCancel={() => setFormOpen(false)}

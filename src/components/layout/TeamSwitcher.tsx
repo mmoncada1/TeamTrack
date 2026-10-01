@@ -8,11 +8,13 @@ import { Dialog } from '../common/Dialog';
 import { DEFAULT_MIN_GIRLS_ON_FIELD } from '../../lib/coed';
 import { TeamAvatar } from '../common/TeamAvatar';
 import { TeamPhotoControls } from './TeamPhotoControls';
+import { SPORT_LABELS, type Sport } from '../../lib/sports';
 
 export function TeamSwitcher() {
   const { teams, activeTeamId, loaded, load, setActiveTeam, createTeam, setTeamPhoto } = useTeamStore();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
+  const [sport, setSport] = useState<Sport>('soccer');
   const [coed, setCoed] = useState(false);
   const [minGirls, setMinGirls] = useState(String(DEFAULT_MIN_GIRLS_ON_FIELD));
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +59,7 @@ export function TeamSwitcher() {
         variant="secondary"
         onClick={() => {
           setName('');
+          setSport('soccer');
           setCoed(false);
           setMinGirls(String(DEFAULT_MIN_GIRLS_ON_FIELD));
           setPhotoFile(null);
@@ -81,7 +84,8 @@ export function TeamSwitcher() {
               variant="primary"
               onClick={async () => {
                 const result = await createTeam(name, {
-                  coed,
+                  sport,
+                  coed: sport === 'soccer' && coed,
                   minGirlsOnField: Number(minGirls),
                 });
                 if (result.error) {
@@ -108,11 +112,14 @@ export function TeamSwitcher() {
           onChange={(e) => setName(e.target.value)}
           autoFocus
         />
-        <label className="mt-3 flex items-center gap-2 text-sm">
+        <label htmlFor="new-team-sport" className="mt-3 block text-sm font-medium">Sport</label>
+        <select id="new-team-sport" className="input mt-1" value={sport} onChange={e => setSport(e.target.value as Sport)}>{Object.entries(SPORT_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+        <p className="mt-1 text-xs text-slate-500">Football uses 7v7 flag formations and plays. Sport is fixed after creation.</p>
+        {sport === 'soccer' && <label className="mt-3 flex items-center gap-2 text-sm">
           <input type="checkbox" checked={coed} onChange={(e) => setCoed(e.target.checked)} />
           Co-ed team
-        </label>
-        {coed && (
+        </label>}
+        {sport === 'soccer' && coed && (
           <div className="mt-3">
             <label htmlFor="new-team-min-girls" className="block text-sm font-medium">
               Girls required on the field

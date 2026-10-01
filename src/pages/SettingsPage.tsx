@@ -11,6 +11,7 @@ import { exportBackupAsJson, validateBackup, type BackupValidationResult } from 
 import { buildDemoRoster } from '../lib/demoData';
 import { Button } from '../components/common/Button';
 import { Dialog } from '../components/common/Dialog';
+import { footballBackup } from '../football/repository';
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -30,7 +31,7 @@ export function SettingsPage() {
     const photos = await repo.listPhotos();
     const teamPhotos = await repo.listTeamPhotos();
     const lineups = await repo.listLineups();
-    await exportBackupAsJson(teams, players, matches, settings, photos, teamPhotos, lineups);
+    await exportBackupAsJson(teams, players, matches, settings, photos, teamPhotos, lineups, await footballBackup());
   }
 
   async function handleFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
@@ -55,6 +56,7 @@ export function SettingsPage() {
       pendingImport.backup.photos,
       pendingImport.backup.teamPhotos,
       pendingImport.backup.lineups,
+      pendingImport.backup,
     );
     await useTeamStore.getState().load();
     await useLineupStore.getState().load();
@@ -71,6 +73,10 @@ export function SettingsPage() {
     await db.teamPhotos.clear();
     await db.lineups.clear();
     await db.matches.clear();
+    await db.footballFormations.clear();
+    await db.footballPlays.clear();
+    await db.drivePlans.clear();
+    await db.footballWhiteboards.clear();
     localStorage.clear();
     setConfirmResetApp(false);
     window.location.reload();
@@ -121,7 +127,7 @@ export function SettingsPage() {
       <section className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
         <h2 className="font-semibold">Backup &amp; restore</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Export a full JSON backup of your roster and match history, or import a previous backup.
+          Export all teams, rosters, soccer matches and lineups, football formations, plays, drive plans, and football whiteboards, or restore a previous backup.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={handleExport}>
@@ -157,7 +163,7 @@ export function SettingsPage() {
       <Dialog
         open={!!pendingImport}
         title="Import backup?"
-        description="This replaces all current players and matches on this device."
+        description="This replaces all current teams, players, matches, lineups, and football data on this device."
         onClose={() => setPendingImport(null)}
         footer={
           <>
@@ -176,7 +182,7 @@ export function SettingsPage() {
               <p>
                 Found {pendingImport.backup?.players.length ?? 0} player(s), {pendingImport.backup?.matches.length ?? 0}{' '}
                 match(es), {pendingImport.backup?.photos.length ?? 0} player photo(s), and{' '}
-                {pendingImport.backup?.teamPhotos.length ?? 0} team photo(s) in this backup.
+                {pendingImport.backup?.teamPhotos.length ?? 0} team photo(s), {pendingImport.backup?.footballPlays.length ?? 0} football play(s), and {pendingImport.backup?.drivePlans.length ?? 0} drive plan(s) in this backup.
               </p>
             ) : (
               <p className="text-red-600">This file could not be imported.</p>

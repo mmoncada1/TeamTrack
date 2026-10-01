@@ -7,6 +7,7 @@ import { clampMinGirls, DEFAULT_MIN_GIRLS_ON_FIELD } from '../lib/coed';
 import { Button } from '../components/common/Button';
 import { Dialog } from '../components/common/Dialog';
 import { TeamPhotoControls } from '../components/layout/TeamPhotoControls';
+import { SPORT_LABELS, teamSport } from '../lib/sports';
 
 export function TeamSettingsPage() {
   const navigate = useNavigate();
@@ -52,7 +53,7 @@ export function TeamSettingsPage() {
         return;
       }
     }
-    if (coed !== Boolean(activeTeam.coed) || clampMinGirls(Number(minGirls)) !== clampMinGirls(activeTeam.minGirlsOnField)) {
+    if (teamSport(activeTeam) === 'soccer' && (coed !== Boolean(activeTeam.coed) || clampMinGirls(Number(minGirls)) !== clampMinGirls(activeTeam.minGirlsOnField))) {
       const result = await setCoed(activeTeam.id, coed, Number(minGirls));
       if (result.error) {
         setError(result.error);
@@ -75,7 +76,7 @@ export function TeamSettingsPage() {
         </Button>
       </div>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        These settings apply to {activeTeam.name}. Players live in the roster.
+        These settings apply to {activeTeam.name}. Sport: {SPORT_LABELS[teamSport(activeTeam)]} (fixed after creation).
       </p>
 
       <section className="mt-5 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
@@ -111,7 +112,7 @@ export function TeamSettingsPage() {
         />
       </section>
 
-      <section className="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+      {teamSport(activeTeam) === 'soccer' && <section className="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
         <h2 className="text-base font-semibold">Co-ed rules</h2>
         <label className="mt-2 flex items-center gap-2 text-sm">
           <input
@@ -147,7 +148,7 @@ export function TeamSettingsPage() {
             </p>
           </div>
         )}
-      </section>
+      </section>}
 
       {error && (
         <p role="alert" className="mt-4 rounded bg-red-100 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
@@ -169,7 +170,7 @@ export function TeamSettingsPage() {
       <section className="mt-8 rounded-xl border border-red-200 p-4 dark:border-red-900">
         <h2 className="text-base font-semibold">Delete this team</h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Removes the team's players, photos, lineups, and matches from this device.
+          Removes this team's roster, photos, lineups, matches, formations, plays, drive plans, and football whiteboard.
         </p>
         <Button
           variant="danger"
@@ -209,7 +210,7 @@ export function TeamSettingsPage() {
           </>
         }
       >
-        <p className="text-sm">Every player, lineup, and match for this team is removed from this device.</p>
+        <p className="text-sm">All roster and tactical data for this team is removed from this device.</p>
       </Dialog>
     </div>
   );

@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTeamStore } from '../state/teamStore';
 import { createId } from '../lib/id';
 import { Button } from '../components/common/Button';
+import { nextDrawingPoints, pointFromPointer } from '../drawing/geometry';
 
-type Tool = 'pen' | 'erase' | 'text';
+type Tool = 'pen' | 'erase' | 'text' | 'line' | 'arrow';
 
 interface Point {
   x: number;
@@ -12,7 +13,7 @@ interface Point {
 
 interface Stroke {
   id: string;
-  tool: 'pen' | 'erase';
+  tool: 'pen' | 'erase' | 'line' | 'arrow';
   color: string;
   width: number;
   points: Point[];
@@ -81,6 +82,13 @@ function drawStrokes(ctx: CanvasRenderingContext2D, strokes: Stroke[], width: nu
       else ctx.lineTo(x, y);
     });
     ctx.stroke();
+    if (stroke.tool === 'arrow' && stroke.points.length >= 2) {
+      const start = stroke.points[0]; const end = stroke.points[stroke.points.length - 1];
+      const x = end.x * width; const y = end.y * height;
+      const angle = Math.atan2((end.y - start.y) * height, (end.x - start.x) * width);
+      const size = Math.max(10, stroke.width * 3);
+      ctx.beginPath(); ctx.moveTo(x - size * Math.cos(angle - .5), y - size * Math.sin(angle - .5)); ctx.lineTo(x, y); ctx.lineTo(x - size * Math.cos(angle + .5), y - size * Math.sin(angle + .5)); ctx.stroke();
+    }
   }
   ctx.globalCompositeOperation = 'source-over';
 }
@@ -98,12 +106,14 @@ export function WhiteboardPage() {
   const [width, setWidth] = useState(WIDTHS[1]);
   const [board, setBoard] = useState<BoardState>(emptyBoard);
   const [undoStack, setUndoStack] = useState<BoardState[]>([]);
+  const [redoStack, setRedoStack] = useState<BoardState[]>([]);
   const [draftNote, setDraftNote] = useState<{ x: number; y: number; text: string } | null>(null);
 
   useEffect(() => {
     if (!activeTeamId) return;
     setBoard(loadBoard(activeTeamId));
     setUndoStack([]);
+    setRedoStack([]);
     setDraftNote(null);
   }, [activeTeamId]);
 
@@ -139,6 +149,7 @@ export function WhiteboardPage() {
 
   function remember(next: BoardState) {
     setUndoStack((stack) => [...stack, board]);
+    setRedoStack([]);
     setBoard(next);
     if (activeTeamId) saveBoard(activeTeamId, next);
   }
@@ -148,10 +159,8 @@ export function WhiteboardPage() {
     if (!pitch) return null;
     const rect = pitch.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return null;
-    return {
-      x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
-      y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)),
-    };
+    const point = pointFromPointer(event, rect);
+    return { x: point.x / 100, y: point.y / 100 };
   }
 
   function onPointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
@@ -166,7 +175,7 @@ export function WhiteboardPage() {
     event.currentTarget.setPointerCapture(event.pointerId);
     drawing.current = {
       id: createId(),
-      tool: tool === 'erase' ? 'erase' : 'pen',
+      tool,
       color,
       width: tool === 'erase' ? Math.max(width * 3, 14) : width,
       points: [point],
@@ -179,7 +188,7 @@ export function WhiteboardPage() {
     if (!stroke) return;
     const point = pointFromEvent(event);
     if (!point) return;
-    stroke.points.push(point);
+    stroke.points = nextDrawingPoints(stroke.tool, stroke.points, point);
     paint([...board.strokes, stroke]);
   }
 
@@ -215,6 +224,7 @@ export function WhiteboardPage() {
     const previous = undoStack[undoStack.length - 1];
     if (!previous) return;
     setUndoStack((stack) => stack.slice(0, -1));
+    setRedoStack(stack => [...stack, board]);
     setBoard(previous);
     if (activeTeamId) saveBoard(activeTeamId, previous);
   }
@@ -222,6 +232,11 @@ export function WhiteboardPage() {
   function clearBoard() {
     if (board.strokes.length === 0 && board.notes.length === 0) return;
     remember(emptyBoard());
+  }
+  function redo() {
+    const next = redoStack[redoStack.length - 1]; if (!next) return;
+    setUndoStack(stack => [...stack, board]); setRedoStack(stack => stack.slice(0, -1)); setBoard(next);
+    if (activeTeamId) saveBoard(activeTeamId, next);
   }
 
   return (
@@ -241,6 +256,8 @@ export function WhiteboardPage() {
           <Button size="sm" variant={tool === 'text' ? 'primary' : 'secondary'} onClick={() => setTool('text')}>
             Note
           </Button>
+          <Button size="sm" variant={tool === 'line' ? 'primary' : 'secondary'} onClick={() => setTool('line')}>Line</Button>
+          <Button size="sm" variant={tool === 'arrow' ? 'primary' : 'secondary'} onClick={() => setTool('arrow')}>Arrow</Button>
         </div>
         <div className="flex gap-1" role="group" aria-label="Ink color">
           {COLORS.map((swatch) => (
@@ -278,6 +295,7 @@ export function WhiteboardPage() {
         <Button size="sm" variant="danger" onClick={clearBoard}>
           Clear
         </Button>
+        <Button size="sm" variant="secondary" onClick={redo} disabled={redoStack.length === 0}>Redo</Button>
       </div>
 
       <div

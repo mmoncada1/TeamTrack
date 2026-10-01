@@ -6,6 +6,10 @@
  * and used as the input/output of pure functions in `src/lib`.
  */
 
+import type { Sport } from '../lib/sports';
+import type { FootballData } from '../football/types';
+export type { Sport } from '../lib/sports';
+
 export type PositionGroup = 'GK' | 'DEF' | 'MID' | 'FWD';
 
 export const POSITION_GROUP_LABELS: Record<PositionGroup, string> = {
@@ -37,6 +41,8 @@ export const PLAYER_GENDER_LABELS: Record<PlayerGender, string> = {
 export interface Team {
   id: string;
   name: string;
+  /** Absent only on legacy soccer records. Immutable after creation. */
+  sport?: Sport;
   /**
    * Co-ed leagues require a minimum number of girls on the field at once.
    * Missing means a single-gender team (existing teams before this option).
@@ -459,7 +465,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 };
 
 /** Shape of a full JSON export/backup of the app's local data. */
-export interface AppBackup {
+export interface AppBackup extends FootballData {
   version: number;
   exportedAt: number;
   teams: Team[];
