@@ -1,0 +1,22 @@
+[project]
+name = "teamtrack"
+version = "0.1.0"
+description = "TeamTrack rewritten in Jac"
+entry-point = "main"
+kind = "web-app"
+jac-version = "==0.37.23"
+
+[dependencies]
+
+[dependencies.npm]
+jac-client-node = "1.0.7"
+
+[dependencies.npm.dev]
+"@jac-client/dev-deps" = "1.0.0"
+
+[dev-dependencies]
+watchdog = ">=3.0.0"
+
+[test]
+verbose = true
+
