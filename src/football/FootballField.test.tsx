@@ -29,7 +29,7 @@ describe('football player portraits', () => {
   it('drags assigned players through a dedicated hit area above the portrait', () => {
     vi.stubGlobal('PointerEvent', MouseEvent);
     const formation = newFormation('flag');
-    const player = makePlayer({ teamId: 'flag', name: 'Ava Smith' });
+    const player = makePlayer({ teamId: 'flag', name: 'Ava Smith', jerseyNumber: 7 });
     formation.players[0].rosterPlayerId = player.id;
     const onPlayers = vi.fn();
     const onSelect = vi.fn();

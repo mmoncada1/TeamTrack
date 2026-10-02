@@ -162,6 +162,9 @@ try {
       tx.oncomplete = () => { db.close(); resolve(); }; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
     };
   })`);
+  // Native IndexedDB writes do not notify Dexie's live queries; reload the seeded roster.
+  await send('Page.reload');
+  await waitText('Browser Flag · 7v7 flag football');
   await click('Formations');
   await waitText('New formation');
   await click('New formation');
