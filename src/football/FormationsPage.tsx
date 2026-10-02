@@ -45,6 +45,7 @@ export function FormationsPage() {
         {formations.map((f) => (
           <article key={f.id} className="space-y-2 rounded-xl border p-3 dark:border-slate-700">
             <FootballField
+              roster={players}
               {...f}
               players={f.players.map((p) => ({
                 ...p,

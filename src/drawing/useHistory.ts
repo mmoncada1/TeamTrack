@@ -7,7 +7,8 @@ export function useHistory<T>(initial: T) {
   const [past, setPast] = useState<T[]>([]);
   const [future, setFuture] = useState<T[]>([]);
   function checkpoint() {
-    setPast((p) => [...p.slice(-79), current.current]);
+    const snapshot = current.current;
+    setPast((p) => [...p.slice(-79), snapshot]);
     setFuture([]);
   }
   function change(next: T, remember = true) {
@@ -18,14 +19,16 @@ export function useHistory<T>(initial: T) {
   function undo() {
     const previous = past[past.length - 1];
     if (previous === undefined) return;
-    setFuture((f) => [current.current, ...f]);
+    const snapshot = current.current;
+    setFuture((f) => [snapshot, ...f]);
     setPast((p) => p.slice(0, -1));
     change(previous, false);
   }
   function redo() {
     const next = future[0];
     if (next === undefined) return;
-    setPast((p) => [...p, current.current]);
+    const snapshot = current.current;
+    setPast((p) => [...p, snapshot]);
     setFuture((f) => f.slice(1));
     change(next, false);
   }

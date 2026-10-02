@@ -10,20 +10,26 @@ import { deletePlay, savePlay } from './repository';
 import type { FootballPlay } from './types';
 
 export function PlaybookPage() {
-  const { team, plays = [], formations = [], loaded } = useFootballData();
+  const { team, plays = [], formations = [], players = [], loaded } = useFootballData();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [tag, setTag] = useState('');
   const [formationId, setFormationId] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('New play');
+  const [creatingPlay, setCreatingPlay] = useState(false);
   const [remove, setRemove] = useState<FootballPlay>();
   const [error, setError] = useState('');
   async function create(play: FootballPlay) {
+    setCreatingPlay(true);
     try {
       await savePlay(play);
+      setCreating(false);
       navigate(`/football/plays/${play.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create play.');
     }
+    setCreatingPlay(false);
   }
   if (!team || !loaded) return <p className="p-4">Loading playbook…</p>;
   const tags = [...new Set(plays.flatMap((p) => p.tags).filter(Boolean))].sort();
@@ -32,6 +38,7 @@ export function PlaybookPage() {
       (!tag || p.tags.includes(tag)) &&
       `${p.name} ${p.description} ${p.tags.join(' ')}`.toLowerCase().includes(search.toLowerCase()),
   );
+  const startingFormation = formations.find((f) => f.id === formationId);
   return (
     <div className="mx-auto max-w-6xl space-y-5 p-4 sm:p-6">
       <div>
@@ -42,32 +49,20 @@ export function PlaybookPage() {
       </div>
       {error && <p role="alert">{error}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button variant="primary" onClick={() => create(playFromFormation(newFormation(team.id)))}>
-          New play
-        </Button>
-        <select
-          aria-label="Starting formation"
-          className="input w-auto"
-          value={formationId}
-          onChange={(e) => setFormationId(e.target.value)}
-        >
-          <option value="">Choose saved formation</option>
-          {formations.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </select>
         <Button
-          variant="secondary"
-          disabled={!formations.some((f) => f.id === formationId)}
+          variant="primary"
           onClick={() => {
-            const f = formations.find((f) => f.id === formationId);
-            if (f) create(playFromFormation(f));
+            setFormationId(formations[0]?.id ?? '');
+            setNewName('New play');
+            setError('');
+            setCreating(true);
           }}
         >
-          Create from formation
+          New play
         </Button>
+        <p className="self-center text-sm text-slate-500">
+          Choose a saved formation when you create a new play.
+        </p>
       </div>
       <div className="flex flex-wrap gap-2">
         <input
@@ -101,7 +96,7 @@ export function PlaybookPage() {
         {visible.map((play) => (
           <article key={play.id} className="space-y-2 rounded-xl border p-3 dark:border-slate-700">
             <Link to={`/football/plays/${play.id}`} aria-label={`Edit ${play.name}`}>
-              <FootballField {...play} preview />
+              <FootballField {...play} roster={players} preview />
               <h2 className="mt-2 font-bold">{play.name}</h2>
             </Link>
             <p className="text-xs text-slate-500">{play.tags.filter(Boolean).join(' · ')}</p>
@@ -144,6 +139,82 @@ export function PlaybookPage() {
           ))}
         </div>
       </section>
+      <Dialog
+        open={creating}
+        title="Create a play"
+        onClose={() => setCreating(false)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCreating(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!newName.trim() || creatingPlay}
+              onClick={() => {
+                const play = playFromFormation(startingFormation ?? newFormation(team.id));
+                create({ ...play, name: newName.trim() });
+              }}
+            >
+              Create play
+            </Button>
+          </>
+        }
+      >
+        <div className="max-h-[60vh] space-y-3 overflow-y-auto">
+          <label className="block text-sm font-medium">
+            Play name
+            <input
+              className="input mt-1"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Starting formation
+            <select
+              className="input mt-1"
+              value={formationId}
+              onChange={(e) => setFormationId(e.target.value)}
+            >
+              <option value="">Default spread (start from scratch)</option>
+              {formations.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {startingFormation ? (
+            <>
+              <p className="text-sm text-slate-500">
+                Copies this formation's positions, roster assignments, quarterback, and snapper. You
+                can edit them in your new play.
+              </p>
+              <div className="mx-auto max-w-xs">
+                <FootballField {...startingFormation} roster={players} preview />
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-slate-500">
+              Start with seven unassigned slots, then use Autofill from roster in the editor.
+            </p>
+          )}
+          {!formations.length && (
+            <p className="text-sm">
+              No saved formations yet.{' '}
+              <Link
+                className="text-emerald-700 underline dark:text-emerald-300"
+                to="/football/formations"
+              >
+                Create a formation
+              </Link>{' '}
+              first to reuse your lineup.
+            </p>
+          )}
+          {error && <p role="alert">{error}</p>}
+        </div>
+      </Dialog>
       <Dialog
         open={!!remove}
         title="Delete play?"

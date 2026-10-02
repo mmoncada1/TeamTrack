@@ -82,7 +82,7 @@ export function DrivePlansPage() {
   );
 }
 function DriveEditor({ initial, onClose }: { initial: DrivePlan; onClose: () => void }) {
-  const { plays = [] } = useFootballData();
+  const { plays = [], players = [] } = useFootballData();
   const history = useHistory(initial);
   const draft = history.value;
   const [playId, setPlayId] = useState('');
@@ -240,7 +240,7 @@ function DriveEditor({ initial, onClose }: { initial: DrivePlan; onClose: () => 
               </Button>
             </div>
             <h2 className="font-bold">{current.name}</h2>
-            <FootballField {...current} preview />
+            <FootballField {...current} roster={players} preview />
             <p className="text-sm">{current.description}</p>
             <Link
               className="text-emerald-700 underline dark:text-emerald-300"

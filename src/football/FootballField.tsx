@@ -5,8 +5,11 @@ import { DrawingLayer } from '../drawing/DrawingLayer';
 import { extendDrawing, pathData, pointFromPointer } from '../drawing/geometry';
 import { clampPoint, routePoints } from './routes';
 import { createId } from '../lib/id';
+import type { Player } from '../types';
+import { FootballPlayerToken } from './FootballPlayerToken';
 
 interface Props {
+  roster?: Player[];
   players?: FootballPlayerAssignment[];
   quarterbackId?: string;
   snapperId?: string;
@@ -27,6 +30,7 @@ type Drag =
   | { kind: 'player'; id: string; offset: Point }
   | { kind: 'point'; id: string; index: number; motion: boolean };
 export function FootballField({
+  roster = [],
   players = [],
   quarterbackId,
   snapperId,
@@ -177,7 +181,7 @@ export function FootballField({
       <text x="95" y="68" textAnchor="end" fill="#bfdbfe" fontSize="2.5">
         LINE OF SCRIMMAGE
       </text>
-      {players.map((p, i) => (
+      {players.map((p) => (
         <g key={p.id}>
           {p.route.points.length > 0 && (
             <path
@@ -217,7 +221,7 @@ export function FootballField({
           <g
             role={preview ? undefined : 'button'}
             tabIndex={preview ? undefined : 0}
-            aria-label={`Select ${p.label}${p.id === quarterbackId ? ', quarterback' : ''}${p.id === snapperId ? ', snapper' : ''}`}
+            aria-label={`Select ${p.label}${p.rosterPlayerId ? `, ${roster.find((player) => player.id === p.rosterPlayerId)?.name ?? 'assigned player'}` : ''}${p.id === quarterbackId ? ', quarterback' : ''}${p.id === snapperId ? ', snapper' : ''}`}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
@@ -252,25 +256,21 @@ export function FootballField({
             onPointerDown={(e) => startPlayer(e, p)}
             style={{ cursor: preview ? 'default' : 'grab' }}
           >
+            <FootballPlayerToken
+              slot={p}
+              player={roster.find((player) => player.id === p.rosterPlayerId)}
+              quarterback={p.id === quarterbackId}
+              snapper={p.id === snapperId}
+              selected={selectedId === p.id}
+            />
             <circle
               cx={p.position.x}
               cy={p.position.y}
-              r="3.1"
-              fill={p.id === quarterbackId ? '#d97706' : p.id === snapperId ? '#2563eb' : '#f8fafc'}
-              stroke={selectedId === p.id ? '#facc15' : '#0f172a'}
-              strokeWidth={selectedId === p.id ? 1 : 0.5}
+              r="4"
+              fill="transparent"
+              pointerEvents="all"
+              data-player-handle={p.id}
             />
-            <text
-              x={p.position.x}
-              y={p.position.y + 0.9}
-              textAnchor="middle"
-              fill={p.id === quarterbackId || p.id === snapperId ? 'white' : '#0f172a'}
-              fontSize="2.6"
-              fontWeight="bold"
-              pointerEvents="none"
-            >
-              {p.label || i + 1}
-            </text>
           </g>
           {!preview &&
             tool === 'select' &&

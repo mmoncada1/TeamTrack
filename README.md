@@ -18,9 +18,11 @@ Football models seven offensive slots with exactly one QB and a different design
 
 ### Formations and play editor
 
-Create a formation, drag seven players, optionally assign roster players, designate the QB and snapper, and save. Selected tokens also move with arrow keys. A formation becomes an independent snapshot when used for a play, so later formation edits do not change saved plays.
+Create a formation, drag seven players, optionally assign roster players, designate the QB and snapper, and save. **Autofill from roster** fills empty slots with available players by jersey number while keeping existing assignments; it also works in the play editor and can be undone. With fewer than seven available players, it fills as many slots as possible. Selected tokens also move with arrow keys. A formation becomes an independent snapshot when used for a play, so later formation edits do not change saved plays.
 
-Start a new play, use a saved formation, or load a starter. Select a player on the field or in the assignment panel. Routes include Go/Fly, Slant, Out, In/Dig, Post, Corner, Curl/Comeback, Hitch, Flat, Wheel, Drag, Crossing, Seam, Custom, Block, and Stay.
+Click **New play** in the playbook, enter a name, and choose **Starting formation** in the creation dialog. It previews the selected formation and copies its positions, roster assignments, QB, and snapper into the new play. Choose **Default spread (start from scratch)** for a blank lineup, or create a play directly from a formation card. You can also load a starter concept. Select a player on the field or in the assignment panel. Routes include Go/Fly, Slant, Out, In/Dig, Post, Corner, Curl/Comeback, Hitch, Flat, Wheel, Drag, Crossing, Seam, Custom, Block, and Stay.
+
+Assigned players show their roster photos and names on formations, plays, playbook previews, and drive previews. Role badges stay visible over the photos. Players without uploaded pictures show their initials; unassigned slots show their role labels.
 
 - Flip left/right, rotate, or adjust depth without discarding edited geometry.
 - Drag route control points. **Draw route points** extends a path through field clicks; **Remove last point** shortens it.

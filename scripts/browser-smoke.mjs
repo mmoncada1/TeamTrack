@@ -66,13 +66,19 @@ try {
   const send = (method, params = {}) =>
     new Promise((res, rej) => {
       const id = ++nextId;
-      pending.set(id, { res, rej });
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        rej(new Error(`Timed out browser command: ${method}`));
+      }, 30000);
+      pending.set(id, { res, rej, timer });
       socket.send(JSON.stringify({ id, method, params }));
     });
   socket.onmessage = (event) => {
     const message = JSON.parse(event.data);
     if (message.id) {
       const request = pending.get(message.id);
+      if (!request) return;
+      clearTimeout(request.timer);
       pending.delete(message.id);
       if (message.error) request.rej(new Error(message.error.message));
       else request.res(message.result);
@@ -144,18 +150,56 @@ try {
     ),
     false,
   );
+  await evaluate(`new Promise((resolve, reject) => {
+    const request = indexedDB.open('teamtrack'); request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result; const tx = db.transaction(['teams', 'players', 'photos'], 'readwrite');
+      const teams = tx.objectStore('teams').getAll(); teams.onsuccess = () => {
+        const team = teams.result.find(t => t.name === 'Browser Flag');
+        tx.objectStore('players').put({ id: 'browser-flag-player', teamId: team.id, name: 'Browser Flag Player', jerseyNumber: 7, preferredGroup: 'MID', availability: 'active', photoId: 'browser-flag-photo', createdAt: Date.now(), updatedAt: Date.now() });
+        tx.objectStore('photos').put({ id: 'browser-flag-photo', playerId: 'browser-flag-player', mimeType: 'image/svg+xml', width: 48, height: 48, createdAt: Date.now(), blob: new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="#3879ac"/><circle cx="24" cy="16" r="9" fill="#ffd6a5"/><path d="M6 48 Q6 29 24 29 Q42 29 42 48" fill="#ffffff"/></svg>'], { type: 'image/svg+xml' }) });
+      };
+      tx.oncomplete = () => { db.close(); resolve(); }; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
+    };
+  })`);
   await click('Formations');
   await waitText('New formation');
   await click('New formation');
   await waitText('Formation editor');
   await inputByLabel('Formation name', 'Browser Spread');
+  await click('Autofill from roster');
+  await until(
+    () => evaluate(`!!document.querySelector('image[aria-label="Photo of Browser Flag Player"]')`),
+    'formation portrait',
+  );
   await click('Save formation');
   await waitText('Saved on this device.');
   await click('Back');
   await click('Playbook');
   await waitText('Use Mesh');
+  await click('New play');
+  await waitText('Starting formation');
+  await inputByLabel('Play name', 'Browser Formation Play');
+  await click('Create play');
+  await waitText('Play editor');
+  const [formationPlay] = await dbRecord('footballPlays');
+  assert.equal(formationPlay.formationId, (await dbRecord('footballFormations'))[0].id);
+  assert.equal(formationPlay.players[0].rosterPlayerId, 'browser-flag-player');
+  await until(
+    () => evaluate(`!!document.querySelector('image[aria-label="Photo of Browser Flag Player"]')`),
+    'play portrait',
+  );
+  await click('Back');
+  await waitText('Delete');
+  await click('Delete');
+  await click('Delete play');
+  await until(
+    async () => (await dbRecord('footballPlays')).length === 0,
+    'remove formation test play',
+  );
   await click('Use Mesh');
   await waitText('Play editor');
+  await click('Autofill from roster');
   await inputByLabel('Play name', 'Browser Mesh');
   await inputByLabel('Route / assignment', 'post');
   await click('Flip left/right');
@@ -307,7 +351,13 @@ try {
   assert.deepEqual(errors, [], `Unexpected browser exceptions: ${errors.join(', ')}`);
   console.log(`Browser smoke checks passed. Screenshots: ${artifacts}`);
 } catch (error) {
-  if (diagnose) console.error(await diagnose());
+  if (diagnose) {
+    try {
+      console.error(await diagnose());
+    } catch (diagnosticError) {
+      console.error('Browser diagnostics unavailable:', diagnosticError.message);
+    }
+  }
   throw error;
 } finally {
   socket?.close();

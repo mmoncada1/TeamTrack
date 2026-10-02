@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  autofillFromRoster,
   duplicatePlay,
   instantiateTemplate,
   moveDriveEntry,
@@ -10,6 +11,42 @@ import { flipRoute, makeRoute, resizeRoute, rotateRoute, routePoints } from './r
 import { PLAY_TEMPLATES } from './templates';
 import { formationErrors, playErrors } from './validation';
 import { nextDrawingPoints } from '../drawing/geometry';
+import { makePlayer } from '../lib/testHelpers';
+
+describe('football roster autofill', () => {
+  it('fills all seven slots by jersey number without changing positions or roles', () => {
+    const formation = newFormation('flag');
+    const roster = Array.from({ length: 9 }, (_, i) => makePlayer({ teamId: 'flag', name: `Player ${i}`, jerseyNumber: 9 - i }));
+    const filled = autofillFromRoster(formation, roster);
+    expect(filled.players.map(p => p.rosterPlayerId)).toEqual([...roster].reverse().slice(0, 7).map(p => p.id));
+    expect(filled.quarterbackId).toBe(formation.quarterbackId);
+    expect(filled.snapperId).toBe(formation.snapperId);
+    expect(filled.players.map(p => p.position)).toEqual(formation.players.map(p => p.position));
+    expect(formation.players.every(p => !p.rosterPlayerId)).toBe(true);
+    expect(formationErrors(filled)).toEqual([]);
+  });
+  it('keeps existing choices and excludes unavailable, other-team, and already assigned players', () => {
+    const formation = newFormation('flag');
+    const chosen = makePlayer({ teamId: 'flag', name: 'Chosen QB', jerseyNumber: 3 });
+    const eligible = makePlayer({ teamId: 'flag', name: 'Receiver', jerseyNumber: 5 });
+    const unavailable = makePlayer({ teamId: 'flag', name: 'Absent', jerseyNumber: 1, availability: 'unavailable' });
+    const otherTeam = makePlayer({ teamId: 'soccer', name: 'Other team', jerseyNumber: 2 });
+    formation.players[0].rosterPlayerId = chosen.id;
+    const filled = autofillFromRoster(formation, [chosen, eligible, unavailable, otherTeam]);
+    expect(filled.players[0].rosterPlayerId).toBe(chosen.id);
+    expect(filled.players[1].rosterPlayerId).toBe(eligible.id);
+    expect(filled.players.slice(2).every(p => !p.rosterPlayerId)).toBe(true);
+    expect(autofillFromRoster(filled, [chosen, eligible])).toEqual(filled);
+  });
+  it('leaves empty rosters unassigned and handles players without jersey numbers', () => {
+    const formation = newFormation('flag');
+    expect(autofillFromRoster(formation, [])).toEqual(formation);
+    const z = makePlayer({ teamId: 'flag', name: 'Zoe', jerseyNumber: 1 });
+    const a = makePlayer({ teamId: 'flag', name: 'Alex', jerseyNumber: 2 });
+    delete z.jerseyNumber; delete a.jerseyNumber;
+    expect(autofillFromRoster(formation, [z, a]).players.slice(0, 2).map(p => p.rosterPlayerId)).toEqual([a.id, z.id]);
+  });
+});
 
 describe('7v7 formations and play snapshots', () => {
   it('allows unusual labels and a releasing snapper without enforcing NFL positions', () => {

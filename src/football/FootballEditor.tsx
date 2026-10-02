@@ -16,6 +16,7 @@ import type { DrawingTool } from '../drawing/types';
 import { useHistory } from '../drawing/useHistory';
 import { createId } from '../lib/id';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
+import { autofillFromRoster } from './domain';
 
 export function FootballEditor({
   initial,
@@ -40,6 +41,9 @@ export function FootballEditor({
   const [saved, setSaved] = useState(JSON.stringify(initial));
   const dirty = JSON.stringify(draft) !== saved;
   const selected = draft.players.find((p) => p.id === selectedId)!;
+  const autofilled = autofillFromRoster(draft, roster);
+  const assignedCount = draft.players.filter((p) => p.rosterPlayerId).length;
+  const fillCount = autofilled.players.filter((p) => p.rosterPlayerId).length - assignedCount;
   useUnsavedChanges(dirty);
   function updatePlayer(patch: Partial<FootballPlayerAssignment>) {
     history.change({
@@ -103,6 +107,9 @@ export function FootballEditor({
   const slotOptions = draft.players.map((p) => (
     <option key={p.id} value={p.id}>
       {p.label}
+      {p.rosterPlayerId
+        ? ` — ${roster.find((player) => player.id === p.rosterPlayerId)?.name ?? 'Assigned player'}`
+        : ''}
     </option>
   ));
   return (
@@ -185,9 +192,33 @@ export function FootballEditor({
           </Button>
         </div>
       )}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="secondary"
+          disabled={fillCount === 0}
+          onClick={() => {
+            history.change(autofilled);
+            const remaining = draft.players.length - assignedCount - fillCount;
+            setMessage(
+              `Assigned ${fillCount} available roster player${fillCount === 1 ? '' : 's'}.${remaining ? ` ${remaining} slot${remaining === 1 ? '' : 's'} still unassigned; add more available players to your roster.` : ' All seven slots are assigned.'}`,
+            );
+          }}
+        >
+          Autofill from roster
+        </Button>
+        <span className="text-sm text-slate-500">{assignedCount} / 7 assigned</span>
+        <p className="w-full text-xs text-slate-500">
+          Fills empty slots with available players by jersey number. Keeps your existing
+          assignments.
+          {fillCount === 0 && assignedCount < 7
+            ? ' No additional available players on this roster.'
+            : ''}
+        </p>
+      </div>
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div>
           <FootballField
+            roster={roster}
             players={draft.players}
             quarterbackId={draft.quarterbackId}
             snapperId={draft.snapperId}

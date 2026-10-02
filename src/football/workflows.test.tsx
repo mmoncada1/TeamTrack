@@ -19,7 +19,7 @@ import { PlayEditorPage } from './PlayEditorPage';
 import { DrivePlansPage } from './DrivePlansPage';
 import { instantiateTemplate, newFormation, playFromFormation } from './domain';
 import { PLAY_TEMPLATES } from './templates';
-import { savePlay } from './repository';
+import { saveFormation, savePlay } from './repository';
 
 beforeEach(async () => {
   await db.delete();
@@ -100,6 +100,66 @@ describe('sport separation and roster UX', () => {
   });
 });
 describe('formation and play editor workflows', () => {
+  it('prompts for a saved formation when creating a new play and copies its lineup', async () => {
+    const player = makePlayer({ teamId: teamId(), name: 'Starting QB', jerseyNumber: 10 });
+    await upsertPlayer(player);
+    const formation = newFormation(teamId());
+    formation.name = 'Trips right';
+    formation.players[0].rosterPlayerId = player.id;
+    formation.players[2].position = { x: 70, y: 75 };
+    await saveFormation(formation);
+    const user = userEvent.setup();
+    render(
+      router(
+        <Routes>
+          <Route path="/" element={<PlaybookPage />} />
+          <Route path="/football/plays/:id" element={<PlayEditorPage />} />
+        </Routes>,
+      ),
+    );
+    await user.click(await screen.findByRole('button', { name: 'New play' }));
+    const dialog = screen.getByRole('dialog', { name: 'Create a play' });
+    expect(within(dialog).getByLabelText('Starting formation')).toHaveValue(formation.id);
+    await user.clear(within(dialog).getByLabelText('Play name'));
+    await user.type(within(dialog).getByLabelText('Play name'), 'Trips slants');
+    await user.click(within(dialog).getByRole('button', { name: 'Create play' }));
+    expect(await screen.findByLabelText('Play name')).toHaveValue('Trips slants');
+    const [play] = await db.footballPlays.toArray();
+    expect(play.formationId).toBe(formation.id);
+    expect(play.players[0].rosterPlayerId).toBe(player.id);
+    expect(play.players[2].position).toEqual({ x: 70, y: 75 });
+    expect(play.quarterbackId).toBe(formation.quarterbackId);
+    expect(play.snapperId).toBe(formation.snapperId);
+  });
+  it('autofills available roster players, supports undo, and saves all assignments', async () => {
+    const roster = Array.from({ length: 8 }, (_, i) =>
+      makePlayer({
+        teamId: teamId(),
+        name: `Flag Player ${i + 1}`,
+        jerseyNumber: i + 1,
+        availability: i === 7 ? 'unavailable' : 'active',
+      }),
+    );
+    await db.players.bulkPut(roster);
+    const user = userEvent.setup();
+    render(router(<FormationsPage />));
+    await user.click(await screen.findByRole('button', { name: 'New formation' }));
+    await user.selectOptions(screen.getByLabelText('Roster player'), roster[4].id);
+    await user.click(screen.getByRole('button', { name: 'Autofill from roster' }));
+    expect(screen.getByText('7 / 7 assigned')).toBeInTheDocument();
+    expect(screen.getByLabelText('Roster player')).toHaveValue(roster[4].id);
+    expect(screen.getByRole('button', { name: 'Autofill from roster' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(screen.getByText('1 / 7 assigned')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Redo' }));
+    await user.click(screen.getByRole('button', { name: 'Save formation' }));
+    expect(await screen.findByText('Saved on this device.')).toBeInTheDocument();
+    const [formation] = await db.footballFormations.toArray();
+    expect(new Set(formation.players.map((p) => p.rosterPlayerId))).toEqual(
+      new Set(roster.slice(0, 7).map((p) => p.id)),
+    );
+    expect(formation.players[2].rosterPlayerId).toBe(roster[4].id);
+  });
   it('saves a roster-assigned seven-player formation through the UI', async () => {
     const user = userEvent.setup();
     const player = makePlayer({ teamId: teamId(), name: 'Receiver', jerseyNumber: 8 });

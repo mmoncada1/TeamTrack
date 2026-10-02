@@ -1,6 +1,24 @@
 import { createId } from '../lib/id';
 import { makeRoute } from './routes';
+import type { Player } from '../types';
+import { comparePlayersByJersey } from '../lib/playerSort';
 import type { DriveEntry, FootballFormation, FootballPlay, PlayTemplate } from './types';
+
+/** Fill empty slots, retaining the coach's existing choices and role designations. */
+export function autofillFromRoster<T extends FootballFormation>(formation: T, roster: Player[]): T {
+  const assigned = new Set(formation.players.map((slot) => slot.rosterPlayerId).filter(Boolean));
+  const available = roster
+    .filter((player) => player.teamId === formation.teamId && player.availability === 'active' && !assigned.has(player.id))
+    .sort(comparePlayersByJersey);
+  let next = 0;
+  return {
+    ...formation,
+    players: formation.players.map((slot) => {
+      if (slot.rosterPlayerId || next >= available.length) return slot;
+      return { ...slot, rosterPlayerId: available[next++].id };
+    }),
+  };
+}
 
 export function newFormation(teamId: string): FootballFormation {
   const positions = [
