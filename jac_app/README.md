@@ -45,4 +45,6 @@ jac run dist/teamtrack.jab
 - Team whiteboard with persisted drawings and notes
 - Theme, motion, field-lock, and sound preferences
 
-See `MIGRATION_HISTORY.md` for detailed parity status and remaining work.
+See `MIGRATION_PLAN.md` for current progress, resume instructions, and the
+football porting sequence. `MIGRATION_HISTORY.md` records the earlier soccer
+implementation slices.

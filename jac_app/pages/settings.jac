@@ -1,5 +1,7 @@
 import "./settings.css";
 import from "@jac/runtime" { useNavigate }
+import from ..state.AppState { use_app_state }
+import from ..domain.backup { validate_backup }
 
 glob SETTINGS_KEY = "teamtrack:app-settings";
 glob TEAMS_KEY = "teamtrack:jac:teams";
@@ -56,31 +58,8 @@ def build_backup() -> dict[str, any] {
     };
 }
 
-def validate_backup(candidate: any) -> list[str] {
-    errors: list[str] = [];
-    if not isinstance(candidate, dict) { return ["The backup must contain a JSON object."]; }
-    if "schemaVersion" not in candidate or candidate["schemaVersion"] != 1 { errors.append("Unsupported or missing backup schema version."); }
-    if "data" not in candidate or not isinstance(candidate["data"], dict) { return errors + ["The backup is missing its data section."]; }
-    data = candidate["data"];
-    for key in ["teams", "players", "lineups", "matches"] {
-        if key not in data or not isinstance(data[key], list) { errors.append("The " + key + " collection is missing or invalid."); }
-    }
-    if "teams" in data and isinstance(data["teams"], list) {
-        if not data["teams"] { errors.append("The backup must contain at least one team."); }
-        for team in data["teams"] {
-            if not isinstance(team, dict) or "id" not in team or "name" not in team { errors.append("Every team needs an id and name."); break; }
-        }
-    }
-    if "activeTeamId" not in data or not isinstance(data["activeTeamId"], str) { errors.append("The active team id is missing or invalid."); }
-    elif "teams" in data and isinstance(data["teams"], list) and not any([isinstance(team, dict) and "id" in team and team["id"] == data["activeTeamId"] for team in data["teams"]]) { errors.append("The active team does not exist in the teams collection."); }
-    if "appSettings" not in data or not isinstance(data["appSettings"], dict) { errors.append("App settings are missing or invalid."); }
-    if "whiteboards" not in data or not isinstance(data["whiteboards"], dict) { errors.append("Whiteboard data is missing or invalid."); }
-    elif any([not str(key).startswith(WHITEBOARD_PREFIX) for key in data["whiteboards"].keys()]) { errors.append("The backup contains an invalid whiteboard key."); }
-    return errors;
-}
-
 def:pub SettingsPage() -> JsxPage {
-    navigate = useNavigate(); initial = load_settings(); flash = sessionStorage.getItem(RESTORE_FLASH_KEY) or "";
+    navigate = useNavigate(); state = use_app_state(); initial = load_settings(); flash = sessionStorage.getItem(RESTORE_FLASH_KEY) or "";
     if flash { sessionStorage.removeItem(RESTORE_FLASH_KEY); }
     has theme: str = initial["theme"];
     has alert_sound: bool = initial["alertSoundEnabled"];
@@ -133,6 +112,21 @@ def:pub SettingsPage() -> JsxPage {
         for (key, board) in data["whiteboards"].items() { localStorage.setItem(key, JSON.stringify(board)); }
         sessionStorage.setItem(RESTORE_FLASH_KEY, "Backup restored successfully."); window.location.reload();
     }
+    def load_demo {
+        count = state["loadDemoRoster"].call(None);
+        feedback = "Loaded " + str(count) + " demo players." if count else "Demo players are already on this team.";
+        feedback_error = False;
+    }
+    def reset_local_data {
+        if not window.confirm("Delete all TeamTrack Jac teams, rosters, lineups, matches, whiteboards, and settings on this device? Export a backup first if you need one.") { return; }
+        keys = [TEAMS_KEY, PLAYERS_KEY, LINEUPS_KEY, MATCHES_KEY, ACTIVE_TEAM_KEY, SETTINGS_KEY];
+        for index in range(localStorage.length) {
+            key = localStorage.key(index);
+            if key and key.startswith(WHITEBOARD_PREFIX) { keys.append(key); }
+        }
+        for key in keys { localStorage.removeItem(key); }
+        sessionStorage.setItem(RESTORE_FLASH_KEY, "Local TeamTrack Jac data reset."); window.location.reload();
+    }
 
     <section className="page app-settings-page">
         <div className="title-row"><div><h1>Settings</h1><p className="muted">Device preferences are saved automatically in this browser.</p></div><button className="button ghost" onClick={lambda { navigate("/"); }}>Back to dashboard</button></div>
@@ -147,5 +141,6 @@ def:pub SettingsPage() -> JsxPage {
             <div className="backup-actions"><button className="button secondary" type="button" onClick={export_backup}>Export JSON backup</button><label className="button secondary file-button">Choose backup file<input type="file" accept="application/json,.json" onChange={choose_backup} /></label></div>
             {<div className="restore-confirm" role="dialog" aria-label="Confirm backup restore"><strong>Ready to restore {pending_name}</strong><p>This replaces all TeamTrack Jac data on this device. Export your current data first if you may need it.</p><div><button className="button ghost" type="button" onClick={lambda { pending_backup = None; pending_name = ""; }}>Cancel</button><button className="button danger" type="button" onClick={restore_backup}>Replace local data</button></div></div> if pending_backup is not None else None}
         </section>
+        <section className="card settings-card"><h2>Sample data and reset</h2><p className="muted">Add sample soccer players to the active team, or clear this browser's TeamTrack Jac data.</p><div className="backup-actions"><button className="button secondary" type="button" onClick={load_demo}>Load demo roster</button><button className="button danger" type="button" onClick={reset_local_data}>Reset local Jac data</button></div></section>
     </section>
 }

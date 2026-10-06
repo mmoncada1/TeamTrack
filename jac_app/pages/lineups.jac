@@ -40,6 +40,14 @@ def:pub LineupsPage() -> JsxPage {
         }
         assignments = next_assignments; notice = "";
     }
+    def drop_on_slot(slot: str, event: any) {
+        event.preventDefault(); player_id = event.dataTransfer.getData("text/plain");
+        if any([player.id == player_id and player.availability == "active" for player in team_players]) { assign(slot, player_id); }
+    }
+    def drop_on_bench(event: any) {
+        event.preventDefault(); player_id = event.dataTransfer.getData("text/plain");
+        for (slot, assigned_id) in assignments.items() { if assigned_id == player_id { assign(slot, ""); return; } }
+    }
     def save {
         result = state["saveLineup"].call(None, editing_id, name, format, formation_id, assignments);
         if result { error = result; } else { editing = False; }
@@ -66,11 +74,11 @@ def:pub LineupsPage() -> JsxPage {
             <div className="format-row" role="radiogroup" aria-label="Match format">{[<button key={item} type="button" role="radio" aria-checked={format == item} className={"format active" if format == item else "format"} onClick={lambda { change_format(item); }}>{item}</button> for item in ["7v7", "9v9", "11v11"]]}
                 <button className="button secondary small" type="button" onClick={auto_fill}>Auto-fill by position</button><span>{len(assignments)}/{len(formation.positions)} placed</span></div>
             {<p className="notice" role="status">{notice}</p> if notice else None}
-            <div className="formation-board"><div className="pitch"><div className="center-line"></div>{[<div className="position-slot" key={position.id} style={{"left": str(position.x) + "%", "top": str(position.y) + "%"}}>
+            <div className="formation-board"><div className="pitch"><div className="center-line"></div>{[<div className="position-slot" key={position.id} draggable={position.id in assignments} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", assignments[position.id]); }} onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={lambda (e: any) { drop_on_slot(position.id, e); }} style={{"left": str(position.x) + "%", "top": str(position.y) + "%"}}>
                 <span>{position.label}</span><select value={assignments[position.id] if position.id in assignments else ""} onChange={lambda (e: ChangeEvent) { assign(position.id, e.target.value); }}>
                     <option value="">Open</option>{[<option key={player.id} value={player.id}>{("#" + str(player.jersey_number) + " " if player.jersey_number is not None else "") + player.name}</option> for player in team_players if player.availability == "active"]}</select>
             </div> for position in formation.positions]}</div>
-                <aside className="bench"><h2>Bench</h2>{[<button type="button" key={player.id} onClick={lambda { notice = "Choose a field slot to place " + player.name + "."; }}>{player.name}</button> for player in bench]}{<p>No players on bench.</p> if not bench else None}</aside></div>
+                <aside className="bench" onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={drop_on_bench}><h2>Bench</h2>{[<button type="button" key={player.id} draggable={player.availability == "active"} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", player.id); }} onClick={lambda { notice = "Choose a field slot to place " + player.name + "."; }}>{player.name}</button> for player in bench]}{<p>No players on bench.</p> if not bench else None}</aside></div>
             {<p className="error" role="alert">{error}</p> if error else None}<div className="actions"><button className="button ghost" onClick={lambda { editing = False; }}>Cancel</button><button className="button primary" onClick={save}>{"Save changes" if editing_id else "Save lineup"}</button></div>
         </section>;
     }
@@ -80,4 +88,3 @@ def:pub LineupsPage() -> JsxPage {
         <ul className="saved-lineups">{[<li key={lineup.id}><div><strong>{lineup.name}</strong><p>{lineup.format} · {formation_shape(lineup.formation_id)} · {len(lineup.assignments)} players</p><small>{", ".join([player_name(id) for id in lineup.assignments.values()])}</small></div><div><button className="button secondary small" onClick={lambda { start_edit(lineup); }}>Edit</button><button className="button ghost small" onClick={lambda { remove(lineup); }}>Delete</button></div></li> for lineup in team_lineups]}</ul>
     </section>
 }
-

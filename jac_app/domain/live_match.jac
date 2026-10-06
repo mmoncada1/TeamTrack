@@ -1,6 +1,6 @@
 """Pure event-sourced live game engine, ported from src/lib/matchEngine.ts and matchActions.ts."""
 
-import from .models { Match, MatchEvent, MatchSettings }
+import from .models { Match, MatchEvent, MatchSettings, Alert }
 import from .formations { formation_by_id }
 
 obj StatusInterval {
@@ -56,6 +56,18 @@ def clone_match(game: Match, events: list[MatchEvent], now_ms: int) -> Match {
         unavailable_player_ids=game.unavailable_player_ids,
         pending_assignments=game.pending_assignments, events=events,
         active_alerts=game.active_alerts, created_at=game.created_at, updated_at=now_ms);
+}
+
+def:pub with_alerts(game: Match, alerts: list[Alert], now_ms: int) -> Match {
+    updated = clone_match(game, game.events, now_ms);
+    updated.active_alerts = alerts;
+    return updated;
+}
+
+def:pub with_settings(game: Match, settings: MatchSettings, now_ms: int) -> Match {
+    updated = clone_match(game, game.events, now_ms);
+    updated.settings = settings;
+    return updated;
 }
 
 def make_event(game: Match, event_type: str, clock_ms: int, now_ms: int,

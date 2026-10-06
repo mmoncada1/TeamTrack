@@ -9,6 +9,7 @@ the original TypeScript application.
 obj Team {
     has id: str,
         name: str,
+        sport: str = "soccer",
         coed: bool = False,
         min_girls_on_field: int | None = None,
         photo_id: str | None = None,
@@ -137,4 +138,3 @@ def player_count_for_format(format: str) -> int {
     }
     return counts[format];
 }
-

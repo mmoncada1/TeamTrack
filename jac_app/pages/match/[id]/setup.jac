@@ -74,6 +74,14 @@ def:pub MatchSetupPage() -> JsxPage {
         }
         assignments = next_assignments; saved = False;
     }
+    def drop_on_slot(slot: str, event: any) {
+        event.preventDefault(); player_id = event.dataTransfer.getData("text/plain");
+        if any([player.id == player_id for player in selected_players]) { assign(slot, player_id); }
+    }
+    def drop_on_roster(event: any) {
+        event.preventDefault(); player_id = event.dataTransfer.getData("text/plain");
+        for (slot, assigned_id) in assignments.items() { if assigned_id == player_id { assign(slot, ""); return; } }
+    }
     def persist {
         result = state["saveMatchSetup"].call(None, id, team_name, opponent, date, kickoff, title, format, formation_id,
             int(half_length) if half_length else 0, int(halves) if halves else 0, thresholds, goalkeeper_rotation,
@@ -105,14 +113,13 @@ def:pub MatchSetupPage() -> JsxPage {
             for (group, label) in [("GK", "Goalkeeper"), ("DEF", "Defender"), ("MID", "Midfielder"), ("FWD", "Forward")]]}</div>
             <label className="check-row"><input type="checkbox" checked={goalkeeper_rotation} onChange={lambda (e: ChangeEvent) { goalkeeper_rotation = e.target.checked; saved = False; }} /> Enable goalkeeper rotation alerts</label>
             <label className="check-row"><input type="checkbox" checked={alert_sound} onChange={lambda (e: ChangeEvent) { alert_sound = e.target.checked; saved = False; }} /> Enable alert sound</label></section>
-        <section className="setup-section"><h2>Roster for this match</h2><div className="match-roster">{[<div key={player.id}><label className="check-row"><input type="checkbox" checked={player.id in roster_ids} onChange={lambda (e: ChangeEvent) { toggle_roster(player.id, e.target.checked); }} /> {jersey_label(player.jersey_number)} {player.name}</label>
+        <section className="setup-section"><h2>Roster for this match</h2><div className="match-roster" onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={drop_on_roster}>{[<div key={player.id} draggable={player.id in roster_ids and player.id not in unavailable_ids} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", player.id); }}><label className="check-row"><input type="checkbox" checked={player.id in roster_ids} onChange={lambda (e: ChangeEvent) { toggle_roster(player.id, e.target.checked); }} /> {jersey_label(player.jersey_number)} {player.name}</label>
             {<label className="check-row unavailable"><input type="checkbox" checked={player.id in unavailable_ids} onChange={lambda (e: ChangeEvent) { toggle_unavailable(player.id, e.target.checked); }} /> Unavailable</label> if player.id in roster_ids else None}</div> for player in team_players]}</div></section>
         <section className="setup-section"><h2>Starting lineup</h2><div className="lineup-actions"><select className="input compact" value="" onChange={lambda (e: ChangeEvent) { apply_lineup(e.target.value); }}><option value="">{"Choose a saved lineup…" if team_lineups else "No saved lineups yet"}</option>{[<option key={lineup.id} value={lineup.id}>{lineup.name}</option> for lineup in team_lineups]}</select>
             <button className="button secondary" type="button" onClick={auto_fill}>Auto-fill by position</button><Link className="button ghost" to="/lineups">Manage lineups</Link></div>
             {<p className="notice">{notice}</p> if notice else None}
-            {<div className="setup-pitch">{[<div className="setup-slot" key={position.id} style={{"left": str(position.x) + "%", "top": str(position.y) + "%"}}><span>{position.label}</span><select value={assignments[position.id] if position.id in assignments else ""} onChange={lambda (e: ChangeEvent) { assign(position.id, e.target.value); }}><option value="">Open</option>{[<option key={player.id} value={player.id}>{player.name}</option> for player in selected_players]}</select></div> for position in formation.positions]}</div> if formation else None}</section>
+            {<div className="setup-pitch">{[<div className="setup-slot" key={position.id} draggable={position.id in assignments} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", assignments[position.id]); }} onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={lambda (e: any) { drop_on_slot(position.id, e); }} style={{"left": str(position.x) + "%", "top": str(position.y) + "%"}}><span>{position.label}</span><select value={assignments[position.id] if position.id in assignments else ""} onChange={lambda (e: ChangeEvent) { assign(position.id, e.target.value); }}><option value="">Open</option>{[<option key={player.id} value={player.id}>{player.name}</option> for player in selected_players]}</select></div> for position in formation.positions]}</div> if formation else None}</section>
         <section className="validation">{[<p className="error" key={idx}>{message}</p> for (idx, message) in enumerate(validation.errors)]}{[<p className="warning" key={idx}>{message}</p> for (idx, message) in enumerate(validation.warnings)]}</section>
         {<p className="success">Match setup saved.</p> if saved else None}<div className="actions"><button className="button secondary" type="button" onClick={persist}>Save draft</button><button className="button primary" type="button" disabled={bool(validation.errors)} onClick={start_match}>Start match</button></div>
     </section>
 }
-
