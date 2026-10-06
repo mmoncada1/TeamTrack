@@ -41,7 +41,7 @@ The feature contract is in root `README.md`; the TypeScript implementation and t
 ## Verification gates
 
 - Root TypeScript reference: `npm test`, `npm run build`, `npm run test:browser` (when Chromium is available).
-- Jac, from `jac_app/`: `jac check`, `jac test -v`, `jac build`, then exercise routes in a browser after reload.
+- Jac, from the repository root: `jac check`, `jac test -v`, `jac build`, then exercise routes in a browser after reload.
 - For each football slice, compare fixtures and outcomes with the TypeScript tests. Verify sport isolation and legacy soccer teams.
 - Before switching persistence, test empty account, existing Jac localStorage, and TypeScript version 6 backup imports. Confirm ownership/RLS behavior if Supabase is adopted.
 

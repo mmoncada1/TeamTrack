@@ -21,7 +21,7 @@ def:pub create_draft_match(id: str, team_id: str, team_name: str, date: str,
         pending_formation_id="7v7-2-3-1", events=[], active_alerts=[], created_at=now_ms, updated_at=now_ms);
 }
 
-def:pub validate_match_setup(team_name: str, opponent_name: str, date: str, format: str,
+def validate_match_setup(team_name: str, opponent_name: str, date: str, format: str,
     formation_id: str, half_length_minutes: int, number_of_halves: int,
     roster_player_ids: list[str], assignments: dict[str, str]) -> SetupValidation {
     errors: list[str] = []; warnings: list[str] = [];

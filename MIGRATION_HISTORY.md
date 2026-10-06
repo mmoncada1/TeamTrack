@@ -9,7 +9,7 @@ preserving its functionality and behavior. The TypeScript application remains
 in place as the reference implementation until the Jac version reaches feature
 parity.
 
-The Jac implementation lives in `TeamTrack/jac_app/`. Executable application
+The Jac implementation lives in `TeamTrack/`. Executable application
 source is written in `.jac` files. Project configuration and styles remain in
 their required non-Jac formats.
 
@@ -178,7 +178,7 @@ Verified after the October 6 soccer parity pass:
   dashboard, roster, matches, live-match, summary, settings, and whiteboard
   surfaces.
 
-Run verification from `TeamTrack/jac_app`:
+Run verification from `TeamTrack`:
 
 ```bash
 jac test -v
@@ -188,7 +188,7 @@ jac build
 Run the development server:
 
 ```bash
-cd TeamTrack/jac_app
+cd TeamTrack
 jac install
 jac run --dev
 ```
@@ -280,4 +280,4 @@ IndexedDB storage parity is worth the additional implementation complexity.
 ## Git status note
 
 Migration work is on the `jac_migration` branch. Generated `.jac/`,
-`node_modules/`, and `dist/` content is ignored by `jac_app/.gitignore`.
+`node_modules/`, and `dist/` content is ignored by `.gitignore`.
