@@ -19,7 +19,7 @@ def copy_drawing(drawing: Drawing) -> Drawing {
         width=drawing.width, points=[copy_point(point) for point in drawing.points]);
 }
 
-def:pub new_formation(team_id: str, formation_id: str, slot_ids: list[str], now_ms: int) -> Formation {
+def new_formation(team_id: str, formation_id: str, slot_ids: list[str], now_ms: int) -> Formation {
     if len(slot_ids) != 7 or len(set(slot_ids)) != 7 { raise ValueError("Seven unique slot ids are required."); }
     positions = [(50.0, 85.0), (50.0, 70.0), (12.0, 70.0), (29.0, 73.0),
         (71.0, 73.0), (88.0, 70.0), (61.0, 82.0)];
@@ -55,7 +55,7 @@ def:pub autofill_from_roster(formation: Formation, roster: list[Player], now_ms:
         created_at=formation.created_at, updated_at=now_ms);
 }
 
-def:pub play_from_formation(formation: Formation, play_id: str, snap_id: str, now_ms: int) -> Play {
+def play_from_formation(formation: Formation, play_id: str, snap_id: str, now_ms: int) -> Play {
     return Play(id=play_id, team_id=formation.team_id, name="New play", side="offense",
         players=[copy_slot(slot) for slot in formation.players], quarterback_id=formation.quarterback_id,
         snapper_id=formation.snapper_id, formation_id=formation.id,
@@ -69,6 +69,55 @@ def:pub duplicate_play(play: Play, new_id: str, now_ms: int) -> Play {
         snapper_id=play.snapper_id, schema_version=play.schema_version, description=play.description,
         formation_id=play.formation_id, tags=play.tags.copy(), ball_actions=[copy_action(action) for action in play.ball_actions],
         drawings=[copy_drawing(drawing) for drawing in play.drawings], created_at=now_ms, updated_at=now_ms);
+}
+
+def route_for_type(kind: str, depth: float = 25.0, direction: int = 1) -> Route {
+    d = max(3.0, min(55.0, depth)); points: list[Point] = [];
+    if kind in ["go", "seam"] { points = [Point(x=0.0, y=-d)]; }
+    elif kind == "slant" { points = [Point(x=0.0, y=-d * 0.2), Point(x=d * 0.6 * direction, y=-d)]; }
+    elif kind == "out" { points = [Point(x=0.0, y=-d), Point(x=-8.0 * direction, y=-d)]; }
+    elif kind == "dig" { points = [Point(x=0.0, y=-d), Point(x=20.0 * direction, y=-d)]; }
+    elif kind == "post" { points = [Point(x=0.0, y=-d * 0.55), Point(x=16.0 * direction, y=-d)]; }
+    elif kind == "corner" { points = [Point(x=0.0, y=-d * 0.55), Point(x=-8.0 * direction, y=-d)]; }
+    elif kind == "curl" { points = [Point(x=0.0, y=-d), Point(x=4.0 * direction, y=-d + 6.0)]; }
+    elif kind == "hitch" { points = [Point(x=0.0, y=-d), Point(x=0.0, y=-d + 3.0)]; }
+    elif kind == "flat" { points = [Point(x=-8.0 * direction, y=-4.0)]; }
+    elif kind == "wheel" { points = [Point(x=-8.0 * direction, y=-3.0), Point(x=-9.0 * direction, y=-10.0), Point(x=-9.0 * direction, y=-d)]; }
+    elif kind == "drag" { points = [Point(x=0.0, y=-5.0), Point(x=d * direction, y=-5.0)]; }
+    elif kind == "cross" { points = [Point(x=0.0, y=-d * 0.3), Point(x=25.0 * direction, y=-d)]; }
+    elif kind == "block" { points = [Point(x=0.0, y=-4.0)]; }
+    return Route(type=kind, points=points, depth=d, direction=direction);
+}
+
+def:pub resize_route(route: Route, depth: float) -> Route {
+    target = max(3.0, min(55.0, depth)); factor = target / route.depth;
+    return Route(type=route.type, points=[Point(x=point.x, y=point.y * factor) for point in route.points], depth=target, direction=route.direction);
+}
+def:pub flip_route(route: Route) -> Route {
+    return Route(type=route.type, points=[Point(x=-point.x, y=point.y) for point in route.points], depth=route.depth, direction=-route.direction);
+}
+def:pub rotate_route(route: Route, degrees: float) -> Route {
+    radians = degrees * 3.141592653589793 / 180.0;
+    cosine = 1.0; sine = radians; cos_term = 1.0; sin_term = radians;
+    for index in range(1, 8) {
+        cos_term *= -radians * radians / ((2 * index - 1) * (2 * index)); cosine += cos_term;
+        sin_term *= -radians * radians / ((2 * index) * (2 * index + 1)); sine += sin_term;
+    }
+    return Route(type=route.type, points=[Point(x=point.x * cosine - point.y * sine, y=point.x * sine + point.y * cosine) for point in route.points], depth=route.depth, direction=route.direction);
+}
+
+def:pub drawing_near(drawing: Drawing, at: Point, radius: float = 3.0) -> bool {
+    limit = radius * radius;
+    for point in drawing.points { if (at.x - point.x) ** 2 + (at.y - point.y) ** 2 <= limit { return True; } }
+    for index in range(len(drawing.points) - 1) {
+        start = drawing.points[index]; end = drawing.points[index + 1];
+        dx = end.x - start.x; dy = end.y - start.y; length = dx * dx + dy * dy;
+        if length == 0 { continue; }
+        factor = max(0.0, min(1.0, ((at.x - start.x) * dx + (at.y - start.y) * dy) / length));
+        nearest_x = start.x + factor * dx; nearest_y = start.y + factor * dy;
+        if (at.x - nearest_x) ** 2 + (at.y - nearest_y) ** 2 <= limit { return True; }
+    }
+    return False;
 }
 
 def:pub move_drive_entry(items: list[DriveEntry], from_index: int, to_index: int) -> list[DriveEntry] {

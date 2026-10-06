@@ -38,3 +38,18 @@ test "drive order changes without losing repeated calls" {
     assert [item.id for item in moved] == ["b", "a"];
     assert [item.id for item in items] == ["a", "b"];
 }
+
+test "route transforms preserve edited points" {
+    route = route_for_type("slant", 25.0, 1);
+    resized = resize_route(route, 50.0); assert resized.points[0].y == route.points[0].y * 2;
+    flipped = flip_route(route); assert flipped.points[-1].x == -route.points[-1].x;
+    rotated = rotate_route(route, 15.0); assert len(rotated.points) == len(route.points);
+    assert route.depth == 25.0;
+}
+
+test "eraser finds the middle of a line" {
+    line = Drawing(id="line", tool="line", color="#ffffff", width=0.7,
+        points=[Point(x=10.0, y=10.0), Point(x=90.0, y=10.0)]);
+    assert drawing_near(line, Point(x=50.0, y=11.0));
+    assert not drawing_near(line, Point(x=50.0, y=30.0));
+}

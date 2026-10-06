@@ -11,7 +11,13 @@ glob FOOTBALL_WHITEBOARDS_KEY: str = "teamtrack:jac:football-whiteboards";
 def:pub create_id(prefix: str) -> str { return prefix + "-" + str(int(Date.now())) + "-" + str(Math.random()); }
 def:pub save_teams(items: list[Team]) { localStorage.setItem(TEAMS_KEY, JSON.stringify(items)); }
 def:pub load_teams() -> list[Team] {
-    raw = localStorage.getItem(TEAMS_KEY); if raw { parsed = JSON.parse(raw) as list[Team]; if parsed { return parsed; } }
+    raw = localStorage.getItem(TEAMS_KEY); if raw {
+        parsed = JSON.parse(raw) as list[Team];
+        if parsed {
+            for team in parsed { if not team.sport { team.sport = "soccer"; } }
+            return parsed;
+        }
+    }
     now = int(Date.now()); initial = [Team(id=create_id("team"), name="My Team", created_at=now, updated_at=now)]; save_teams(initial); return initial;
 }
 def:pub save_players(items: list[Player]) { localStorage.setItem(PLAYERS_KEY, JSON.stringify(items)); }

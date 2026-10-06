@@ -1,4 +1,4 @@
-import from "@jac/runtime" { Link, Outlet, useLocation }
+import from "@jac/runtime" { Link, Navigate, Outlet, useLocation }
 import from ..components.TeamSwitcher { TeamSwitcher }
 import from ..state.AppState { use_app_state }
 def NavItem(path: str, label: str, current_path: str) -> JsxElement {
@@ -16,6 +16,6 @@ def:pub AppShell() -> JsxLayout {
             {<>{NavItem("/football/formations", "Formations", location.pathname)}{NavItem("/football/playbook", "Playbook", location.pathname)}{NavItem("/football/drives", "Drive plans", location.pathname)}</> if football else <>{NavItem("/lineups", "Lineups", location.pathname)}{NavItem("/matches", "Matches", location.pathname)}</>}
             {NavItem("/team/settings", "Team", location.pathname)}{NavItem("/whiteboard", "Whiteboard", location.pathname)}
             {NavItem("/settings", "Settings", location.pathname)}<TeamSwitcher />
-        </nav></header><main id="main-content" className="main-content"><Outlet /></main>
+        </nav></header><main id="main-content" className="main-content">{<Navigate to="/" replace={True} /> if (location.pathname.startswith("/football/") and not football) or (football and (location.pathname.startswith("/lineups") or location.pathname.startswith("/matches") or location.pathname.startswith("/match/"))) else <Outlet />}</main>
     </div>
 }

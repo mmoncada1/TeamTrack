@@ -58,6 +58,7 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
     }
     def save_player(id: str, name: str, jersey_number: int | None, groups: list[str], gender: str | None, notes: str, availability: str, photo_data: str | None = None) -> list[str] {
         team = active_team(teams, active_team_id); if team is None { return ["Choose a team before adding a player."]; }
+        if id and not any([player.id == id and player.team_id == team.id for player in players]) { return ["Player is not on this team."]; }
         errors = validate_player(name, jersey_number, groups, gender, team.coed, [p for p in players if p.team_id == team.id], id if id else None);
         if errors { return [error.message for error in errors]; }
         normalized = normalize_position_groups(groups); now = int(Date.now()); existing: Player | None = None;
@@ -68,7 +69,28 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
             created_at=existing.created_at if existing is not None else now, updated_at=now);
         players = sort_players([player for player in players if player.id != saved.id] + [saved]); return [];
     }
-    def delete_player(id: str) { players = [player for player in players if player.id != id]; }
+    def delete_player(id: str) {
+        if not any([player.id == id and player.team_id == active_team_id for player in players]) { return; }
+        players = [player for player in players if player.id != id];
+        next_formations: list[FootballFormation] = [];
+        for item in football_formations {
+            if item.team_id == active_team_id {
+                copy = structuredClone(item);
+                for slot in copy.players { if slot.roster_player_id == id { slot.roster_player_id = None; } }
+                next_formations.append(copy);
+            } else { next_formations.append(item); }
+        }
+        football_formations = next_formations;
+        next_plays: list[FootballPlay] = [];
+        for item in football_plays {
+            if item.team_id == active_team_id {
+                play_copy = structuredClone(item);
+                for slot in play_copy.players { if slot.roster_player_id == id { slot.roster_player_id = None; } }
+                next_plays.append(play_copy);
+            } else { next_plays.append(item); }
+        }
+        football_plays = next_plays;
+    }
     def load_demo_roster() -> int {
         team = active_team(teams, active_team_id); if team is None { return 0; }
         samples = [("Alex Rivera", "GK"), ("Jordan Lee", "DEF"), ("Sam Okafor", "DEF"),
@@ -133,8 +155,9 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
         return any([team.id == id and team.sport == "football" for team in teams]);
     }
     def save_football_formation(item: FootballFormation) -> str {
-        if not football_team_exists(item.team_id) { return "Choose a football team."; }
+        if item.team_id != active_team_id or not football_team_exists(item.team_id) { return "Choose a football team."; }
         errors = formation_errors(item); if errors { return errors[0]; }
+        if any([slot.roster_player_id and not any([player.id == slot.roster_player_id and player.team_id == item.team_id for player in players]) for slot in item.players]) { return "A player assignment belongs to another team or no longer exists."; }
         if any([existing.id == item.id and existing.team_id != item.team_id for existing in football_formations]) { return "Formation belongs to another team."; }
         football_formations = [existing for existing in football_formations if existing.id != item.id] + [item]; return "";
     }
@@ -142,12 +165,14 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
         football_formations = [item for item in football_formations if item.id != id or item.team_id != active_team_id];
     }
     def save_football_play(item: FootballPlay) -> str {
-        if not football_team_exists(item.team_id) { return "Choose a football team."; }
+        if item.team_id != active_team_id or not football_team_exists(item.team_id) { return "Choose a football team."; }
         errors = play_errors(item); if errors { return errors[0]; }
+        if any([slot.roster_player_id and not any([player.id == slot.roster_player_id and player.team_id == item.team_id for player in players]) for slot in item.players]) { return "A player assignment belongs to another team or no longer exists."; }
         if any([existing.id == item.id and existing.team_id != item.team_id for existing in football_plays]) { return "Play belongs to another team."; }
         football_plays = [existing for existing in football_plays if existing.id != item.id] + [item]; return "";
     }
     def delete_football_play(id: str) {
+        if not any([item.id == id and item.team_id == active_team_id for item in football_plays]) { return; }
         football_plays = [item for item in football_plays if item.id != id or item.team_id != active_team_id];
         updated: list[DrivePlan] = [];
         for plan in drive_plans {
@@ -160,7 +185,7 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
         drive_plans = updated;
     }
     def save_drive_plan(item: DrivePlan) -> str {
-        if not football_team_exists(item.team_id) { return "Choose a football team."; }
+        if item.team_id != active_team_id or not football_team_exists(item.team_id) { return "Choose a football team."; }
         play_ids = [play.id for play in football_plays if play.team_id == item.team_id];
         errors = drive_errors(item, play_ids); if errors { return errors[0]; }
         if any([existing.id == item.id and existing.team_id != item.team_id for existing in drive_plans]) { return "Drive plan belongs to another team."; }
@@ -168,7 +193,7 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
     }
     def delete_drive_plan(id: str) { drive_plans = [item for item in drive_plans if item.id != id or item.team_id != active_team_id]; }
     def save_football_whiteboard(item: FootballWhiteboard) -> str {
-        if not football_team_exists(item.team_id) { return "Choose a football team."; }
+        if item.team_id != active_team_id or not football_team_exists(item.team_id) { return "Choose a football team."; }
         football_whiteboards = [existing for existing in football_whiteboards if existing.team_id != item.team_id] + [item]; return "";
     }
     value = {"teams": teams, "players": players, "lineups": lineups, "matches": matches,

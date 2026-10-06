@@ -1,5 +1,6 @@
 import "./whiteboard.css";
 import from ..state.AppState { use_app_state }
+import from .football.whiteboard { FootballWhiteboardPage }
 
 glob BOARD_COLORS = ["#ffffff", "#facc15", "#ef4444", "#38bdf8", "#111827"];
 glob BOARD_WIDTHS = [3, 6, 10];
@@ -17,7 +18,7 @@ def load_board(team_id: str) -> dict[str, list[any]] {
 def point_string(points: list[any]) -> str { return " ".join([str(point["x"] * 100) + "," + str(point["y"] * 150) for point in points]); }
 def square_distance(a: any, b: any) -> float { return (a["x"] - b["x"]) ** 2 + (a["y"] - b["y"]) ** 2; }
 
-def:pub WhiteboardPage() -> JsxPage {
+def SoccerWhiteboardPage() -> JsxElement {
     state = use_app_state(); active = None;
     for team in state["teams"] { if team.id == state["activeTeamId"] { active = team; break; } }
     active_id = active.id if active else "";
@@ -98,4 +99,9 @@ def:pub WhiteboardPage() -> JsxPage {
     {[<div key={note["id"]} className="board-note" style={{"left": str(note["x"] * 100) + "%", "top": str(note["y"] * 100) + "%", "color": note["color"]}}>{note["text"]}</div> for note in board["notes"]]}
     {<form className="note-editor" style={{"left": str(note_x * 100) + "%", "top": str(note_y * 100) + "%"}} onSubmit={lambda (event: any) { event.preventDefault(); commit_note(); }}><input autoFocus className="input" placeholder="Instruction" value={note_text} onChange={lambda (e: ChangeEvent) { note_text = e.target.value; }} /><div><button type="button" className="button ghost small" onClick={lambda { adding_note = False; }}>Cancel</button><button type="submit" className="button primary small">Add</button></div></form> if adding_note else None}
     </div></section>
+}
+def:pub WhiteboardPage() -> JsxPage {
+    state = use_app_state(); active = None;
+    for team in state["teams"] { if team.id == state["activeTeamId"] { active = team; break; } }
+    <FootballWhiteboardPage /> if active and active.sport == "football" else <SoccerWhiteboardPage />
 }

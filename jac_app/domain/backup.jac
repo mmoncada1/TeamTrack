@@ -47,6 +47,7 @@ def:pub validate_backup(candidate: any) -> list[str] {
         }
         if lineup["id"] in lineup_ids { errors.append("Duplicate lineup id in backup."); }
         lineup_ids.append(lineup["id"]);
+        if lineup["team_id"] in football_team_ids { errors.append("A soccer lineup belongs to a football team."); }
         for assigned_id in lineup["assignments"].values() {
             if assigned_id in player_team and player_team[assigned_id] != lineup["team_id"] { errors.append("A lineup assigns a player from another team."); break; }
         }
@@ -58,6 +59,7 @@ def:pub validate_backup(candidate: any) -> list[str] {
         }
         if game["id"] in match_ids { errors.append("Duplicate match id in backup."); }
         match_ids.append(game["id"]);
+        if game["team_id"] in football_team_ids { errors.append("A soccer match belongs to a football team."); }
         match_settings = game["settings"];
         if match_settings.get("format") not in ["7v7", "9v9", "11v11"] or not isinstance(match_settings.get("formation_id"), str) or not is_json_object(match_settings.get("thresholds")) or not isinstance(match_settings.get("half_length_minutes"), int) or not isinstance(match_settings.get("number_of_halves"), int) {
             errors.append("A match has invalid settings.");
@@ -80,6 +82,39 @@ def:pub validate_backup(candidate: any) -> list[str] {
             if item["id"] in football_ids { errors.append("Duplicate football record id in backup."); }
             football_ids.append(item["id"]);
         }
+    }
+    play_team: dict[str, str] = {};
+    for key in ["footballFormations", "footballPlays"] {
+        for item in data.get(key, []) {
+            if not is_json_object(item) or item.get("team_id") not in football_team_ids { continue; }
+            slots = item.get("players");
+            if not isinstance(slots, list) or len(slots) != 7 { errors.append("A football formation or play must have seven slots."); continue; }
+            slot_ids: list[str] = [];
+            for slot in slots {
+                if not is_json_object(slot) or not isinstance(slot.get("id"), str) or not slot["id"] or not isinstance(slot.get("label"), str) or not is_json_object(slot.get("position")) or not is_json_object(slot.get("route")) {
+                    errors.append("A football player slot is invalid."); continue;
+                }
+                if slot["id"] in slot_ids { errors.append("Duplicate football player slot id."); }
+                slot_ids.append(slot["id"]);
+                assigned_id = slot.get("roster_player_id");
+                if assigned_id is not None and (not isinstance(assigned_id, str) or player_team.get(assigned_id) != item["team_id"]) { errors.append("A football slot assigns a player from another team or a missing player."); }
+            }
+            if item.get("quarterback_id") not in slot_ids or item.get("snapper_id") not in slot_ids or item.get("quarterback_id") == item.get("snapper_id") { errors.append("A football record has invalid QB or snapper roles."); }
+            if key == "footballPlays" {
+                if isinstance(item.get("id"), str) { play_team[item["id"]] = item["team_id"]; }
+                if not isinstance(item.get("ball_actions"), list) or not isinstance(item.get("drawings"), list) or not isinstance(item.get("tags"), list) { errors.append("A football play has invalid actions, drawings, or tags."); }
+            }
+        }
+    }
+    for drive in data.get("drivePlans", []) {
+        if not is_json_object(drive) or drive.get("team_id") not in football_team_ids { continue; }
+        if not isinstance(drive.get("entries"), list) { errors.append("A drive has invalid entries."); continue; }
+        for call in drive["entries"] {
+            if not is_json_object(call) or not isinstance(call.get("id"), str) or not isinstance(call.get("play_id"), str) or play_team.get(call.get("play_id")) != drive["team_id"] { errors.append("A drive refers to a missing or cross-team play."); }
+        }
+    }
+    for board in data.get("footballWhiteboards", []) {
+        if is_json_object(board) and not isinstance(board.get("drawings"), list) { errors.append("A football whiteboard has invalid drawings."); }
     }
     if "activeTeamId" not in data or not isinstance(data["activeTeamId"], str) { errors.append("The active team id is missing or invalid."); }
     elif data["activeTeamId"] not in team_ids { errors.append("The active team does not exist in the teams collection."); }
