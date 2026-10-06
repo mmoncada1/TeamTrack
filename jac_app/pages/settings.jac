@@ -66,6 +66,41 @@ def build_backup() -> dict[str, any] {
     };
 }
 
+def convert_typescript_roster(source: any) -> dict[str, any] {
+    if source.get("version") != 5 or not isinstance(source.get("teams"), list) or not isinstance(source.get("players"), list) {
+        raise ValueError("Only TypeScript version 5 roster backups are supported.");
+    }
+    teams: list[dict[str, any]] = []; players: list[dict[str, any]] = []; team_ids: list[str] = []; player_ids: list[str] = [];
+    for item in source["teams"] {
+        if not item or not isinstance(item.get("id"), str) or not item["id"] or not isinstance(item.get("name"), str) or not item["name"].strip() or item["id"] in team_ids {
+            raise ValueError("A team is missing its id or name, or has a duplicate id.");
+        }
+        sport = item.get("sport") or "soccer";
+        if sport not in ["soccer", "football"] { raise ValueError("A team has an unsupported sport."); }
+        team_ids.append(item["id"]);
+        teams.append({"id": item["id"], "name": item["name"], "sport": sport, "coed": item.get("coed") or False,
+            "min_girls_on_field": item.get("minGirlsOnField"), "photo_id": None,
+            "created_at": item.get("createdAt") or 0, "updated_at": item.get("updatedAt") or 0});
+    }
+    if not teams { raise ValueError("The backup has no teams."); }
+    for item in source["players"] {
+        if not item or not isinstance(item.get("id"), str) or not item["id"] or item["id"] in player_ids or item.get("teamId") not in team_ids or not isinstance(item.get("name"), str) or not item["name"].strip() {
+            raise ValueError("A player has an invalid id, name, or team.");
+        }
+        group = item.get("preferredGroup") or "MID";
+        if group not in ["GK", "DEF", "MID", "FWD"] { raise ValueError("A player has an invalid position."); }
+        groups = item.get("preferredGroups") if isinstance(item.get("preferredGroups"), list) else [group];
+        player_ids.append(item["id"]);
+        players.append({"id": item["id"], "team_id": item["teamId"], "name": item["name"], "preferred_group": group,
+            "preferred_groups": groups, "availability": item.get("availability") or "active", "jersey_number": item.get("jerseyNumber"),
+            "gender": item.get("gender"), "notes": item.get("notes"), "photo_id": None,
+            "created_at": item.get("createdAt") or 0, "updated_at": item.get("updatedAt") or 0});
+    }
+    return {"app": "TeamTrack Jac", "schemaVersion": 1, "data": {"teams": teams, "players": players,
+        "lineups": [], "matches": [], "footballFormations": [], "footballPlays": [], "drivePlans": [], "footballWhiteboards": [],
+        "activeTeamId": teams[0]["id"], "appSettings": source.get("settings") or {}, "whiteboards": {}}};
+}
+
 def:pub SettingsPage() -> JsxPage {
     navigate = useNavigate(); state = use_app_state(); initial = load_settings(); flash = sessionStorage.getItem(RESTORE_FLASH_KEY) or "";
     if flash { sessionStorage.removeItem(RESTORE_FLASH_KEY); }
@@ -74,7 +109,7 @@ def:pub SettingsPage() -> JsxPage {
     has reduced_motion: bool = initial["reducedMotion"];
     has field_locked: bool = initial["fieldLocked"];
     has saved: bool = False; has feedback: str = flash; has feedback_error: bool = False;
-    has pending_backup: any = None; has pending_name: str = "";
+    has pending_backup: any = None; has pending_name: str = ""; has roster_only: bool = False;
 
     can with [theme, alert_sound, reduced_motion, field_locked] entry {
         value = {"theme": theme, "alertSoundEnabled": alert_sound, "reducedMotion": reduced_motion, "fieldLocked": field_locked};
@@ -92,21 +127,23 @@ def:pub SettingsPage() -> JsxPage {
     }
 
     async def choose_backup(event: any) -> None {
-        pending_backup = None; pending_name = ""; feedback = ""; feedback_error = False;
+        pending_backup = None; pending_name = ""; roster_only = False; feedback = ""; feedback_error = False;
         if not event.target.files or event.target.files.length == 0 { return; }
         file: any = event.target.files[0]; event.target.value = "";
         try {
-            text = await file.text(); parsed: any = JSON.parse(text); errors = validate_backup(parsed);
+            content = await file.text(); parsed: any = JSON.parse(content);
+            if parsed and "version" in parsed and "schemaVersion" not in parsed { parsed = convert_typescript_roster(parsed); roster_only = True; }
+            errors = validate_backup(parsed);
             if errors { feedback = "Backup cannot be restored: " + " ".join(errors); feedback_error = True; return; }
             pending_backup = parsed; pending_name = file.name;
-        } except Exception {
-            feedback = "Backup cannot be restored: the selected file is not valid JSON."; feedback_error = True;
+        } except Exception as error {
+            feedback = "Backup could not be read: " + str(error); feedback_error = True;
         }
     }
 
     def restore_backup {
         if pending_backup is None { return; }
-        if not window.confirm("Replace all TeamTrack Jac data on this device with " + pending_name + "? This cannot be undone.") { return; }
+        if not window.confirm("Replace all TeamTrack Jac data on this device with " + pending_name + "?" + (" Only teams and players will be imported; matches, lineups, and photos in this file will be skipped." if roster_only else "") + " This cannot be undone.") { return; }
         data = pending_backup["data"];
         localStorage.setItem(TEAMS_KEY, JSON.stringify(data["teams"]));
         localStorage.setItem(PLAYERS_KEY, JSON.stringify(data["players"]));
@@ -149,9 +186,9 @@ def:pub SettingsPage() -> JsxPage {
             <label className="settings-toggle"><span><strong>Lock field layout</strong><small>Prevent accidental player movement during matches.</small></span><input type="checkbox" checked={field_locked} onChange={lambda (e: ChangeEvent) { field_locked = e.target.checked; }} /></label>
             <label className="settings-toggle"><span><strong>Play alert sounds</strong><small>Play a sound when a new substitution alert appears.</small></span><input type="checkbox" checked={alert_sound} onChange={lambda (e: ChangeEvent) { alert_sound = e.target.checked; }} /></label>
         </section>
-        <section className="card settings-card"><h2>Backup and restore</h2><p className="muted">Export teams, players, lineups, matches, active-team selection, preferences, and saved whiteboards to one JSON file.</p>
+        <section className="card settings-card"><h2>Backup and restore</h2><p className="muted">Jac backups restore all Jac data. TypeScript version 5 backups can restore teams and players; matches, lineups, and photos are skipped.</p>
             <div className="backup-actions"><button className="button secondary" type="button" onClick={export_backup}>Export JSON backup</button><label className="button secondary file-button">Choose backup file<input type="file" accept="application/json,.json" onChange={choose_backup} /></label></div>
-            {<div className="restore-confirm" role="dialog" aria-label="Confirm backup restore"><strong>Ready to restore {pending_name}</strong><p>This replaces all TeamTrack Jac data on this device. Export your current data first if you may need it.</p><div><button className="button ghost" type="button" onClick={lambda { pending_backup = None; pending_name = ""; }}>Cancel</button><button className="button danger" type="button" onClick={restore_backup}>Replace local data</button></div></div> if pending_backup is not None else None}
+            {<div className="restore-confirm" role="dialog" aria-label="Confirm backup restore"><strong>Ready to restore {pending_name}</strong><p>{"This imports " + str(len(pending_backup["data"]["teams"])) + " teams and " + str(len(pending_backup["data"]["players"])) + " players. Match history, lineups, and photos in this file will be skipped. " if roster_only else ""}This replaces all TeamTrack Jac data on this device. Export your current data first if you may need it.</p><div><button className="button ghost" type="button" onClick={lambda { pending_backup = None; pending_name = ""; }}>Cancel</button><button className="button danger" type="button" onClick={restore_backup}>Replace local data</button></div></div> if pending_backup is not None else None}
         </section>
         <section className="card settings-card"><h2>Sample data and reset</h2><p className="muted">Add sample soccer players to the active team, or clear this browser's TeamTrack Jac data.</p><div className="backup-actions"><button className="button secondary" type="button" onClick={load_demo}>Load demo roster</button><button className="button danger" type="button" onClick={reset_local_data}>Reset local Jac data</button></div></section>
     </section>

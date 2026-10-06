@@ -10,7 +10,7 @@ def:pub LineupsPage() -> JsxPage {
     team_players = [player for player in state["players"] if active and player.team_id == active.id];
     team_lineups = [lineup for lineup in state["lineups"] if active and lineup.team_id == active.id];
     has editing: bool = False; has editing_id: str = ""; has name: str = ""; has format: str = "7v7";
-    has formation_id: str = "7v7-2-3-1"; has assignments: dict[str, str] = {}; has error: str = ""; has notice: str = "";
+    has formation_id: str = "7v7-2-3-1"; has assignments: dict[str, str] = {}; has error: str = ""; has notice: str = ""; has moving_id: str = ""; has move_slot: str = "";
     formation = formation_by_id(formation_id);
 
     def start_new {
@@ -65,6 +65,21 @@ def:pub LineupsPage() -> JsxPage {
         if found { return found.shape; }
         return id;
     }
+    def initials(value: str) -> str {
+        words = value.strip().split();
+        return "".join([word[0].upper() for word in words[:2]]) if words else "?";
+    }
+    def player_group(player: any) -> str {
+        return player.preferred_group if player.preferred_group in ["GK", "DEF", "MID", "FWD"] else "DEF";
+    }
+    def token(player: any, on_field: bool) -> JsxElement {
+        group = player_group(player);
+        return <div className={"lineup-token group-" + group} key={player.id} draggable={player.availability == "active"} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", player.id); }}>
+            <div className="token-avatar">{initials(player.name)}{<span className="girl-mark">G</span> if player.gender == "girl" else None}</div>
+            <span className="token-name">{player.name} ({group})</span>
+            <button className="token-move" type="button" onClick={lambda { moving_id = player.id; move_slot = ""; }}>Move…</button>
+        </div>;
+    }
 
     if editing and formation {
         assigned_ids = list(assignments.values()); bench = [player for player in team_players if player.id not in assigned_ids];
@@ -74,11 +89,15 @@ def:pub LineupsPage() -> JsxPage {
             <div className="format-row" role="radiogroup" aria-label="Match format">{[<button key={item} type="button" role="radio" aria-checked={format == item} className={"format active" if format == item else "format"} onClick={lambda { change_format(item); }}>{item}</button> for item in ["7v7", "9v9", "11v11"]]}
                 <button className="button secondary small" type="button" onClick={auto_fill}>Auto-fill by position</button><span>{len(assignments)}/{len(formation.positions)} placed</span></div>
             {<p className="notice" role="status">{notice}</p> if notice else None}
-            <div className="formation-board"><div className="pitch"><div className="center-line"></div>{[<div className="position-slot" key={position.id} draggable={position.id in assignments} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", assignments[position.id]); }} onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={lambda (e: any) { drop_on_slot(position.id, e); }} style={{"left": str(position.x) + "%", "top": str(position.y) + "%"}}>
-                <span>{position.label}</span><select value={assignments[position.id] if position.id in assignments else ""} onChange={lambda (e: ChangeEvent) { assign(position.id, e.target.value); }}>
-                    <option value="">Open</option>{[<option key={player.id} value={player.id}>{("#" + str(player.jersey_number) + " " if player.jersey_number is not None else "") + player.name}</option> for player in team_players if player.availability == "active"]}</select>
-            </div> for position in formation.positions]}</div>
-                <aside className="bench" onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={drop_on_bench}><h2>Bench</h2>{[<button type="button" key={player.id} draggable={player.availability == "active"} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", player.id); }} onClick={lambda { notice = "Choose a field slot to place " + player.name + "."; }}>{player.name}</button> for player in bench]}{<p>No players on bench.</p> if not bench else None}</aside></div>
+            <p className="lineup-help">Drag players onto the field, or use the "Move…" button. Nothing here affects a match until you pick this lineup for one.</p>
+            <div className="formation-board"><aside className="bench" onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={drop_on_bench}><h2>Bench ({len(bench)})</h2><div className="bench-grid">{[token(player, False) for player in bench]}{<p>No players on the bench.</p> if not bench else None}</div></aside>
+                <div className="lineup-field-column"><div className="position-legend"><span><i className="legend-GK"></i> GK Goalkeeper</span><span><i className="legend-DEF"></i> DEF Defender</span><span><i className="legend-MID"></i> MID Midfielder</span><span><i className="legend-FWD"></i> FWD Forward</span></div>
+                <div className="pitch"><svg viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden={True}><rect width="100" height="150" fill="#2e7d4f"/><rect y="18.75" width="100" height="9.375" fill="#2b7649"/><rect y="56.25" width="100" height="9.375" fill="#2b7649"/><rect y="93.75" width="100" height="9.375" fill="#2b7649"/><rect y="131.25" width="100" height="9.375" fill="#2b7649"/><g stroke="white" strokeWidth="0.6" fill="none"><rect x="3" y="3" width="94" height="144"/><line x1="3" y1="75" x2="97" y2="75"/><circle cx="50" cy="75" r="9"/><circle cx="50" cy="75" r="0.8" fill="white"/><rect x="30" y="128" width="40" height="19"/><rect x="40" y="141" width="20" height="6"/><path d="M 38 128 A 12 12 0 0 1 62 128"/><rect x="30" y="3" width="40" height="19"/><rect x="40" y="3" width="20" height="6"/><path d="M 38 22 A 12 12 0 0 0 62 22"/></g></svg>
+                {[<div className={"field-position occupied" if position.id in assignments else "field-position"} key={position.id} onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={lambda (e: any) { drop_on_slot(position.id, e); }} style={{"left": str(position.x) + "%", "top": str(position.y) + "%"}}>
+                    {[token(player, True) for player in team_players if position.id in assignments and player.id == assignments[position.id]]}
+                    {<span className="empty-position">{position.label}</span> if position.id not in assignments else None}
+                </div> for position in formation.positions]}</div></div></div>
+            {<div className="lineup-move-dialog" role="dialog" aria-label="Move player"><div><h2>Move {player_name(moving_id)}</h2><label>Position<select className="input" value={move_slot} onChange={lambda (e: ChangeEvent) { move_slot = e.target.value; }}><option value="">Choose a position</option><option value="BENCH">Bench</option>{[<option key={position.id} value={position.id}>{position.label}</option> for position in formation.positions]}</select></label><div className="actions"><button className="button ghost" onClick={lambda { moving_id = ""; }}>Cancel</button><button className="button primary" disabled={not move_slot} onClick={lambda { if move_slot == "BENCH" { for (slot, id) in assignments.items() { if id == moving_id { assign(slot, ""); break; } } } else { assign(move_slot, moving_id); } moving_id = ""; }}>Move</button></div></div></div> if moving_id else None}
             {<p className="error" role="alert">{error}</p> if error else None}<div className="actions"><button className="button ghost" onClick={lambda { editing = False; }}>Cancel</button><button className="button primary" onClick={save}>{"Save changes" if editing_id else "Save lineup"}</button></div>
         </section>;
     }
