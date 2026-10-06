@@ -1,6 +1,6 @@
 # TeamTrack Jac Migration History
 
-Last updated: September 30, 2026
+Last updated: October 6, 2026
 
 ## Objective
 
@@ -29,7 +29,7 @@ their required non-Jac formats.
 
 ## Migration progress
 
-Estimated overall completion: **about 80%**.
+Estimated overall completion: **about 95% for the soccer application**.
 
 ### Slice 1: Jac foundation
 
@@ -56,10 +56,11 @@ Completed:
 - Added multiple preferred positions, availability, notes, optional jersey
   numbers, co-ed gender fields, validation, and jersey sorting.
 
-Known differences:
+Known difference:
 
-- Team and player photo processing is not yet migrated.
-- The Jac app uses `localStorage`, not the original Dexie/IndexedDB repository.
+- Team and player photos are supported and included in backups, but are stored
+  as browser-local data URLs rather than compressed binary records in the
+  original Dexie/IndexedDB repository.
 
 ### Slice 3: saved lineups
 
@@ -75,11 +76,8 @@ Completed:
 - Added live roster and saved-lineup counts to the dashboard.
 - Added a responsive field visualization.
 
-Known difference:
-
-- The original lineup editor supports drag-and-drop. The Jac editor currently
-  uses a dropdown for each field position. Assignment behavior is present, but
-  interaction parity is not complete.
+- Added drag-and-drop between the bench and formation slots while retaining the
+  accessible select controls for manual assignment.
 
 ### Slice 4: match drafts and setup
 
@@ -129,6 +127,24 @@ Implemented and verified:
 - Added domain coverage for live event replay, lifecycle validation, movements,
   scoring, cards, player availability, statistics, and event descriptions.
 
+### Slice 6: soccer parity pass
+
+Implemented and verified:
+
+- Added playing-time alerts, substitution recommendations, alert sound,
+  snooze/dismiss controls, goalkeeper rotation, and persisted field locking.
+- Added action-level undo plus goal/note correction and deletion.
+- Added complete JSON backup validation, export/import, demo roster loading,
+  and full local-data reset.
+- Added team and player photo selection, previews, removal, roster avatars, and
+  dashboard team imagery.
+- Matched the original dashboard's in-progress resume banner and completed
+  match count.
+- Applied dark theme and reduced-motion preferences at the application root so
+  they remain active on every route.
+- Restored the original field icon through Jac's asset bundle and aligned key
+  soccer copy, scrolling, and layout behavior with the reference application.
+
 ## Current application status
 
 ### Functional Jac routes
@@ -149,11 +165,14 @@ There are no remaining routed placeholder pages.
 
 ## Verification status
 
-Verified after Slice 5:
+Verified after the October 6 soccer parity pass:
 
-- `jac test -v` passes with **81 tests**.
-- `jac build` succeeds and produces the production client bundle and sealed
-  application.
+- `jac test -v` passes with **138 tests**.
+- Jac server/client compilation succeeds, and a direct Vite production bundle
+  succeeds with **225 modules transformed**. In this workspace, the outer
+  `jac build` command stalls after handing off to the client bundler even though
+  invoking that generated bundle directly succeeds.
+- The original TypeScript reference application still passes `npm run build`.
 - `git diff --check` passes.
 - HTTP smoke tests return `200` for **eight representative routes**, including
   dashboard, roster, matches, live-match, summary, settings, and whiteboard
@@ -243,29 +262,20 @@ overwritten.
 
 ## Remaining migration work
 
-The major workflows now exist. Remaining parity work is concentrated in:
+The soccer workflows now have functional parity. Remaining work is limited to:
 
-1. Playing-time alerts and substitution-recommendation UI, including snooze
-   and dismissal behavior.
-2. Full JSON backup/import, validation, demo-data loading, and complete local
-   data reset.
-3. Team and player photos, image compression, and IndexedDB/binary-storage
-   parity with the original application.
-4. Drag-and-drop interaction parity for lineup and live-match field movement.
-5. Richer event editing: editing or deleting individual events, goal correction,
-   and complete undo parity instead of match-level reset.
-6. Additional browser-level integration and interaction tests for the migrated
-   pages.
+1. Match the original Dexie/IndexedDB image compression and binary-storage
+   implementation. The current data-URL implementation has the same user-facing
+   controls but reaches browser `localStorage` limits sooner on large rosters.
+2. Add browser-level regression tests and screenshot comparisons for all soccer
+   routes, especially mobile layouts and long-running live matches.
+3. Resolve or work around the Jac 0.37.23 outer build-process stall; the
+   generated Vite bundle itself builds successfully.
 
 ## Recommended next slice
 
-Complete the remaining live-match parity first:
-
-- Port playing-time threshold alerts and substitution recommendations.
-- Add alert sound, snooze, dismissal, and goalkeeper-rotation behavior.
-- Add event correction, deletion, and action-level undo.
-- Connect the persisted field-lock preference to live field interactions.
-- Follow with JSON backup/restore and photo/IndexedDB migration.
+Add browser automation for the migrated soccer flows, then decide whether exact
+IndexedDB storage parity is worth the additional implementation complexity.
 
 ## Git status note
 

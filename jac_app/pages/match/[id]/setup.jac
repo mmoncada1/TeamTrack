@@ -98,7 +98,7 @@ def:pub MatchSetupPage() -> JsxPage {
         if not result { navigate("/match/" + id + "/live"); }
     }
     if not game { return <section className="page narrow-page"><h1>Match not found</h1><Link to="/matches">Back to matches</Link></section>; }
-    <section className="page match-setup"><div className="title-row"><h1>Match setup</h1><Link className="button ghost" to="/matches">Back to matches</Link></div>
+    <section className="page match-setup"><div className="title-row"><h1>New match setup</h1><Link className="button ghost" to="/matches">Back to matches</Link></div>
         <div className="setup-grid"><label>Team name<input className="input" value={team_name} onChange={lambda (e: ChangeEvent) { team_name = e.target.value; saved = False; }} /></label>
             <label>Opponent name<input className="input" required value={opponent} onChange={lambda (e: ChangeEvent) { opponent = e.target.value; saved = False; }} /></label>
             <label>Match date<input className="input" type="date" value={date} onChange={lambda (e: ChangeEvent) { date = e.target.value; saved = False; }} /></label>

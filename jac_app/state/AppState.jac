@@ -36,12 +36,12 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
         now = int(Date.now()); team = Team(id=create_id("team"), name=trimmed, sport=sport, coed=coed if sport == "soccer" else False, min_girls_on_field=clamp_min_girls(min_girls) if sport == "soccer" else None, created_at=now, updated_at=now);
         teams = sorted(teams + [team], key=team_sort_key); active_team_id = team.id; return "";
     }
-    def update_team(id: str, name: str, coed: bool, min_girls: int) -> str {
+    def update_team(id: str, name: str, coed: bool, min_girls: int, photo_data: str | None = None) -> str {
         trimmed = name.strip(); if not trimmed { return "Team name is required."; }
         if any([team.id != id and team.name.lower() == trimmed.lower() for team in teams]) { return "A team with that name already exists."; }
         found = False; updated: list[Team] = [];
         for team in teams {
-            if team.id == id { found = True; updated.append(Team(id=team.id, name=trimmed, sport=team.sport if team.sport else "soccer", coed=coed if team.sport != "football" else False, min_girls_on_field=clamp_min_girls(min_girls) if team.sport != "football" else None, photo_id=team.photo_id, created_at=team.created_at, updated_at=int(Date.now()))); }
+            if team.id == id { found = True; updated.append(Team(id=team.id, name=trimmed, sport=team.sport if team.sport else "soccer", coed=coed if team.sport != "football" else False, min_girls_on_field=clamp_min_girls(min_girls) if team.sport != "football" else None, photo_id=(photo_data if photo_data else None) if photo_data is not None else team.photo_id, created_at=team.created_at, updated_at=int(Date.now()))); }
             else { updated.append(team); }
         }
         if not found { return "Team not found."; } teams = sorted(updated, key=team_sort_key); return "";
@@ -56,7 +56,7 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
         football_whiteboards = [item for item in football_whiteboards if item.team_id != id];
         if active_team_id == id { active_team_id = remaining[0].id; } return "";
     }
-    def save_player(id: str, name: str, jersey_number: int | None, groups: list[str], gender: str | None, notes: str, availability: str) -> list[str] {
+    def save_player(id: str, name: str, jersey_number: int | None, groups: list[str], gender: str | None, notes: str, availability: str, photo_data: str | None = None) -> list[str] {
         team = active_team(teams, active_team_id); if team is None { return ["Choose a team before adding a player."]; }
         errors = validate_player(name, jersey_number, groups, gender, team.coed, [p for p in players if p.team_id == team.id], id if id else None);
         if errors { return [error.message for error in errors]; }
@@ -64,7 +64,7 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
         for player in players { if player.id == id { existing = player; break; } }
         saved = Player(id=id if id else create_id("player"), team_id=team.id, name=name.strip(), jersey_number=jersey_number,
             preferred_group=normalized[0], preferred_groups=normalized, gender=gender if gender in ["girl", "boy"] else None,
-            notes=notes.strip() if notes.strip() else None, availability=availability, photo_id=existing.photo_id if existing is not None else None,
+            notes=notes.strip() if notes.strip() else None, availability=availability, photo_id=(photo_data if photo_data else None) if photo_data is not None else (existing.photo_id if existing is not None else None),
             created_at=existing.created_at if existing is not None else now, updated_at=now);
         players = sort_players([player for player in players if player.id != saved.id] + [saved]); return [];
     }
