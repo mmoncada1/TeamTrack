@@ -5,6 +5,8 @@ import { comparePlayersByJersey } from '../lib/playerSort';
 import { createId } from '../lib/id';
 import { clampMinGirls } from '../lib/coed';
 import { withPositionGroups } from '../lib/playerPositions';
+import { teamSport, type Sport } from '../lib/sports';
+import type { FootballData } from '../football/types';
 
 // ---------------------------------------------------------------------------
 // Teams
@@ -12,22 +14,25 @@ import { withPositionGroups } from '../lib/playerPositions';
 
 export async function listTeams(): Promise<Team[]> {
   const teams = await db.teams.toArray();
-  return teams.sort((a, b) => a.name.localeCompare(b.name));
+  return teams.map(team => ({ ...team, sport: teamSport(team) })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function upsertTeam(team: Team): Promise<void> {
-  await db.teams.put(team);
+  const existing = await db.teams.get(team.id);
+  if (existing && teamSport(existing) !== teamSport(team)) throw new Error('A team’s sport cannot be changed after creation.');
+  await db.teams.put({ ...team, sport: teamSport(team) });
 }
 
 export async function createTeam(
   name: string,
-  options?: { coed?: boolean; minGirlsOnField?: number },
+  options?: { coed?: boolean; minGirlsOnField?: number; sport?: Sport },
 ): Promise<Team> {
   const now = Date.now();
   const coed = Boolean(options?.coed);
   const team: Team = {
     id: createId(),
     name: name.trim(),
+    sport: options?.sport ?? 'soccer',
     createdAt: now,
     updatedAt: now,
     ...(coed ? { coed: true, minGirlsOnField: clampMinGirls(options?.minGirlsOnField) } : {}),
@@ -38,14 +43,18 @@ export async function createTeam(
 
 /** Ensure at least one team exists. Returns every team. */
 export async function ensureTeams(): Promise<Team[]> {
-  const existing = await listTeams();
-  if (existing.length > 0) return existing;
-  const team = await createTeam('My Team');
-  return [team];
+  // React StrictMode may request initialization twice. Serialize the empty check
+  // and insert so concurrent startup calls cannot create duplicate default teams.
+  return db.transaction('rw', db.teams, async () => {
+    const existing = await listTeams();
+    if (existing.length > 0) return existing;
+    const team = await createTeam('My Team');
+    return [team];
+  });
 }
 
 export async function deleteTeamAndData(teamId: string): Promise<void> {
-  await db.transaction('rw', [db.teams, db.players, db.photos, db.teamPhotos, db.lineups, db.matches], async () => {
+  await db.transaction('rw', db.tables, async () => {
     const players = await db.players.where('teamId').equals(teamId).toArray();
     for (const player of players) {
       const photos = await db.photos.where('playerId').equals(player.id).toArray();
@@ -59,6 +68,9 @@ export async function deleteTeamAndData(teamId: string): Promise<void> {
     const matches = await db.matches.where('teamId').equals(teamId).toArray();
     await Promise.all(matches.map((match) => db.matches.delete(match.id)));
     await db.teams.delete(teamId);
+    for (const table of [db.footballFormations, db.footballPlays, db.drivePlans, db.footballWhiteboards]) {
+      await table.where('teamId').equals(teamId).delete();
+    }
   });
 }
 
@@ -80,10 +92,15 @@ export async function upsertPlayer(player: Player): Promise<void> {
 }
 
 export async function deletePlayer(playerId: string): Promise<void> {
-  await db.transaction('rw', db.players, db.photos, async () => {
+  await db.transaction('rw', [db.players, db.photos, db.footballFormations, db.footballPlays], async () => {
     await db.players.delete(playerId);
     const photos = await db.photos.where('playerId').equals(playerId).toArray();
     await Promise.all(photos.map((p) => db.photos.delete(p.id)));
+    for (const table of [db.footballFormations, db.footballPlays]) {
+      await table.toCollection().modify(formation => {
+        formation.players = formation.players.map(slot => slot.rosterPlayerId === playerId ? { ...slot, rosterPlayerId: undefined } : slot);
+      });
+    }
   });
 }
 
@@ -174,8 +191,9 @@ export async function replaceAllData(
   photos: PlayerPhoto[] = [],
   teamPhotos: TeamPhoto[] = [],
   lineups: SavedLineup[] = [],
+  football: Partial<FootballData> = {},
 ): Promise<void> {
-  await db.transaction('rw', [db.teams, db.players, db.photos, db.teamPhotos, db.lineups, db.matches], async () => {
+  await db.transaction('rw', db.tables, async () => {
     await db.teams.clear();
     await db.players.clear();
     await db.matches.clear();
@@ -188,5 +206,13 @@ export async function replaceAllData(
     if (photos.length > 0) await db.photos.bulkPut(photos);
     if (teamPhotos.length > 0) await db.teamPhotos.bulkPut(teamPhotos);
     if (lineups.length > 0) await db.lineups.bulkPut(lineups);
+    await db.footballFormations.clear();
+    await db.footballPlays.clear();
+    await db.drivePlans.clear();
+    await db.footballWhiteboards.clear();
+    await db.footballFormations.bulkPut(football.footballFormations ?? []);
+    await db.footballPlays.bulkPut(football.footballPlays ?? []);
+    await db.drivePlans.bulkPut(football.drivePlans ?? []);
+    await db.footballWhiteboards.bulkPut(football.footballWhiteboards ?? []);
   });
 }

@@ -14,8 +14,11 @@ import { withPositionGroups } from './playerPositions';
 import { formatClock } from './timer';
 import { createId } from './id';
 import { blobToDataUrl, dataUrlToBlob } from './photo';
+import type { FootballData } from '../football/types';
+import { validateFootballBackup } from '../football/backup';
+import { teamSport } from './sports';
 
-export const BACKUP_VERSION = 5;
+export const BACKUP_VERSION = 6;
 
 /** JSON-safe representation of a PlayerPhoto for the exported backup file (blob -> data URL). */
 interface SerializedPhoto {
@@ -74,6 +77,7 @@ export async function buildBackup(
   photos: PlayerPhoto[],
   teamPhotos: TeamPhoto[] = [],
   lineups: SavedLineup[] = [],
+  football: Partial<FootballData> = {},
 ): Promise<Record<string, unknown>> {
   return {
     version: BACKUP_VERSION,
@@ -84,6 +88,10 @@ export async function buildBackup(
     photos: await serializePhotos(photos),
     teamPhotos: await serializeTeamPhotos(teamPhotos),
     lineups,
+    footballFormations: football.footballFormations ?? [],
+    footballPlays: football.footballPlays ?? [],
+    drivePlans: football.drivePlans ?? [],
+    footballWhiteboards: football.footballWhiteboards ?? [],
     settings,
   };
 }
@@ -108,8 +116,9 @@ export async function exportBackupAsJson(
   photos: PlayerPhoto[],
   teamPhotos: TeamPhoto[] = [],
   lineups: SavedLineup[] = [],
+  football: Partial<FootballData> = {},
 ): Promise<void> {
-  const backup = await buildBackup(teams, players, matches, settings, photos, teamPhotos, lineups);
+  const backup = await buildBackup(teams, players, matches, settings, photos, teamPhotos, lineups, football);
   triggerDownload(
     `teamtrack-backup-${new Date().toISOString().slice(0, 10)}.json`,
     JSON.stringify(backup, null, 2),
@@ -169,6 +178,7 @@ export function validateBackup(raw: unknown): BackupValidationResult {
     return { valid: false, errors: ['File does not contain a valid JSON object.'] };
   }
   const obj = raw as Partial<AppBackup>;
+  if (typeof obj.version === 'number' && obj.version > BACKUP_VERSION) return { valid: false, errors: ['This backup is newer than this app. Update TeamTrack before importing it.'] };
 
   if (typeof obj.version !== 'number') {
     errors.push('Missing or invalid backup version.');
@@ -192,10 +202,11 @@ export function validateBackup(raw: unknown): BackupValidationResult {
       typeof (team as Team).id === 'string' &&
       typeof (team as Team).name === 'string' &&
       (team as Team).name.trim().length > 0,
-  );
+  ).map(team => ({ ...team, sport: teamSport(team) }));
+  if (teams.some(team => team.sport !== 'soccer' && team.sport !== 'football')) return { valid: false, errors: ['Backup contains an unsupported team sport.'] };
   if (teams.length === 0) {
     const now = Date.now();
-    teams.push({ id: createId(), name: 'Imported team', createdAt: now, updatedAt: now });
+    teams.push({ id: createId(), name: 'Imported team', sport: 'soccer', createdAt: now, updatedAt: now });
   }
   const teamIds = new Set(teams.map((team) => team.id));
   const fallbackTeamId = teams[0].id;
@@ -348,6 +359,8 @@ export function validateBackup(raw: unknown): BackupValidationResult {
     errors.push(`${skippedLineupCount} lineup(s) could not be imported and would be skipped.`);
   }
 
+  const football = validateFootballBackup(raw as Record<string, unknown>, teams, players);
+  if (football.errors.length) return { valid: false, errors: [...errors, ...football.errors] };
   return {
     valid: true,
     errors,
@@ -360,6 +373,7 @@ export function validateBackup(raw: unknown): BackupValidationResult {
       photos,
       teamPhotos,
       lineups,
+      ...football.data,
       settings,
     },
   };

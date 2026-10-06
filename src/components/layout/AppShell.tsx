@@ -1,6 +1,9 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { Suspense } from 'react';
 import clsx from 'clsx';
 import { TeamSwitcher } from './TeamSwitcher';
+import { useTeamStore } from '../../state/teamStore';
+import { teamSport } from '../../lib/sports';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard' },
@@ -13,6 +16,13 @@ const NAV_ITEMS = [
 ];
 
 export function AppShell() {
+  const team = useTeamStore(s => s.teams.find(t => t.id === s.activeTeamId));
+  const navItems = teamSport(team) === 'football' ? [
+    { to: '/', label: 'Dashboard' }, { to: '/roster', label: 'Roster' },
+    { to: '/football/formations', label: 'Formations' }, { to: '/football/playbook', label: 'Playbook' },
+    { to: '/football/drives', label: 'Drive plans' }, { to: '/whiteboard', label: 'Whiteboard' },
+    { to: '/team/settings', label: 'Team' }, { to: '/settings', label: 'Settings' },
+  ] : NAV_ITEMS;
   return (
     <div className="flex h-screen flex-col">
       <a
@@ -27,7 +37,7 @@ export function AppShell() {
             <img src="/field-icon.svg" alt="" className="h-5 w-5" aria-hidden />
             TeamTrack
           </span>
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -48,7 +58,7 @@ export function AppShell() {
         </nav>
       </header>
       <main id="main-content" className="min-h-0 flex-1 overflow-y-auto">
-        <Outlet />
+        <Suspense fallback={<p className="p-4">Loading…</p>}><Outlet key={team?.id} /></Suspense>
       </main>
     </div>
   );
