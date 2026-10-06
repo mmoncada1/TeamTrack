@@ -8,6 +8,10 @@ glob TEAMS_KEY = "teamtrack:jac:teams";
 glob PLAYERS_KEY = "teamtrack:jac:players";
 glob LINEUPS_KEY = "teamtrack:jac:lineups";
 glob MATCHES_KEY = "teamtrack:jac:matches";
+glob FOOTBALL_FORMATIONS_KEY = "teamtrack:jac:football-formations";
+glob FOOTBALL_PLAYS_KEY = "teamtrack:jac:football-plays";
+glob DRIVE_PLANS_KEY = "teamtrack:jac:drive-plans";
+glob FOOTBALL_WHITEBOARDS_KEY = "teamtrack:jac:football-whiteboards";
 glob ACTIVE_TEAM_KEY = "teamtrack:jac:active-team-id";
 glob WHITEBOARD_PREFIX = "teamtrack:whiteboard:";
 glob RESTORE_FLASH_KEY = "teamtrack:restore-message";
@@ -51,6 +55,10 @@ def build_backup() -> dict[str, any] {
         "data": {
             "teams": parse_storage(TEAMS_KEY, []), "players": parse_storage(PLAYERS_KEY, []),
             "lineups": parse_storage(LINEUPS_KEY, []), "matches": parse_storage(MATCHES_KEY, []),
+            "footballFormations": parse_storage(FOOTBALL_FORMATIONS_KEY, []),
+            "footballPlays": parse_storage(FOOTBALL_PLAYS_KEY, []),
+            "drivePlans": parse_storage(DRIVE_PLANS_KEY, []),
+            "footballWhiteboards": parse_storage(FOOTBALL_WHITEBOARDS_KEY, []),
             "activeTeamId": localStorage.getItem(ACTIVE_TEAM_KEY) or "",
             "appSettings": parse_storage(SETTINGS_KEY, load_settings()),
             "whiteboards": discover_whiteboards()
@@ -104,6 +112,10 @@ def:pub SettingsPage() -> JsxPage {
         localStorage.setItem(PLAYERS_KEY, JSON.stringify(data["players"]));
         localStorage.setItem(LINEUPS_KEY, JSON.stringify(data["lineups"]));
         localStorage.setItem(MATCHES_KEY, JSON.stringify(data["matches"]));
+        localStorage.setItem(FOOTBALL_FORMATIONS_KEY, JSON.stringify(data.get("footballFormations", [])));
+        localStorage.setItem(FOOTBALL_PLAYS_KEY, JSON.stringify(data.get("footballPlays", [])));
+        localStorage.setItem(DRIVE_PLANS_KEY, JSON.stringify(data.get("drivePlans", [])));
+        localStorage.setItem(FOOTBALL_WHITEBOARDS_KEY, JSON.stringify(data.get("footballWhiteboards", [])));
         localStorage.setItem(ACTIVE_TEAM_KEY, data["activeTeamId"]);
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(data["appSettings"]));
         whiteboard_keys: list[str] = [];
@@ -119,7 +131,7 @@ def:pub SettingsPage() -> JsxPage {
     }
     def reset_local_data {
         if not window.confirm("Delete all TeamTrack Jac teams, rosters, lineups, matches, whiteboards, and settings on this device? Export a backup first if you need one.") { return; }
-        keys = [TEAMS_KEY, PLAYERS_KEY, LINEUPS_KEY, MATCHES_KEY, ACTIVE_TEAM_KEY, SETTINGS_KEY];
+        keys = [TEAMS_KEY, PLAYERS_KEY, LINEUPS_KEY, MATCHES_KEY, FOOTBALL_FORMATIONS_KEY, FOOTBALL_PLAYS_KEY, DRIVE_PLANS_KEY, FOOTBALL_WHITEBOARDS_KEY, ACTIVE_TEAM_KEY, SETTINGS_KEY];
         for index in range(localStorage.length) {
             key = localStorage.key(index);
             if key and key.startswith(WHITEBOARD_PREFIX) { keys.append(key); }

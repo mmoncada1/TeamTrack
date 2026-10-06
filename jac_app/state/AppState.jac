@@ -92,6 +92,7 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
     }
     def save_lineup(id: str, name: str, format: str, formation_id: str, assignments: dict[str, str]) -> str {
         team = active_team(teams, active_team_id); if team is None { return "Choose a team before saving a lineup."; }
+        if team.sport == "football" { return "Saved soccer lineups are only available to soccer teams."; }
         trimmed = name.strip(); if not trimmed { return "Give the lineup a name."; }
         if any([item.id != id and item.team_id == team.id and item.name.lower() == trimmed.lower() for item in lineups]) { return "This team already has a lineup with that name."; }
         existing: SavedLineup | None = None; for item in lineups { if item.id == id { existing = item; break; } }
@@ -102,6 +103,7 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
     def delete_lineup(id: str) { lineups = [item for item in lineups if item.id != id]; }
     def create_match_draft(date: str) -> str {
         team = active_team(teams, active_team_id); if team is None { return ""; }
+        if team.sport == "football" { return ""; }
         roster_ids = [player.id for player in players if player.team_id == team.id and player.availability == "active"];
         draft = create_draft_match(create_id("match"), team.id, team.name, date, roster_ids, int(Date.now()));
         matches = [draft] + matches; return draft.id;
@@ -111,6 +113,7 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
         goalkeeper_rotation: bool, alert_sound: bool, roster_ids: list[str], unavailable_ids: list[str], assignments: dict[str, str], start_now: bool = False) -> str {
         existing: Match | None = None; for item in matches { if item.id == id { existing = item; break; } }
         if existing is None { return "Match draft not found."; }
+        if any([team.id == existing.team_id and team.sport == "football" for team in teams]) { return "Soccer match setup requires a soccer team."; }
         updated = Match(id=existing.id, team_id=existing.team_id, team_name=team_name, opponent_name=opponent_name, date=date,
             kickoff_time=kickoff_time if kickoff_time else None, title=title if title else None,
             settings=MatchSettings(format=format, formation_id=formation_id, half_length_minutes=half_length, number_of_halves=halves,
@@ -126,11 +129,58 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
         if not any([item.id == next_game.id for item in matches]) { return "Match not found."; }
         matches = [next_game if item.id == next_game.id else item for item in matches]; return "";
     }
-    value = {"teams": teams, "players": players, "lineups": lineups, "matches": matches, "activeTeamId": active_team_id,
+    def football_team_exists(id: str) -> bool {
+        return any([team.id == id and team.sport == "football" for team in teams]);
+    }
+    def save_football_formation(item: FootballFormation) -> str {
+        if not football_team_exists(item.team_id) { return "Choose a football team."; }
+        errors = formation_errors(item); if errors { return errors[0]; }
+        if any([existing.id == item.id and existing.team_id != item.team_id for existing in football_formations]) { return "Formation belongs to another team."; }
+        football_formations = [existing for existing in football_formations if existing.id != item.id] + [item]; return "";
+    }
+    def delete_football_formation(id: str) {
+        football_formations = [item for item in football_formations if item.id != id or item.team_id != active_team_id];
+    }
+    def save_football_play(item: FootballPlay) -> str {
+        if not football_team_exists(item.team_id) { return "Choose a football team."; }
+        errors = play_errors(item); if errors { return errors[0]; }
+        if any([existing.id == item.id and existing.team_id != item.team_id for existing in football_plays]) { return "Play belongs to another team."; }
+        football_plays = [existing for existing in football_plays if existing.id != item.id] + [item]; return "";
+    }
+    def delete_football_play(id: str) {
+        football_plays = [item for item in football_plays if item.id != id or item.team_id != active_team_id];
+        updated: list[DrivePlan] = [];
+        for plan in drive_plans {
+            if plan.team_id == active_team_id {
+                updated.append(DrivePlan(id=plan.id, team_id=plan.team_id, name=plan.name,
+                    entries=[call for call in plan.entries if call.play_id != id],
+                    created_at=plan.created_at, updated_at=int(Date.now())));
+            } else { updated.append(plan); }
+        }
+        drive_plans = updated;
+    }
+    def save_drive_plan(item: DrivePlan) -> str {
+        if not football_team_exists(item.team_id) { return "Choose a football team."; }
+        play_ids = [play.id for play in football_plays if play.team_id == item.team_id];
+        errors = drive_errors(item, play_ids); if errors { return errors[0]; }
+        if any([existing.id == item.id and existing.team_id != item.team_id for existing in drive_plans]) { return "Drive plan belongs to another team."; }
+        drive_plans = [existing for existing in drive_plans if existing.id != item.id] + [item]; return "";
+    }
+    def delete_drive_plan(id: str) { drive_plans = [item for item in drive_plans if item.id != id or item.team_id != active_team_id]; }
+    def save_football_whiteboard(item: FootballWhiteboard) -> str {
+        if not football_team_exists(item.team_id) { return "Choose a football team."; }
+        football_whiteboards = [existing for existing in football_whiteboards if existing.team_id != item.team_id] + [item]; return "";
+    }
+    value = {"teams": teams, "players": players, "lineups": lineups, "matches": matches,
+        "footballFormations": football_formations, "footballPlays": football_plays,
+        "drivePlans": drive_plans, "footballWhiteboards": football_whiteboards, "activeTeamId": active_team_id,
         "setActiveTeam": set_active_team, "createTeam": create_team, "updateTeam": update_team, "deleteTeam": delete_team,
         "savePlayer": save_player, "deletePlayer": delete_player, "loadDemoRoster": load_demo_roster, "saveLineup": save_lineup, "deleteLineup": delete_lineup,
         "createMatchDraft": create_match_draft, "saveMatchSetup": save_match_setup, "deleteMatch": delete_match,
-        "replaceMatch": replace_match};
+        "replaceMatch": replace_match, "saveFootballFormation": save_football_formation,
+        "deleteFootballFormation": delete_football_formation, "saveFootballPlay": save_football_play,
+        "deleteFootballPlay": delete_football_play, "saveDrivePlan": save_drive_plan,
+        "deleteDrivePlan": delete_drive_plan, "saveFootballWhiteboard": save_football_whiteboard};
     <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>
 }
 def:pub use_app_state() -> any { return useContext(AppStateContext); }

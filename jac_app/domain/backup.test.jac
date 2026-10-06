@@ -29,3 +29,9 @@ test "rejects duplicate ids and malformed match events" {
     assert any(["Duplicate team" in error for error in errors]);
     assert any(["invalid event" in error for error in errors]);
 }
+
+test "keeps old soccer backups compatible and rejects football data on soccer teams" {
+    backup = sample_backup(); assert not validate_backup(backup);
+    backup["data"]["footballFormations"] = [{"id": "formation-1", "team_id": "team-1"}];
+    assert any(["non-football" in error for error in validate_backup(backup)]);
+}

@@ -8,9 +8,9 @@ Updated: October 6, 2026. Working branch: `jac_migration` (football TypeScript m
 | --- | --- | --- | --- |
 | 0. Baseline and plan | Complete | TypeScript: 79 tests and build pass. Jac: 130 domain tests, `jac build --check_only`, and production `jac build` pass after `jac clean --cache --force`. Jac dev server serves the summary route (HTTP 200). | Keep checks green after each slice |
 | 1. Finish soccer Jac | Implemented, verification pending | Live alerts, field lock/timers, co-ed moves, player availability, goal correction, drag/drop, whiteboard tools, backup validation/demo/reset. 133 Jac tests and clean `jac build` pass after photo rollback. Headless browser check cannot run: Chrome/Chromium is absent. | Run browser interaction checks when Chromium is available; complete shared backup import in stage 5 |
-| 2. Football Jac domain | Starting | TypeScript football reference is merged and its tests pass | Port models, validation, routes/geometry and tests |
-| 3. Football Jac storage and sport shell | Not started | — | Add sport to teams, team-scoped football data, navigation and guards |
-| 4. Football Jac workflows | Not started | — | Port formations, playbook/editor, drives, whiteboard |
+| 2. Football Jac domain | In progress | Seven-slot model, formation/play/drive validation and pure operations added; 4 focused tests pass. Route geometry and templates remain. | Port routes/geometry and starter templates |
+| 3. Football Jac storage and sport shell | In progress | Sport on teams; football collections and team-scoped callbacks; sport-aware team creation, roster and navigation added. Full build pending. | Verify persistence and complete route guards |
+| 4. Football Jac workflows | In progress | Formation list/editor with roster assignment, QB/snapper, autofill and field drag added; browser verification pending. | Port playbook/editor, drives, whiteboard |
 | 5. Shared persistence transition and photos | Pending Supabase design | Current Jac uses localStorage; TypeScript uses Dexie. No temporary Jac photo storage will be added. | Define schema, auth, RLS, TypeScript v6 and Jac backup imports, and Supabase Storage photo path before cutover |
 | 6. Parity verification and cutover | Not started | — | Run domain, build and browser checks for both sports |
 

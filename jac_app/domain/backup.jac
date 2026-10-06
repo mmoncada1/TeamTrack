@@ -11,15 +11,20 @@ def:pub validate_backup(candidate: any) -> list[str] {
     for key in ["teams", "players", "lineups", "matches"] {
         if key not in data or not isinstance(data[key], list) { errors.append("The " + key + " collection is missing or invalid."); }
     }
+    for key in ["footballFormations", "footballPlays", "drivePlans", "footballWhiteboards"] {
+        if key in data and not isinstance(data[key], list) { errors.append("The " + key + " collection is invalid."); }
+    }
     if errors { return errors; }
     if not data["teams"] { errors.append("The backup must contain at least one team."); }
-    team_ids: list[str] = [];
+    team_ids: list[str] = []; football_team_ids: list[str] = [];
     for team in data["teams"] {
         if not isinstance(team, dict) or not isinstance(team.get("id"), str) or not team["id"] or not isinstance(team.get("name"), str) or not team["name"].strip() {
             errors.append("Every team needs an id and name."); continue;
         }
         if team["id"] in team_ids { errors.append("Duplicate team id in backup."); }
         team_ids.append(team["id"]);
+        if team.get("sport") == "football" { football_team_ids.append(team["id"]); }
+        elif team.get("sport") not in [None, "soccer"] { errors.append("Unsupported team sport in backup."); }
     }
     player_ids: list[str] = []; player_team: dict[str, str] = {};
     for player in data["players"] {
@@ -60,6 +65,16 @@ def:pub validate_backup(candidate: any) -> list[str] {
             }
         }
     }
+    football_ids: list[str] = [];
+    for key in ["footballFormations", "footballPlays", "drivePlans", "footballWhiteboards"] {
+        for item in data.get(key, []) {
+            if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"] or item.get("team_id") not in football_team_ids {
+                errors.append("A football record is invalid or belongs to a non-football team."); continue;
+            }
+            if item["id"] in football_ids { errors.append("Duplicate football record id in backup."); }
+            football_ids.append(item["id"]);
+        }
+    }
     if "activeTeamId" not in data or not isinstance(data["activeTeamId"], str) { errors.append("The active team id is missing or invalid."); }
     elif data["activeTeamId"] not in team_ids { errors.append("The active team does not exist in the teams collection."); }
     if "appSettings" not in data or not isinstance(data["appSettings"], dict) { errors.append("App settings are missing or invalid."); }
@@ -67,4 +82,3 @@ def:pub validate_backup(candidate: any) -> list[str] {
     elif any([not str(key).startswith(WHITEBOARD_PREFIX) for key in data["whiteboards"].keys()]) { errors.append("The backup contains an invalid whiteboard key."); }
     return errors;
 }
-
