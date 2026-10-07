@@ -53,3 +53,10 @@ test "eraser finds the middle of a line" {
     assert drawing_near(line, Point(x=50.0, y=11.0));
     assert not drawing_near(line, Point(x=50.0, y=30.0));
 }
+
+test "play validation accepts a freehand eraser path" {
+    play = play_from_formation(sample_formation(), "play-erase", "snap-erase", 20);
+    play.drawings = [Drawing(id="erase", tool="erase", color="#ffffff", width=6.0,
+        points=[Point(x=20.0, y=20.0), Point(x=40.0, y=40.0)])];
+    assert not play_errors(play);
+}

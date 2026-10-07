@@ -53,7 +53,7 @@ def:pub play_errors(play: Play) -> list[str] {
         action_ids.append(action.id); orders.append(action.order);
     }
     for drawing in play.drawings {
-        if not drawing.id or drawing.tool not in ["pen", "line", "arrow"] or drawing.width <= 0 or any([not valid_point(point, True) for point in drawing.points]) {
+        if not drawing.id or drawing.tool not in ["pen", "line", "arrow", "erase"] or drawing.width <= 0 or any([not valid_point(point, True) for point in drawing.points]) {
             errors.append("Drawing is invalid.");
         }
     }
