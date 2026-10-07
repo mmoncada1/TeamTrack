@@ -42,4 +42,4 @@ jac build
 
 The build writes `dist/teamtrack.jab`. Run it with `jac run dist/teamtrack.jab`.
 
-See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the migration record. Deployment requires a host that runs the Jac web server; a static site host cannot serve this application by itself.
+Deployment requires a host that runs the Jac web server; a static site host cannot serve this application by itself.
