@@ -89,8 +89,43 @@ async function uploadPhoto(dataUrl, teamId, kind, id) {
     method: "POST", body: blob,
     headers: { apikey: KEY, Authorization: `Bearer ${current.access_token}`, "Content-Type": blob.type },
   });
-  if (!response.ok) throw new Error(`Photo upload failed (${response.status}).`);
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null);
+    throw new Error(detail?.message || detail?.error || `Photo upload failed (${response.status}).`);
+  }
   return `storage://${path}`;
+}
+
+async function signPhoto(path) {
+  const result = await authorizedRequest(`/storage/v1/object/sign/profile-pictures/${path}`, {
+    method: "POST", body: JSON.stringify({ expiresIn: 604800 }),
+  });
+  const signedPath = result.signedURL || result.signedUrl;
+  return signedPath.startsWith("http") ? signedPath : signedPath.startsWith("/storage/v1/") ? URL + signedPath : URL + "/storage/v1" + signedPath;
+}
+
+export async function saveTeamPhoto(dataUrl, teamId) {
+  const current = await validSession();
+  await syncTeamsAndPlayers(currentData(), current.user.id, false);
+  const stored = await uploadPhoto(dataUrl, teamId, "teams", teamId);
+  const path = stored.slice("storage://".length);
+  const signedUrl = await signPhoto(path);
+  photoPaths.set(signedUrl, path);
+  return signedUrl;
+}
+
+export async function flushTeamSettings(teamId, photoUrl, name, previousUpdatedAt) {
+  const key = "teamtrack:jac:teams";
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const teams = JSON.parse(localStorage.getItem(key) || "[]");
+    if (teams.some((team) => team.id === teamId && (team.photo_id || "") === photoUrl && team.name === name.trim() && team.updated_at !== previousUpdatedAt)) break;
+    if (attempt === 49) throw new Error("Team settings were not written to this browser.");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  clearTimeout(syncTimer);
+  const pending = syncing.then(saveSnapshot);
+  syncing = pending.catch((error) => dispatchStatus(`Sync error: ${error.message}`));
+  await pending;
 }
 
 async function storedPayload() {
@@ -123,11 +158,7 @@ async function hydratePhotos(payload) {
     for (const record of records) {
       if (!record.photo_id?.startsWith("storage://")) continue;
       const path = record.photo_id.slice("storage://".length);
-      const result = await authorizedRequest(`/storage/v1/object/sign/profile-pictures/${path}`, {
-        method: "POST", body: JSON.stringify({ expiresIn: 604800 }),
-      });
-      const signedPath = result.signedURL || result.signedUrl;
-      const signedUrl = signedPath.startsWith("http") ? signedPath : signedPath.startsWith("/storage/v1/") ? URL + signedPath : URL + "/storage/v1" + signedPath;
+      const signedUrl = await signPhoto(path);
       photoPaths.set(signedUrl, path);
       record.photo_id = signedUrl;
     }
@@ -146,8 +177,8 @@ async function syncTeamsAndPlayers(payload, userId, includePhotos) {
       body: JSON.stringify(teams.map((team) => ({
         id: team.id, owner_user_id: userId, name: team.name,
         sport: team.sport || "soccer", coed: Boolean(team.coed),
-        min_girls_on_field: team.sport === "football" ? null : team.min_girls_on_field,
-        profile_picture: includePhotos ? picture(team.photo_id) : null,
+        min_girls_on_field: team.sport === "football" ? null : (team.min_girls_on_field ?? null),
+        ...(includePhotos ? { profile_picture: picture(team.photo_id) } : {}),
       }))),
     });
   }
@@ -157,7 +188,7 @@ async function syncTeamsAndPlayers(payload, userId, includePhotos) {
       method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify(players.map((player) => ({
         id: player.id, team_id: player.team_id, name: player.name,
-        jersey_number: player.jersey_number, gender: player.gender,
+        jersey_number: player.jersey_number ?? null, gender: player.gender ?? null,
         position: player.preferred_group || "MID", availability: player.availability || "active",
         profile_picture: picture(player.photo_id),
       }))),
