@@ -15,7 +15,7 @@ def clock_label(ms: int) -> str {
     return str(minutes) + ":" + ("0" if seconds < 10 else "") + str(seconds);
 }
 
-def jersey_label(number: int | None) -> str { return "—" if number is None else "#" + str(number); }
+def jersey_label(number: int | None) -> str { return "" if number is None else "#" + str(number); }
 
 def play_alert_tone() {
     try {
