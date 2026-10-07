@@ -78,7 +78,7 @@ def SoccerWhiteboardPage() -> JsxElement {
     current_width = max(width * 3, 14) if tool == "erase" else width;
     display_strokes = board["strokes"] + ([{"id": "current", "tool": tool, "color": color, "width": current_width, "points": current_points}] if drawing else []);
 
-    <section className="whiteboard-page"><aside className="whiteboard-tools"><div><h1>Whiteboard</h1><p>Draw tactics for {team_name}. Changes stay on this device.</p></div>
+    <section className="whiteboard-page"><aside className="whiteboard-tools"><div><h1>Whiteboard</h1><p>Draw tactics for {team_name}.</p></div>
         <div className="tool-buttons" role="group" aria-label="Drawing tool">{[<button key={item} className={"button primary small" if tool == item else "button secondary small"} onClick={lambda { tool = item; }}>{"Note" if item == "text" else item.title()}</button> for item in ["pen", "line", "arrow", "erase", "text"]]}</div>
         <div className="swatches" role="group" aria-label="Ink color">{[<button key={swatch} type="button" title={"Color " + swatch} aria-label={"Color " + swatch} className={"swatch selected" if color == swatch else "swatch"} style={{"backgroundColor": swatch}} onClick={lambda { color = swatch; if tool == "erase" { tool = "pen"; } }}></button> for swatch in BOARD_COLORS]}</div>
         <div className="widths" role="group" aria-label="Line thickness">{[<button key={size} type="button" aria-label={str(size) + " pixel line"} className={"width-button selected" if width == size else "width-button"} onClick={lambda { width = size; }}><span style={{"width": str(size) + "px", "height": str(size) + "px"}}></span></button> for size in BOARD_WIDTHS]}</div>
