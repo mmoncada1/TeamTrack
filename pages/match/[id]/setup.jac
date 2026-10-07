@@ -11,6 +11,10 @@ import from ....state.AppState { use_app_state }
 
 def jersey_label(number: int | None) -> str { return "—" if number is None else "#" + str(number); }
 
+def positive_minutes(value: str) -> int {
+    try { return int(value); } except Exception { return 0; }
+}
+
 def validate_match_setup(team_name: str, opponent_name: str, date: str, format: str,
     half_length_minutes: int, number_of_halves: int, roster_player_ids: list[str],
     assignments: dict[str, str], formation: any) -> dict[str, any] {
@@ -63,7 +67,7 @@ def:pub MatchSetupPage() -> JsxPage {
     team_lineups = [lineup for lineup in state["lineups"] if game and lineup.team_id == game.team_id and lineup.format == format];
     selected_players = [player for player in team_players if player.id in roster_ids and player.id not in unavailable_ids];
     validation = validate_match_setup(team_name, opponent, date, format,
-        int(half_length) if half_length else 0, int(halves) if halves else 0, roster_ids, assignments, formation);
+        positive_minutes(half_length), positive_minutes(halves), roster_ids, assignments, formation);
 
     def change_format(next_format: str) {
         initial = default_formation_for_format(next_format); format = next_format; formation_id = initial.id;
@@ -114,16 +118,18 @@ def:pub MatchSetupPage() -> JsxPage {
     }
     def persist {
         result = state["saveMatchSetup"].call(None, id, team_name, opponent, date, kickoff, title, format, formation_id,
-            int(half_length) if half_length else 0, int(halves) if halves else 0, thresholds, goalkeeper_rotation,
+            positive_minutes(half_length), positive_minutes(halves), thresholds, goalkeeper_rotation,
             alert_sound, roster_ids, unavailable_ids, assignments, False);
         notice = result; saved = not bool(result);
     }
 
     def start_match {
-        if validation["errors"] { return; }
-        result = state["saveMatchSetup"].call(None, id, team_name, opponent, date, kickoff, title, format, formation_id,
-            int(half_length) if half_length else 0, int(halves) if halves else 0, thresholds, goalkeeper_rotation,
-            alert_sound, roster_ids, unavailable_ids, assignments, True);
+        if bool(validation["errors"]) { notice = validation["errors"][0]; return; }
+        try {
+            result = state["saveMatchSetup"].call(None, id, team_name, opponent, date, kickoff, title, format, formation_id,
+                positive_minutes(half_length), positive_minutes(halves), thresholds, goalkeeper_rotation,
+                alert_sound, roster_ids, unavailable_ids, assignments, True);
+        } except Exception as error { notice = "Could not start match: " + str(error); return; }
         notice = result;
         if not result { navigate("/match/" + id + "/live"); }
     }
@@ -147,9 +153,9 @@ def:pub MatchSetupPage() -> JsxPage {
             {<label className="check-row unavailable"><input type="checkbox" checked={player.id in unavailable_ids} onChange={lambda (e: ChangeEvent) { toggle_unavailable(player.id, e.target.checked); }} /> Unavailable</label> if player.id in roster_ids else None}</div> for player in team_players]}</div></section>
         <section className="setup-section"><h2>Starting lineup</h2><div className="lineup-actions"><select className="input compact" value="" onChange={lambda (e: ChangeEvent) { apply_lineup(e.target.value); }}><option value="">{"Choose a saved lineup…" if team_lineups else "No saved lineups yet"}</option>{[<option key={lineup.id} value={lineup.id}>{lineup.name}</option> for lineup in team_lineups]}</select>
             <button className="button secondary" type="button" onClick={auto_fill}>Auto-fill by position</button><Link className="button ghost" to="/lineups">Manage lineups</Link></div>
-            {<p className="notice">{notice}</p> if notice else None}
             {<div className="setup-pitch">{[<div className="setup-slot" key={position.id} draggable={position.id in assignments} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", assignments[position.id]); }} onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={lambda (e: any) { drop_on_slot(position.id, e); }} style={{"left": str(position.x) + "%", "top": str(position.y) + "%"}}>{[LineupToken(player) for player in selected_players if position.id in assignments and player.id == assignments[position.id]]}<span>{position.label if position.id not in assignments else ""}</span><select aria-label={position.label} value={assignments[position.id] if position.id in assignments else ""} onChange={lambda (e: ChangeEvent) { assign(position.id, e.target.value); }}><option value="">Open</option>{[<option key={player.id} value={player.id}>{player.name}</option> for player in selected_players]}</select></div> for position in formation.positions]}</div> if formation else None}</section>
         <section className="validation">{[<p className="error" key={idx}>{message}</p> for (idx, message) in enumerate(validation["errors"])]}{[<p className="warning" key={idx}>{message}</p> for (idx, message) in enumerate(validation["warnings"])]}</section>
-        {<p className="success">Match setup saved.</p> if saved else None}<div className="actions"><button className="button secondary" type="button" onClick={persist}>Save draft</button><button className="button primary" type="button" disabled={bool(validation["errors"])} onClick={start_match}>Start match</button></div>
+        {<p className="error" role="alert">{notice}</p> if notice else None}
+        {<p className="success">Match setup saved.</p> if saved else None}<div className="actions"><button className="button secondary" type="button" onClick={persist}>Save draft</button><button className="button primary" type="button" onClick={start_match}>Start match</button></div>
     </section>
 }
