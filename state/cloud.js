@@ -1,4 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
+
+const SignOutContext = React.createContext(null);
+
+export function SignOutButton() {
+  const signOut = useContext(SignOutContext);
+  return React.createElement("button", { type: "button", className: "button ghost small", onClick: signOut }, "Sign out");
+}
 
 // The publishable key is designed for browser use. Database access is limited
 // by the signed-in user's JWT and the RLS policies in the migrations.
@@ -237,7 +244,6 @@ export function AuthGate({ children }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [syncStatus, setSyncStatus] = useState("");
 
   async function finishSignIn(next) {
     keepSession(next);
@@ -252,8 +258,6 @@ export function AuthGate({ children }) {
   }
 
   useEffect(() => {
-    const status = (event) => setSyncStatus(event.detail);
-    window.addEventListener("teamtrack:sync", status);
     (async () => {
       try {
         const confirmed = fromConfirmationLink();
@@ -275,7 +279,6 @@ export function AuthGate({ children }) {
         setPhase("login");
       }
     })();
-    return () => window.removeEventListener("teamtrack:sync", status);
   }, []);
 
   async function signIn(event, createAccount) {
@@ -306,22 +309,18 @@ export function AuthGate({ children }) {
       await syncing;
       await saveSnapshot();
     } catch (problem) {
-      dispatchStatus(`Sync error: ${problem.message}`);
+      window.alert(`Could not sign out because syncing failed: ${problem.message}`);
       return;
     }
     syncEnabled = false;
     try { await request("/auth/v1/logout", { method: "POST" }, session?.access_token); } catch {}
     keepSession(null);
     replaceData({});
-    setPhase("login"); setSyncStatus("");
+    setPhase("login");
   }
 
   const h = React.createElement;
-  if (phase === "ready") return h(React.Fragment, null,
-    h("div", { className: "cloud-bar" },
-      h("span", { role: "status" }, syncStatus || `Signed in as ${session?.user?.email || "team owner"}`),
-      h("button", { type: "button", onClick: () => { syncing = syncing.then(saveSnapshot).catch((problem) => dispatchStatus(`Sync error: ${problem.message}`)); } }, "Sync now"),
-      h("button", { type: "button", onClick: signOut }, "Sign out")), children);
+  if (phase === "ready") return h(SignOutContext.Provider, { value: signOut }, children);
   return h("main", { className: "auth-screen" },
     h("section", { className: "card form-stack" },
       h("h1", null, "TeamTrack"),
