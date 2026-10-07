@@ -9,7 +9,7 @@ import from ....domain.matches { standard_thresholds }
 import from ....domain.roster { clamp_min_girls }
 import from ....state.AppState { use_app_state }
 
-def jersey_label(number: int | None) -> str { return "—" if number is None else "#" + str(number); }
+def jersey_label(number: int | None) -> str { return "" if number is None else "#" + str(number); }
 
 def positive_minutes(value: str) -> int {
     try { return int(value); } except Exception { return 0; }
