@@ -178,13 +178,13 @@ def:pub SettingsPage() -> JsxPage {
     }
 
     <section className="page app-settings-page">
-        <div className="title-row"><div><h1>Settings</h1><p className="muted">Device preferences are saved automatically in this browser.</p></div><button className="button ghost" onClick={lambda { navigate("/"); }}>Back to dashboard</button></div>
+        <div className="title-row"><h1>Settings</h1><button className="button ghost" onClick={lambda { navigate("/"); }}>Back to dashboard</button></div>
         {<p className={"error settings-feedback" if feedback_error else "success settings-feedback"} role={"alert" if feedback_error else "status"}>{feedback}</p> if feedback else (<p className="success settings-saved" role="status">Preferences saved.</p> if saved else None)}
         <section className="card settings-card"><h2>Appearance and match controls</h2>
-            <label className="settings-toggle"><span><strong>Dark theme</strong><small>Use a darker palette throughout TeamTrack.</small></span><input type="checkbox" checked={theme == "dark"} onChange={lambda (e: ChangeEvent) { theme = "dark" if e.target.checked else "light"; }} /></label>
-            <label className="settings-toggle"><span><strong>Reduce motion</strong><small>Minimize interface animations and transitions.</small></span><input type="checkbox" checked={reduced_motion} onChange={lambda (e: ChangeEvent) { reduced_motion = e.target.checked; }} /></label>
-            <label className="settings-toggle"><span><strong>Lock field layout</strong><small>Prevent accidental player movement during matches.</small></span><input type="checkbox" checked={field_locked} onChange={lambda (e: ChangeEvent) { field_locked = e.target.checked; }} /></label>
-            <label className="settings-toggle"><span><strong>Play alert sounds</strong><small>Play a sound when a new substitution alert appears.</small></span><input type="checkbox" checked={alert_sound} onChange={lambda (e: ChangeEvent) { alert_sound = e.target.checked; }} /></label>
+            <label className="settings-toggle"><span><strong>Dark theme</strong></span><input type="checkbox" checked={theme == "dark"} onChange={lambda (e: ChangeEvent) { theme = "dark" if e.target.checked else "light"; }} /></label>
+            <label className="settings-toggle"><span><strong>Reduce motion</strong></span><input type="checkbox" checked={reduced_motion} onChange={lambda (e: ChangeEvent) { reduced_motion = e.target.checked; }} /></label>
+            <label className="settings-toggle"><span><strong>Lock field layout</strong></span><input type="checkbox" checked={field_locked} onChange={lambda (e: ChangeEvent) { field_locked = e.target.checked; }} /></label>
+            <label className="settings-toggle"><span><strong>Play alert sounds</strong></span><input type="checkbox" checked={alert_sound} onChange={lambda (e: ChangeEvent) { alert_sound = e.target.checked; }} /></label>
         </section>
         <section className="card settings-card"><h2>Backup and restore</h2><p className="muted">Jac backups restore all Jac data. TypeScript version 5 backups can restore teams and players; matches, lineups, and photos are skipped.</p>
             <div className="backup-actions"><button className="button secondary" type="button" onClick={export_backup}>Export JSON backup</button><label className="button secondary file-button">Choose backup file<input type="file" accept="application/json,.json" onChange={choose_backup} /></label></div>
