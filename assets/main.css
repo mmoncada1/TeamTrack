@@ -67,3 +67,4 @@ button { cursor: pointer; }
 [data-theme="dark"] .hub-card.accent .hub-detail { color:#d1fae5; }
 [data-theme="dark"] .migration-banner,[data-theme="dark"] .notice { color:#d1fae5; background:#022c22; border-color:#047857; }
 [data-theme="dark"] .notice p { color:#cbd5e1; }
+.cloud-bar{display:flex;align-items:center;justify-content:flex-end;gap:.75rem;padding:.35rem 1rem;background:#e8f2ff;color:#17365d;font-size:.85rem}.cloud-bar button{border:0;background:transparent;color:#17365d;text-decoration:underline;cursor:pointer}.auth-screen{min-height:100vh;display:grid;place-items:center;padding:1rem}.auth-screen .card{width:min(100%,420px)}
