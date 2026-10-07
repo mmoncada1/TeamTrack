@@ -70,6 +70,27 @@ function currentData() {
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const photoCollections = ["teamtrack:jac:teams", "teamtrack:jac:players"];
 
+// PostgREST bulk upserts require the same keys on every row.
+function teamRow(team, userId, includePhotos) {
+  const picture = team.photo_id?.startsWith("storage://") ? team.photo_id.slice("storage://".length) : null;
+  return {
+    id: team.id, owner_user_id: userId, name: team.name,
+    sport: team.sport || "soccer", coed: Boolean(team.coed),
+    min_girls_on_field: team.sport === "football" ? null : (team.min_girls_on_field ?? null),
+    profile_picture: includePhotos ? picture : null,
+  };
+}
+
+function playerRow(player) {
+  const picture = player.photo_id?.startsWith("storage://") ? player.photo_id.slice("storage://".length) : null;
+  return {
+    id: player.id, team_id: player.team_id, name: player.name,
+    jersey_number: player.jersey_number ?? null, gender: player.gender ?? null,
+    position: player.preferred_group || "MID", availability: player.availability || "active",
+    profile_picture: picture,
+  };
+}
+
 async function uploadPhoto(dataUrl, teamId, kind, id) {
   if (!uuidPattern.test(teamId) || !uuidPattern.test(id)) throw new Error("Photo owner needs a UUID.");
   const blob = await fetch(dataUrl).then((response) => response.blob());
@@ -86,20 +107,18 @@ async function uploadPhoto(dataUrl, teamId, kind, id) {
   return `storage://${path}`;
 }
 
-async function storedPayload() {
-  const payload = currentData();
+async function storedPayload(source = currentData()) {
+  const payload = { ...source };
   for (const key of photoCollections) {
     if (!payload[key]) continue;
     const records = JSON.parse(payload[key]);
     for (const record of records) {
       if (!record.photo_id) continue;
-      if (photoPaths.has(record.photo_id)) {
-        record.photo_id = `storage://${photoPaths.get(record.photo_id)}`;
-      } else if (record.photo_id.startsWith("data:image/")) {
+      if (record.photo_id.startsWith("data:image/")) {
         const teamId = key.endsWith(":teams") ? record.id : record.team_id;
-        const original = record.photo_id;
-        record.photo_id = await uploadPhoto(original, teamId, key.endsWith(":teams") ? "teams" : "players", record.id);
-        photoPaths.set(original, record.photo_id.slice("storage://".length));
+        record.photo_id = await uploadPhoto(record.photo_id, teamId, key.endsWith(":teams") ? "teams" : "players", record.id);
+      } else if (photoPaths.has(record.photo_id)) {
+        record.photo_id = `storage://${photoPaths.get(record.photo_id)}`;
       }
     }
     payload[key] = JSON.stringify(records);
@@ -132,28 +151,17 @@ async function hydratePhotos(payload) {
 async function syncTeamsAndPlayers(payload, userId, includePhotos) {
   const teams = JSON.parse(payload["teamtrack:jac:teams"] || "[]");
   const players = JSON.parse(payload["teamtrack:jac:players"] || "[]");
-  const picture = (value) => value?.startsWith("storage://") ? value.slice("storage://".length) : null;
   if (teams.length) {
     await authorizedRequest("/rest/v1/teams?on_conflict=id", {
       method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify(teams.map((team) => ({
-        id: team.id, owner_user_id: userId, name: team.name,
-        sport: team.sport || "soccer", coed: Boolean(team.coed),
-        min_girls_on_field: team.sport === "football" ? null : team.min_girls_on_field,
-        profile_picture: includePhotos ? picture(team.photo_id) : null,
-      }))),
+      body: JSON.stringify(teams.map((team) => teamRow(team, userId, includePhotos))),
     });
   }
   if (!includePhotos) return;
   if (players.length) {
     await authorizedRequest("/rest/v1/roster_players?on_conflict=id", {
       method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify(players.map((player) => ({
-        id: player.id, team_id: player.team_id, name: player.name,
-        jersey_number: player.jersey_number, gender: player.gender,
-        position: player.preferred_group || "MID", availability: player.availability || "active",
-        profile_picture: picture(player.photo_id),
-      }))),
+      body: JSON.stringify(players.map(playerRow)),
     });
   }
   const existingPlayers = await authorizedRequest("/rest/v1/roster_players?select=id");
@@ -176,11 +184,11 @@ function replaceData(payload) {
   }
 }
 
-async function saveSnapshot() {
+async function saveSnapshot(source = currentData()) {
   const current = await validSession();
   dispatchStatus("Saving…");
-  await syncTeamsAndPlayers(currentData(), current.user.id, false);
-  const payload = await storedPayload();
+  await syncTeamsAndPlayers(source, current.user.id, false);
+  const payload = await storedPayload(source);
   await syncTeamsAndPlayers(payload, current.user.id, true);
   await authorizedRequest("/rest/v1/app_snapshots?on_conflict=user_id", {
     method: "POST",
@@ -188,6 +196,49 @@ async function saveSnapshot() {
     body: JSON.stringify({ user_id: current.user.id, payload, updated_at: new Date().toISOString() }),
   });
   dispatchStatus("Saved");
+  return payload;
+}
+
+// Import must finish before the page reloads, or the old cloud snapshot wins.
+export async function importBackupToCloud(data) {
+  data = structuredClone(data);
+  const ids = new Map();
+  const collectIds = (value) => {
+    if (!value || typeof value !== "object") return;
+    if (typeof value.id === "string" && !uuidPattern.test(value.id) && !ids.has(value.id)) {
+      ids.set(value.id, crypto.randomUUID());
+    }
+    for (const child of Object.values(value)) collectIds(child);
+  };
+  collectIds(data);
+  const rewriteIds = (value) => {
+    if (typeof value === "string") return ids.get(value) || value;
+    if (Array.isArray(value)) return value.map(rewriteIds);
+    if (value && typeof value === "object") {
+      return Object.fromEntries(Object.entries(value).map(([key, child]) => [ids.get(key) || key, rewriteIds(child)]));
+    }
+    return value;
+  };
+  data = rewriteIds(data);
+  const payload = {};
+  const collections = {
+    teams: "teams", players: "players", lineups: "lineups", matches: "matches",
+    footballFormations: "football-formations", footballPlays: "football-plays",
+    drivePlans: "drive-plans", footballWhiteboards: "football-whiteboards",
+  };
+  for (const [field, key] of Object.entries(collections)) {
+    payload[`teamtrack:jac:${key}`] = JSON.stringify(data[field] || []);
+  }
+  payload["teamtrack:jac:active-team-id"] = data.activeTeamId;
+  for (const [key, value] of Object.entries(data.whiteboards || {})) payload[key] = JSON.stringify(value);
+  clearTimeout(syncTimer);
+  syncEnabled = false;
+  try {
+    const saved = await (syncing = syncing.catch(() => {}).then(() => saveSnapshot(payload)));
+    replaceData(await hydratePhotos(saved));
+  } finally {
+    syncEnabled = true;
+  }
 }
 
 function queueSave() {
