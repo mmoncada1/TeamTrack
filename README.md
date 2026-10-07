@@ -42,4 +42,4 @@ jac build
 
 The build writes `dist/teamtrack.jab`. Run it with `jac run dist/teamtrack.jab`.
 
-Deployment requires a host that runs the Jac web server; a static site host cannot serve this application by itself.
+Vercel serves the browser client, not the Jac server. `scripts/vercel-build.sh` installs Jac 0.37.23 and runs `jac build --as client`. The static files land in `dist/`, and `vercel.json` sends unknown paths back to `index.html` so client routes keep working on refresh.

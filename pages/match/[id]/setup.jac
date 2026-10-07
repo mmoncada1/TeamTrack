@@ -5,9 +5,37 @@ import from "@jac/runtime" { Link, useNavigate, useParams }
 import from ....domain.models { ThresholdSetting }
 import from ....domain.formations { default_formation_for_format, formation_by_id, formations_for_format }
 import from ....domain.lineups { clear_slot, fill_formation, move_assignment, move_breaks_coed_rule }
-import from ....domain.matches { standard_thresholds, validate_match_setup }
-import from ....domain.roster { clamp_min_girls, jersey_label }
+import from ....domain.matches { standard_thresholds }
+import from ....domain.roster { clamp_min_girls }
 import from ....state.AppState { use_app_state }
+
+def jersey_label(number: int | None) -> str { return "—" if number is None else "#" + str(number); }
+
+def validate_match_setup(team_name: str, opponent_name: str, date: str, format: str,
+    half_length_minutes: int, number_of_halves: int, roster_player_ids: list[str],
+    assignments: dict[str, str], formation: any) -> dict[str, any] {
+    errors: list[str] = []; warnings: list[str] = [];
+    if not team_name.strip() { errors.append("Team name is required."); }
+    if not opponent_name.strip() { errors.append("Opponent name is required."); }
+    if not date { errors.append("Match date is required."); }
+    if format not in ["7v7", "9v9", "11v11"] { errors.append("Select a valid match format."); }
+    if formation is None { errors.append("Select a valid formation."); }
+    elif formation.format != format { errors.append("Formation does not match the selected format."); }
+    if half_length_minutes <= 0 { errors.append("Half length must be a positive number of minutes."); }
+    if number_of_halves not in [1, 2] { errors.append("Number of halves must be 1 or 2."); }
+    max_players = 7 if format == "7v7" else 9 if format == "9v9" else 11;
+    if len(assignments) > max_players { errors.append("Too many players assigned to the field: " + str(len(assignments)) + " assigned, but " + format + " allows " + str(max_players) + "."); }
+    assigned_ids: list[str] = [];
+    for assigned_id in assignments.values() { assigned_ids.append(assigned_id); }
+    seen: list[str] = [];
+    for assigned_id in assigned_ids { if assigned_id in seen { errors.append("A player is assigned to multiple positions."); break; } seen.append(assigned_id); }
+    for player_id in assigned_ids {
+        if player_id not in roster_player_ids { errors.append("A field assignment includes a player who is not selected for this match."); break; }
+    }
+    if len(assignments) == 0 { warnings.append("No players are assigned to the field yet."); }
+    elif len(assignments) < max_players { warnings.append("Only " + str(len(assignments)) + " of " + str(max_players) + " field positions are filled. The team will be short-handed."); }
+    return {"errors": errors, "warnings": warnings};
+}
 
 def:pub MatchSetupPage() -> JsxPage {
     state = use_app_state(); params = useParams(); navigate = useNavigate(); id = str(params["id"]); game = None;
@@ -34,8 +62,8 @@ def:pub MatchSetupPage() -> JsxPage {
     formation = formation_by_id(formation_id);
     team_lineups = [lineup for lineup in state["lineups"] if game and lineup.team_id == game.team_id and lineup.format == format];
     selected_players = [player for player in team_players if player.id in roster_ids and player.id not in unavailable_ids];
-    validation = validate_match_setup(team_name, opponent, date, format, formation_id,
-        int(half_length) if half_length else 0, int(halves) if halves else 0, roster_ids, assignments);
+    validation = validate_match_setup(team_name, opponent, date, format,
+        int(half_length) if half_length else 0, int(halves) if halves else 0, roster_ids, assignments, formation);
 
     def change_format(next_format: str) {
         initial = default_formation_for_format(next_format); format = next_format; formation_id = initial.id;
@@ -92,7 +120,7 @@ def:pub MatchSetupPage() -> JsxPage {
     }
 
     def start_match {
-        if validation.errors { return; }
+        if validation["errors"] { return; }
         result = state["saveMatchSetup"].call(None, id, team_name, opponent, date, kickoff, title, format, formation_id,
             int(half_length) if half_length else 0, int(halves) if halves else 0, thresholds, goalkeeper_rotation,
             alert_sound, roster_ids, unavailable_ids, assignments, True);
@@ -121,7 +149,7 @@ def:pub MatchSetupPage() -> JsxPage {
             <button className="button secondary" type="button" onClick={auto_fill}>Auto-fill by position</button><Link className="button ghost" to="/lineups">Manage lineups</Link></div>
             {<p className="notice">{notice}</p> if notice else None}
             {<div className="setup-pitch">{[<div className="setup-slot" key={position.id} draggable={position.id in assignments} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", assignments[position.id]); }} onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={lambda (e: any) { drop_on_slot(position.id, e); }} style={{"left": str(position.x) + "%", "top": str(position.y) + "%"}}>{[LineupToken(player) for player in selected_players if position.id in assignments and player.id == assignments[position.id]]}<span>{position.label if position.id not in assignments else ""}</span><select aria-label={position.label} value={assignments[position.id] if position.id in assignments else ""} onChange={lambda (e: ChangeEvent) { assign(position.id, e.target.value); }}><option value="">Open</option>{[<option key={player.id} value={player.id}>{player.name}</option> for player in selected_players]}</select></div> for position in formation.positions]}</div> if formation else None}</section>
-        <section className="validation">{[<p className="error" key={idx}>{message}</p> for (idx, message) in enumerate(validation.errors)]}{[<p className="warning" key={idx}>{message}</p> for (idx, message) in enumerate(validation.warnings)]}</section>
-        {<p className="success">Match setup saved.</p> if saved else None}<div className="actions"><button className="button secondary" type="button" onClick={persist}>Save draft</button><button className="button primary" type="button" disabled={bool(validation.errors)} onClick={start_match}>Start match</button></div>
+        <section className="validation">{[<p className="error" key={idx}>{message}</p> for (idx, message) in enumerate(validation["errors"])]}{[<p className="warning" key={idx}>{message}</p> for (idx, message) in enumerate(validation["warnings"])]}</section>
+        {<p className="success">Match setup saved.</p> if saved else None}<div className="actions"><button className="button secondary" type="button" onClick={persist}>Save draft</button><button className="button primary" type="button" disabled={bool(validation["errors"])} onClick={start_match}>Start match</button></div>
     </section>
 }

@@ -1,6 +1,7 @@
 import from "@jac/runtime" { Link }
-import from ..domain.roster { clamp_min_girls, jersey_label, position_names }
+import from ..domain.roster { clamp_min_girls, position_names }
 import from ..state.AppState { use_app_state }
+def jersey_label(number: int | None) -> str { return "—" if number is None else "#" + str(number); }
 def:pub RosterPage() -> JsxPage {
     state = use_app_state(); active = None; for item in state["teams"] { if item.id == state["activeTeamId"] { active = item; break; } }
     has editing_id: str = ""; has form_open: bool = False; has name: str = ""; has jersey: str = ""; has groups: list[str] = ["MID"];

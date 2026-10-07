@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "build": "bash scripts/vercel-build.sh"
+  },
   "devDependencies": {
     "supabase": "^2.120.0"
   }
