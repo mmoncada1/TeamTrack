@@ -104,7 +104,7 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
         for (name, group) in samples {
             if name.lower() in existing_names { continue; }
             while next_number in used_numbers { next_number += 1; }
-            new_players.append(Player(id=create_id("player") + "-" + str(next_number), team_id=team.id,
+            new_players.append(Player(id=create_id("player"), team_id=team.id,
                 name=name, jersey_number=next_number, preferred_group=group, preferred_groups=[group],
                 availability="active", created_at=now, updated_at=now));
             used_numbers.append(next_number); next_number += 1;
