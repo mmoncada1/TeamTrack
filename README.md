@@ -1,50 +1,26 @@
-# React + TypeScript + Vite
+# TeamTrack
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+TeamTrack is a local-first team management app built with Jac.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Install Jac 0.37.23, then run these commands from the TeamTrack folder:
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
-
-- Configure the top-level `parserOptions` property like this:
-
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+```bash
+jac install
+jac run --dev
 ```
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
+Open http://localhost:8000. App data is stored in the browser's local storage.
 
-```js
-// eslint.config.js
-import react from 'eslint-plugin-react'
+## Verify
 
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: '18.3' } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
-  },
-})
+```bash
+jac check
+jac test -v
+jac build
 ```
+
+The build writes `dist/teamtrack.jab`. Run it with `jac run dist/teamtrack.jab`.
+
+See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the migration record. Deployment requires a host that runs the Jac web server; a static site host cannot serve this application by itself.
