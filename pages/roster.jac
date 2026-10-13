@@ -20,7 +20,7 @@ def:pub RosterPage() -> JsxPage {
         e.preventDefault(); number: int | None = None;
         if jersey.strip() { try { number = int(jersey); } except Exception { errors = ["Jersey number must be a non-negative whole number, or left blank."]; return; } }
         selected_groups = ["MID"] if active and active.sport == "football" else groups;
-        result = state["savePlayer"].call(None, editing_id, name, number, selected_groups, gender if gender else None, notes, availability, photo_data); errors = result; if not result { form_open = False; }
+        result = state["savePlayer"].call(None, editing_id, name, number, selected_groups, gender if gender else None, notes, availability, photo_data); errors = result; if len(result) == 0 { form_open = False; }
     }
     def remove(player: any) { if window.confirm("Delete " + player.name + "? Past match history will be kept.") { state["deletePlayer"].call(None, player.id); } }
     if not active { return <section className="page narrow-page"><p>Loading team…</p></section>; }
