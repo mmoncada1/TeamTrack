@@ -317,12 +317,21 @@ export function AuthGate({ children }) {
     try {
       const path = createAccount ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
       const response = await request(path, { method: "POST", body: JSON.stringify({ email, password }) });
+      if (createAccount && response.identities?.length === 0) {
+        setError("An account already exists with this email address.");
+        setPhase("signup"); return;
+      }
       if (!response.access_token) {
         setMessage("Check your email to confirm your account, then return and sign in.");
         setPhase("login"); return;
       }
       await finishSignIn(response);
-    } catch (problem) { setError(problem.message); setPhase(createAccount ? "signup" : "login"); }
+    } catch (problem) {
+      setError(createAccount && /user already registered/i.test(problem.message)
+        ? "An account already exists with this email address."
+        : problem.message);
+      setPhase(createAccount ? "signup" : "login");
+    }
   }
 
   async function chooseData(importBrowserData) {
