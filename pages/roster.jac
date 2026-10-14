@@ -22,7 +22,7 @@ def:pub RosterPage() -> JsxPage {
         selected_groups = ["MID"] if active and active.sport == "football" else groups;
         result = state["savePlayer"].call(None, editing_id, name, number, selected_groups, gender if gender else None, notes, availability, photo_data); errors = result; if len(result) == 0 { form_open = False; }
     }
-    def remove(player: any) { if window.confirm("Delete " + player.name + "? Past match history will be kept.") { state["deletePlayer"].call(None, player.id); } }
+    def remove(player: any) { state["deletePlayer"].call(None, player.id); }
     if not active { return <section className="page narrow-page"><p>Loading team…</p></section>; }
     <section className="page roster-page"><div className="title-row"><div><h1>{active.name} roster</h1><p className="muted">{"Football team" if active.sport == "football" else ("Co-ed · at least " + str(clamp_min_girls(active.min_girls_on_field)) + " girls on the field" if active.coed else "Not a co-ed team")} {" "}<Link to="/team/settings">Team settings</Link></p></div><button className="button primary" type="button" onClick={open_new}>+ Add player</button></div>
         <div className="filters"><input className="input" type="search" placeholder="Search by name…" value={search} onChange={lambda (e: ChangeEvent) { search = e.target.value; }} />{<select value={group_filter} onChange={lambda (e: ChangeEvent) { group_filter = e.target.value; }}><option value="ALL">All positions</option><option value="GK">Goalkeeper</option><option value="DEF">Defender</option><option value="MID">Midfielder</option><option value="FWD">Forward</option></select> if active.sport != "football" else None}</div>
