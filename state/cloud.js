@@ -300,14 +300,14 @@ export function AuthGate({ children }) {
           return;
         }
         const saved = localStorage.getItem(SESSION_KEY);
-        if (!saved) { setPhase("login"); return; }
+        if (!saved) { setPhase("home"); return; }
         keepSession(JSON.parse(saved));
         await validSession();
         await finishSignIn(session);
       } catch (problem) {
         keepSession(null);
         setError(problem.message);
-        setPhase("login");
+        setPhase("home");
       }
     })();
   }, []);
@@ -322,7 +322,7 @@ export function AuthGate({ children }) {
         setPhase("login"); return;
       }
       await finishSignIn(response);
-    } catch (problem) { setError(problem.message); setPhase("login"); }
+    } catch (problem) { setError(problem.message); setPhase(createAccount ? "signup" : "login"); }
   }
 
   async function chooseData(importBrowserData) {
@@ -347,11 +347,28 @@ export function AuthGate({ children }) {
     try { await request("/auth/v1/logout", { method: "POST" }, session?.access_token); } catch {}
     keepSession(null);
     replaceData({});
-    setPhase("login");
+    setPhase("home");
   }
 
   const h = React.createElement;
   if (phase === "ready") return h(SignOutContext.Provider, { value: signOut }, children);
+  if (phase === "home") return h("main", { className: "welcome-page" },
+    h("header", { className: "welcome-header" },
+      h("div", { className: "welcome-brand" }, h("span", { className: "brand-mark", "aria-hidden": true }), "TeamTrack"),
+      h("button", { className: "welcome-login", type: "button", onClick: () => setPhase("login") }, "Sign in")),
+    h("section", { className: "welcome-hero" },
+      h("div", { className: "welcome-copy" },
+        h("p", { className: "welcome-eyebrow" }, "One place for your team"),
+        h("h1", null, "Plan the game. Keep everyone in the loop."),
+        h("p", { className: "welcome-intro" }, "TeamTrack helps coaches and team managers organize players, prepare lineups and plays, and follow match day from kickoff to recap."),
+        h("div", { className: "welcome-actions" },
+          h("button", { className: "welcome-primary", type: "button", onClick: () => setPhase("signup") }, "Create an account", h("span", { "aria-hidden": true }, " →")),
+          h("button", { className: "welcome-secondary", type: "button", onClick: () => setPhase("login") }, "I already have an account")))),
+    h("section", { className: "welcome-features", "aria-label": "What you can do with TeamTrack" },
+      h("article", null, h("span", { className: "welcome-feature-number" }, "01"), h("h2", null, "Build your roster"), h("p", null, "Keep player details and availability together, so planning starts with the right people.")),
+      h("article", null, h("span", { className: "welcome-feature-number" }, "02"), h("h2", null, "Prepare your game"), h("p", null, "Set soccer lineups or map out flag football formations, plays, and drive plans.")),
+      h("article", null, h("span", { className: "welcome-feature-number" }, "03"), h("h2", null, "Follow match day"), h("p", null, "Track live soccer matches and return to results, events, and recaps afterward."))),
+    h("footer", { className: "welcome-footer" }, h("span", null, "TeamTrack"), h("button", { type: "button", onClick: () => setPhase("signup") }, "Get started →")));
   return h("main", { className: "auth-screen" },
     h("section", { className: "card form-stack" },
       h("h1", null, "TeamTrack"),
@@ -360,11 +377,13 @@ export function AuthGate({ children }) {
         h("p", null, "No cloud data exists for this account. Choose how to begin."),
         h("button", { className: "button primary", onClick: () => chooseData(true) }, "Import this browser's teams"),
         h("button", { className: "button secondary", onClick: () => chooseData(false) }, "Start with a new team")) : null,
-      phase === "login" ? h("form", { className: "form-stack", onSubmit: (event) => signIn(event, false) },
+      phase === "login" || phase === "signup" ? h("form", { className: "form-stack", onSubmit: (event) => signIn(event, phase === "signup") },
+        h("h2", null, phase === "signup" ? "Create an account" : "Sign in"),
         h("label", null, "Email", h("input", { className: "input", type: "email", required: true, value: email, onChange: (event) => setEmail(event.target.value) })),
         h("label", null, "Password", h("input", { className: "input", type: "password", required: true, minLength: 6, value: password, onChange: (event) => setPassword(event.target.value) })),
-        h("button", { className: "button primary", type: "submit" }, "Sign in"),
-        h("button", { className: "button secondary", type: "button", onClick: (event) => signIn(event, true) }, "Create account")) : null,
+        h("button", { className: "button primary", type: "submit" }, phase === "signup" ? "Create account" : "Sign in"),
+        h("button", { className: "button secondary", type: "button", onClick: () => { setError(""); setPhase(phase === "signup" ? "login" : "signup"); } }, phase === "signup" ? "Already have an account? Sign in" : "New here? Create an account"),
+        h("button", { className: "welcome-back", type: "button", onClick: () => { setError(""); setMessage(""); setPhase("home"); } }, "← Back to home")) : null,
       error ? h("p", { className: "error", role: "alert" }, error) : null,
       message ? h("p", { role: "status" }, message) : null));
 }

@@ -2,6 +2,7 @@
 import "./assets/main.css";
 import "./assets/crud.css";
 import "./assets/parity.css";
+import "./assets/welcome.css";
 import "./state/migrate-local-ids.js";
 import from "./state/cloud.js" { AuthGate }
 import from .state.AppState { AppStateProvider }
