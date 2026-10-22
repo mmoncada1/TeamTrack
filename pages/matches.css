@@ -1,2 +1,9 @@
 .match-open{flex:1;border:0;background:transparent;text-align:left}.match-open p{margin:.2rem 0 0;color:#64748b}
+.match-results .match-result{border-left:5px solid var(--result-accent);background:var(--result-bg)}
+.match-result-win{--result-accent:#15803d;--result-bg:#f0fdf4;--result-ink:#166534}
+.match-result-loss{--result-accent:#dc2626;--result-bg:#fef2f2;--result-ink:#991b1b}
+.match-result-draw{--result-accent:#64748b;--result-bg:#f8fafc;--result-ink:#475569}
+.match-result-open{min-width:0;cursor:pointer}.match-result-main{display:flex;align-items:center;gap:1rem}.match-result-teams{display:grid;gap:.15rem;flex:1;min-width:0}.match-result-teams strong,.match-result-teams span{overflow-wrap:anywhere}.match-result-teams span,.match-result-meta{color:#64748b}.match-result-score{font-size:1.9rem;line-height:1;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--result-ink)}.match-result-score span{padding:0 .2rem;color:#94a3b8;font-weight:500}.match-result-outcome{min-width:3.5rem;padding:.3rem .5rem;border-radius:999px;background:var(--result-accent);color:#fff;font-size:.75rem;font-weight:700;text-align:center;text-transform:uppercase}.match-result-meta{display:block;margin-top:.45rem;font-size:.85rem}
+[data-theme="dark"] .match-result-win{--result-bg:#102b22;--result-ink:#86efac}[data-theme="dark"] .match-result-loss{--result-bg:#351c22;--result-ink:#fca5a5}[data-theme="dark"] .match-result-draw{--result-bg:#273449;--result-ink:#cbd5e1}[data-theme="dark"] .match-results .match-result{background:var(--result-bg)}[data-theme="dark"] .match-result-teams span,[data-theme="dark"] .match-result-meta{color:#cbd5e1}
+@media(max-width:540px){.match-result-main{flex-wrap:wrap;gap:.5rem}.match-result-teams{flex-basis:100%}.match-result-score{font-size:1.7rem}}
 
