@@ -28,7 +28,7 @@ npx supabase db push --dry-run
 npx supabase db push
 ```
 
-The link command asks for the project's database password. In the Supabase Dashboard, set **Authentication → URL Configuration → Site URL** to `http://localhost:8000` for local testing, and enable the email provider. Hosted projects normally require email confirmation for new accounts. Add your deployed URL there when deploying.
+The link command asks for the project's database password. In the Supabase Dashboard, set **Authentication → URL Configuration → Site URL** to `http://localhost:8000` for local testing, enable the email provider, and disable email confirmation so new accounts can sign in immediately. Add your deployed URL there when deploying.
 
 New records use UUIDs, and the app rewrites older browser-generated IDs and references on startup. The cloud snapshot makes existing Jac state available across sessions after the user chooses to import it. Teams and roster players also sync into their normalized tables. Team and player photos upload to the private bucket; the cloud snapshot stores their Storage paths, and the app creates signed URLs when loading them. Lineups, matches, events, and statistics still persist through the snapshot rather than their individual tables. Team membership and event/statistics synchronization are pending.
 
