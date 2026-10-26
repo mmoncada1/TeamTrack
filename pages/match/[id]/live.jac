@@ -7,6 +7,7 @@ import from ....domain.formations { formation_by_id, formations_for_format }
 import from ....domain.lineups { clear_slot, move_assignment, move_breaks_coed_rule }
 import from ....domain.roster { clamp_min_girls }
 import from ....domain.voice_substitutions { resolve_voice_substitution }
+import from ....domain.recommendations { RecommendationContext, ranked_incoming_player_ids }
 import from ....domain.live_match { derive_match_state, pause_match, resume_match, go_to_half_time, end_match as end_match_action, move_player, swap_players, substitute_player, add_player_to_match, mark_player_injured, return_player_to_bench, remove_player_from_match, record_goal as record_goal_action, update_goal, record_card as record_card_action, record_note, update_note, delete_event, can_undo, undo_last_action, change_formation, reset_match as reset_match_action, with_alerts, with_settings }
 import from ....domain.models { MatchSettings, ThresholdSetting }
 import from ....domain.alerts { update_alerts, dismiss_alert }
@@ -54,6 +55,11 @@ def player_group(players: list[any], id: str) -> str {
     return "";
 }
 
+def player_matches_group(player: any, group: str) -> bool {
+    groups = player.preferred_groups if player.preferred_groups else [player.preferred_group];
+    return group in groups;
+}
+
 def event_label(event: any, players: list[any]) -> str {
     if event.type == "MATCH_STARTED" { return "Match started"; }
     if event.type == "MATCH_PAUSED" { return "Clock paused"; }
@@ -84,8 +90,9 @@ def:pub LiveMatchPage() -> JsxPage {
     has active_token_id: str = ""; has dialog_player_id: str = ""; has dialog_kind: str = "";
     has move_destination: str = ""; has detail_name: str = ""; has detail_group: str = ""; has dialog_error: str = "";
     has field_locked: bool = False;
-    has voice_recognition: Ref[any] = Ref(None); has voice_listening: bool = False;
+    has voice_recognition: Ref[any] = Ref(None); has voice_listening: bool = False; has voice_open: bool = False;
     has voice_transcript: str = ""; has voice_error: str = ""; has voice_plan: dict[str, str] | None = None;
+    has voice_selected_in_id: str = "";
     can with entry {
         raw = localStorage.getItem("teamtrack:app-settings");
         if raw { try { field_locked = bool(JSON.parse(raw)["fieldLocked"]); } except Exception { field_locked = False; } }
@@ -111,6 +118,29 @@ def:pub LiveMatchPage() -> JsxPage {
     for item in state["teams"] { if item.id == game.team_id { active_team = item; break; } }
     min_girls = clamp_min_girls(active_team.min_girls_on_field) if active_team is not None and active_team.coed else None;
     girls_on_field = len([player for player in available_players if player.id in assigned_ids and player.gender == "girl"]);
+    voice_position = None; voice_candidates: list[any] = [];
+    if voice_plan is not None and formation is not None {
+        for position in formation.positions { if position.id == voice_plan["slot_id"] { voice_position = position; break; } }
+        outgoing_gender = None;
+        for player in available_players { if player.id == voice_plan["out_id"] { outgoing_gender = player.gender; break; } }
+        prefer_gender = "girl" if min_girls is not None and (girls_on_field < min_girls or (girls_on_field == min_girls and outgoing_gender == "girl")) else None;
+        ranked_ids = ranked_incoming_player_ids(voice_plan["slot_id"], RecommendationContext(
+            players=available_players, player_states=derived.player_states, thresholds=game.settings.thresholds,
+            goalkeeper_rotation_enabled=game.settings.goalkeeper_rotation_enabled, roster_order=game.roster_player_ids,
+            positions=formation.positions, prefer_gender=prefer_gender));
+        for player_id in ranked_ids {
+            for candidate in bench_players {
+                if candidate.id == player_id {
+                    next_assignments = move_assignment(assignments, candidate.id, voice_plan["slot_id"]);
+                    if min_girls is None or not move_breaks_coed_rule(available_players, assignments, next_assignments, min_girls) {
+                        voice_candidates.append(candidate);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    voice_best_id = voice_candidates[0].id if voice_candidates else "";
     can with [now, game] entry {
         if status == "in_progress" and formation is not None {
             team = None;
@@ -155,20 +185,37 @@ def:pub LiveMatchPage() -> JsxPage {
         return False;
     }
     def handle_voice_transcript(transcript: str) {
-        voice_transcript = transcript; voice_plan = None; voice_error = "";
+        voice_transcript = transcript; voice_plan = None; voice_selected_in_id = ""; voice_error = "";
         if status in ["setup", "ended"] or field_locked {
             voice_error = "Unlock the field in an active match before making a substitution."; return;
         }
         result = resolve_voice_substitution(transcript, available_players, assignments, [player.id for player in bench_players]);
         if "error" in result { voice_error = result["error"]; }
-        else { voice_plan = result; }
+        else {
+            voice_plan = result; voice_selected_in_id = result["in_id"];
+            if voice_selected_in_id and min_girls is not None {
+                proposed = move_assignment(assignments, voice_selected_in_id, result["slot_id"]);
+                if move_breaks_coed_rule(available_players, assignments, proposed, min_girls) {
+                    voice_selected_in_id = "";
+                    voice_error = "That player would break the coed lineup rule. Choose an eligible replacement below.";
+                }
+            }
+        }
+    }
+    def open_voice_dialog {
+        voice_open = True; toggle_voice();
+    }
+    def close_voice_dialog {
+        stopVoiceRecognition(voice_recognition.current); voice_recognition.current = None;
+        voice_listening = False; voice_open = False; voice_plan = None;
+        voice_selected_in_id = ""; voice_transcript = ""; voice_error = "";
     }
     def toggle_voice {
         if voice_listening {
             stopVoiceRecognition(voice_recognition.current); voice_recognition.current = None;
             voice_listening = False; return;
         }
-        voice_error = ""; voice_transcript = ""; voice_plan = None;
+        voice_error = ""; voice_transcript = ""; voice_plan = None; voice_selected_in_id = "";
         browser: any = window;
         recognition_class: any = browser.SpeechRecognition or browser.webkitSpeechRecognition;
         if not recognition_class { voice_error = "Voice recognition is unavailable in this browser."; return; }
@@ -193,11 +240,11 @@ def:pub LiveMatchPage() -> JsxPage {
     }
     def confirm_voice_substitution {
         if voice_plan is None { return; }
-        slot = voice_plan["slot_id"]; incoming_id = voice_plan["in_id"];
-        if slot not in assignments or assignments[slot] != voice_plan["out_id"] or incoming_id not in [player.id for player in bench_players] {
+        slot = voice_plan["slot_id"]; incoming_id = voice_selected_in_id;
+        if slot not in assignments or assignments[slot] != voice_plan["out_id"] or incoming_id not in [player.id for player in voice_candidates] {
             voice_error = "The lineup changed. Tap the mic and say the substitution again."; voice_plan = None; return;
         }
-        if set_slot(slot, incoming_id) { voice_plan = None; voice_transcript = ""; voice_error = ""; }
+        if set_slot(slot, incoming_id) { close_voice_dialog(); }
         else { voice_error = action_error; }
     }
     def drop_on_slot(slot_id: str, event: any) {
@@ -348,14 +395,10 @@ def:pub LiveMatchPage() -> JsxPage {
                 <div className="live-save">Saved</div>
                 <section className="live-card live-voice" aria-label="Voice substitution">
                     <h2>Voice substitution</h2>
-                    <button className={"button " + ("danger" if voice_listening else "secondary")} type="button"
-                        disabled={status in ["setup", "ended"] or field_locked or (not voice_listening and not speechRecognitionAvailable())}
-                        onClick={toggle_voice}>{"Stop listening" if voice_listening else "🎙 Speak substitution"}</button>
-                    {<p className="muted" role="status">Listening… Say “Matteo in for Katie.”</p> if voice_listening else None}
+                    <button className="button secondary" type="button"
+                        disabled={status in ["setup", "ended"] or field_locked or not speechRecognitionAvailable()}
+                        onClick={open_voice_dialog}>🎙 Speak substitution</button>
                     {<p className="muted">Voice recognition is unavailable in this browser. Use the touch controls.</p> if not speechRecognitionAvailable() else None}
-                    {<p className="voice-transcript">Heard: “{voice_transcript}”</p> if voice_transcript else None}
-                    {<p className="error" role="alert">{voice_error}</p> if voice_error else None}
-                    {<div className="voice-confirm"><p>Sub <strong>{player_name(available_players, voice_plan["in_id"])}</strong> in for <strong>{player_name(available_players, voice_plan["out_id"])}</strong>?</p><div className="voice-confirm-actions"><button className="button primary" type="button" onClick={confirm_voice_substitution}>Confirm sub</button><button className="button ghost" type="button" onClick={lambda { voice_plan = None; voice_transcript = ""; }}>Cancel</button></div></div> if voice_plan is not None else None}
                 </section>
                 <section className="live-card live-clock"><div className="clock"><strong>{clock_label(clock_ms)}</strong><span>🟢 {"Live" if status == "in_progress" else status.replace("_", " ").capitalize()} · Half {current_half}</span></div><div className="clock-actions">{<button className="button secondary" type="button" onClick={pause_or_resume}>{"Pause" if status == "in_progress" else ("Start second half" if status == "half_time" else "Resume")}</button> if status != "ended" else None}{<button className="button secondary" type="button" onClick={half_time}>Half-time</button> if status == "in_progress" and game.settings.number_of_halves > 1 and current_half == 1 else None}<button className="button danger" type="button" disabled={status == "ended"} onClick={end_match}>End match</button></div></section>
                 <section className="live-card live-score"><div className="score"><div><span>{game.team_name}</span><strong>{team_score}</strong></div><span>–</span><div><span>{game.opponent_name}</span><strong>{opponent_score}</strong></div></div><button className="button primary" type="button" disabled={status == "ended"} onClick={open_goal_dialog}>+ Goal</button></section>
@@ -365,6 +408,19 @@ def:pub LiveMatchPage() -> JsxPage {
             </aside>
         </div>
         <div className="live-footer"><button className="button ghost" type="button" onClick={reset_live}>Reset match…</button></div>
+        {<div className="live-dialog-backdrop" onClick={close_voice_dialog}><section className="live-player-dialog live-voice-dialog" role="dialog" aria-modal={True} aria-label="Voice substitution" onClick={lambda (e: MouseEvent) { e.stopPropagation(); }}>
+            <div className="voice-dialog-heading"><h2>Voice substitution</h2><button className="button ghost" type="button" onClick={close_voice_dialog} aria-label="Close voice substitution">✕</button></div>
+            <p>Say “Sub out Matteo” to see replacements, or “Katie in for Matteo” to pick one.</p>
+            <button className={"button " + ("danger" if voice_listening else "secondary")} type="button" onClick={toggle_voice}>{"Stop listening" if voice_listening else "🎙 Listen again"}</button>
+            {<p className="muted" role="status">Listening…</p> if voice_listening else None}
+            {<p className="voice-transcript">Heard: “{voice_transcript}”</p> if voice_transcript else None}
+            {<p className="error" role="alert">{voice_error}</p> if voice_error else None}
+            {<div className="voice-options"><h3>Replace {player_name(available_players, voice_plan["out_id"])}{(" at " + voice_position.label) if voice_position is not None else ""}</h3><p className="muted">Recommended first, based on lineup rules, position fit, and bench time.</p>
+                <div className="voice-option-list">{[<button key={player.id} className={"voice-option " + ("selected" if voice_selected_in_id == player.id else "")} type="button" aria-pressed={voice_selected_in_id == player.id} onClick={lambda { voice_selected_in_id = player.id; voice_error = ""; }}><span><strong>{player.name}</strong>{<span className="voice-best">Best fit</span> if player.id == voice_best_id else None}</span><small>{"Position match" if voice_position is not None and player_matches_group(player, voice_position.group) else "Other position"} · Bench {clock_label(derived.player_states[player.id].current_stint_ms)}</small></button> for player in voice_candidates]}</div>
+                {<p className="muted">No eligible players are available on the bench.</p> if not voice_candidates else None}
+                <div className="live-dialog-footer"><button className="button ghost" type="button" onClick={close_voice_dialog}>Cancel</button><button className="button primary" type="button" disabled={not voice_selected_in_id or voice_selected_in_id not in [player.id for player in voice_candidates]} onClick={confirm_voice_substitution}>Confirm substitution</button></div>
+            </div> if voice_plan is not None else None}
+        </section></div> if voice_open else None}
         {<div className="live-dialog-backdrop" onClick={close_goal_dialog}><section className="live-player-dialog live-goal-dialog" role="dialog" aria-modal={True} aria-label={"Edit goal" if editing_goal_id else "Record goal"} onClick={lambda (e: MouseEvent) { e.stopPropagation(); }}><h2>{"Edit goal" if editing_goal_id else "Record goal"}</h2><fieldset className="goal-kind"><legend>Goal type</legend><div><label><input type="radio" name="goal-kind" checked={goal_team == "us" and not own_goal} onChange={lambda { goal_team = "us"; own_goal = False; goal_error = ""; }} /> Our goal</label><label><input type="radio" name="goal-kind" checked={goal_team == "opponent"} onChange={lambda { goal_team = "opponent"; own_goal = False; goal_error = ""; }} /> Opponent goal</label><label><input type="radio" name="goal-kind" checked={own_goal} onChange={lambda { goal_team = "us"; own_goal = True; assister_id = ""; goal_error = ""; }} /> Own goal (against us)</label></div></fieldset>{<label className="goal-field">{"Player responsible (optional)" if own_goal else "Scorer"}<select className="input" value={scorer_id} onChange={lambda (e: ChangeEvent) { scorer_id = e.target.value; goal_error = ""; }}><option value="">{"— Not recorded —" if own_goal else "— Select scorer —"}</option>{[<option key={player.id} value={player.id}>{jersey_label(player.jersey_number)} {player.name}</option> for player in available_players]}</select></label> if goal_team == "us" else None}{<label className="goal-field">Assist (optional)<select className="input" value={assister_id} onChange={lambda (e: ChangeEvent) { assister_id = e.target.value; goal_error = ""; }}><option value="">— No assist —</option>{[<option key={player.id} value={player.id}>{jersey_label(player.jersey_number)} {player.name}</option> for player in available_players]}</select></label> if goal_team == "us" and not own_goal else None}{<p className="goal-error" role="alert">{goal_error}</p> if goal_error else None}<div className="live-dialog-footer"><button className="button ghost" type="button" onClick={close_goal_dialog}>Cancel</button><button className="button primary" type="button" onClick={record_goal}>{"Save changes" if editing_goal_id else "Save goal"}</button></div></section></div> if goal_dialog_open else None}
         {<div className="live-dialog-backdrop" onClick={close_player_dialog}><section className="live-player-dialog" role="dialog" aria-modal={True} aria-label={("Move " if dialog_kind == "move" else "Edit ") + dialog_player.name} onClick={lambda (e: MouseEvent) { e.stopPropagation(); }}>
             {<><h2>Move {dialog_player.name}</h2><p>Choose a destination, then confirm.</p><div className="live-move-options"><label className="live-move-option"><span><input type="radio" name="move-destination" checked={move_destination == "BENCH"} disabled={current_player_slot == "BENCH"} onChange={lambda { move_destination = "BENCH"; }} /> Bench {<small>(current)</small> if current_player_slot == "BENCH" else None}</span></label>{[<label className="live-move-option" key={position.id}><span><input type="radio" name="move-destination" checked={move_destination == position.id} disabled={current_player_slot == position.id} onChange={lambda { move_destination = position.id; }} /> {position.label} {<small>(current)</small> if current_player_slot == position.id else None}</span>{<small>Swap with {player_name(match_players, assignments[position.id])}</small> if position.id in assignments and assignments[position.id] != dialog_player_id else None}</label> for position in formation.positions]}</div><div className="live-dialog-footer"><button className="button ghost" type="button" onClick={close_player_dialog}>Cancel</button><button className="button primary" type="button" disabled={not move_destination or move_destination == current_player_slot} onClick={move_dialog_player}>Confirm move</button></div></> if dialog_kind == "move" and formation is not None else None}

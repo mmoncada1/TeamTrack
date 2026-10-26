@@ -21,6 +21,17 @@ test "accepts a small speech recognition spelling error" {
     assert result["out_id"] == "henry";
 }
 
+test "resolves an outgoing-only command for replacement choices" {
+    players = [voice_player("matteo", "Matteo Rossi"), voice_player("henry", "Henry Lee")];
+    assignments = {"mid-c": "matteo"};
+    result = resolve_voice_substitution("Sub out Mateo", players, assignments, ["henry"]);
+    assert result == {"in_id": "", "out_id": "matteo", "slot_id": "mid-c"};
+    result = resolve_voice_substitution("Substitute out Matteo Rossi", players, assignments, ["henry"]);
+    assert result["out_id"] == "matteo";
+    result = resolve_voice_substitution("Sub Matteo out", players, assignments, ["henry"]);
+    assert result["slot_id"] == "mid-c";
+}
+
 test "does not guess when fuzzy matches tie or a name is too different" {
     players = [voice_player("matteo", "Matteo Rossi"), voice_player("matheo", "Matheo Smith"),
         voice_player("henry", "Henry Lee")];
@@ -37,5 +48,5 @@ test "rejects ambiguous and invalid spoken substitutions" {
     assert "More than one" in resolve_voice_substitution("Sub Matteo in for Katie", players, assignments, ["matteo-a", "matteo-b"])["error"];
     assert "not on the bench" in resolve_voice_substitution("Sub Katie in for Sam", players, assignments, ["matteo-a", "matteo-b", "sam"])["error"];
     assert "not on the field" in resolve_voice_substitution("Sub Matteo Rossi in for Sam", players, assignments, ["matteo-a", "matteo-b", "sam"])["error"];
-    assert "Say a command" in resolve_voice_substitution("Matteo for Katie", players, assignments, ["matteo-a"])["error"];
+    assert "Say 'Sub out" in resolve_voice_substitution("Matteo for Katie", players, assignments, ["matteo-a"])["error"];
 }

@@ -42,22 +42,36 @@ def matching_players(spoken: str, players: list[Player]) -> list[Player] {
 def:pub resolve_voice_substitution(transcript: str, players: list[Player],
     assignments: dict[str, str], bench_ids: list[str]) -> dict[str, str] {
     command = normalized_name(transcript);
-    if command.startswith("substitute ") { command = command[11:]; }
-    elif command.startswith("sub ") { command = command[4:]; }
-    parts = command.split(" in for ");
-    if len(parts) != 2 or not parts[0] or not parts[1] {
-        return {"error": "Say a command like 'Matteo in for Katie'."};
+    incoming_name = ""; outgoing_name = "";
+    if command.startswith("substitute out ") { outgoing_name = command[15:]; }
+    elif command.startswith("sub out ") { outgoing_name = command[8:]; }
+    else {
+        if command.startswith("substitute ") { command = command[11:]; }
+        elif command.startswith("sub ") { command = command[4:]; }
+        if command.endswith(" out") { outgoing_name = command[:-4]; }
+        else {
+            parts = command.split(" in for ");
+            if len(parts) != 2 or not parts[0] or not parts[1] {
+                return {"error": "Say 'Sub out Matteo' or 'Katie in for Matteo'."};
+            }
+            incoming_name = parts[0]; outgoing_name = parts[1];
+        }
     }
-    incoming = matching_players(parts[0], players);
-    outgoing = matching_players(parts[1], players);
-    if not incoming { return {"error": "Could not find the incoming player: " + parts[0] + "."}; }
-    if len(incoming) > 1 { return {"error": "More than one player matches " + parts[0] + ". Say a full name."}; }
-    if not outgoing { return {"error": "Could not find the outgoing player: " + parts[1] + "."}; }
-    if len(outgoing) > 1 { return {"error": "More than one player matches " + parts[1] + ". Say a full name."}; }
-    if incoming[0].id not in bench_ids { return {"error": incoming[0].name + " is not on the bench."}; }
+    if not outgoing_name { return {"error": "Say which player should come off the field."}; }
+    incoming_id = "";
+    if incoming_name {
+        incoming = matching_players(incoming_name, players);
+        if not incoming { return {"error": "Could not find the incoming player: " + incoming_name + "."}; }
+        if len(incoming) > 1 { return {"error": "More than one player matches " + incoming_name + ". Say a full name."}; }
+        if incoming[0].id not in bench_ids { return {"error": incoming[0].name + " is not on the bench."}; }
+        incoming_id = incoming[0].id;
+    }
+    outgoing = matching_players(outgoing_name, players);
+    if not outgoing { return {"error": "Could not find the outgoing player: " + outgoing_name + "."}; }
+    if len(outgoing) > 1 { return {"error": "More than one player matches " + outgoing_name + ". Say a full name."}; }
     for (slot, player_id) in assignments.items() {
         if player_id == outgoing[0].id {
-            return {"in_id": incoming[0].id, "out_id": outgoing[0].id, "slot_id": slot};
+            return {"in_id": incoming_id, "out_id": outgoing[0].id, "slot_id": slot};
         }
     }
     return {"error": outgoing[0].name + " is not on the field."};
