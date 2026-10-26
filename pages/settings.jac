@@ -17,14 +17,14 @@ glob WHITEBOARD_PREFIX = "teamtrack:whiteboard:";
 glob RESTORE_FLASH_KEY = "teamtrack:restore-message";
 
 def load_settings() -> dict[str, any] {
-    defaults: dict[str, any] = {"theme": "light", "alertSoundEnabled": False, "reducedMotion": False, "fieldLocked": False};
+    defaults: dict[str, any] = {"theme": "dark", "alertSoundEnabled": False, "reducedMotion": False, "fieldLocked": False};
     raw = localStorage.getItem(SETTINGS_KEY);
     if not raw { return defaults; }
     try {
         parsed = JSON.parse(raw) as dict[str, any];
         if parsed {
             return {
-                "theme": parsed["theme"] if "theme" in parsed and parsed["theme"] == "dark" else "light",
+                "theme": "dark",
                 "alertSoundEnabled": bool(parsed["alertSoundEnabled"]) if "alertSoundEnabled" in parsed else False,
                 "reducedMotion": bool(parsed["reducedMotion"]) if "reducedMotion" in parsed else False,
                 "fieldLocked": bool(parsed["fieldLocked"]) if "fieldLocked" in parsed else False
@@ -104,17 +104,16 @@ def convert_typescript_roster(source: any) -> dict[str, any] {
 def:pub SettingsPage() -> JsxPage {
     navigate = useNavigate(); state = use_app_state(); initial = load_settings(); flash = sessionStorage.getItem(RESTORE_FLASH_KEY) or "";
     if flash { sessionStorage.removeItem(RESTORE_FLASH_KEY); }
-    has theme: str = initial["theme"];
     has alert_sound: bool = initial["alertSoundEnabled"];
     has reduced_motion: bool = initial["reducedMotion"];
     has field_locked: bool = initial["fieldLocked"];
     has saved: bool = False; has feedback: str = flash; has feedback_error: bool = False;
     has pending_backup: any = None; has pending_name: str = ""; has roster_only: bool = False;
 
-    can with [theme, alert_sound, reduced_motion, field_locked] entry {
-        value = {"theme": theme, "alertSoundEnabled": alert_sound, "reducedMotion": reduced_motion, "fieldLocked": field_locked};
+    can with [alert_sound, reduced_motion, field_locked] entry {
+        value = {"theme": "dark", "alertSoundEnabled": alert_sound, "reducedMotion": reduced_motion, "fieldLocked": field_locked};
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(value));
-        document.documentElement.dataset["theme"] = theme;
+        document.documentElement.dataset["theme"] = "dark";
         document.documentElement.classList.toggle("reduce-motion", reduced_motion);
         saved = True;
     }
@@ -180,8 +179,7 @@ def:pub SettingsPage() -> JsxPage {
     <section className="page app-settings-page">
         <div className="title-row"><h1>Settings</h1><button className="button ghost" onClick={lambda { navigate("/"); }}>Back to dashboard</button></div>
         {<p className={"error settings-feedback" if feedback_error else "success settings-feedback"} role={"alert" if feedback_error else "status"}>{feedback}</p> if feedback else (<p className="success settings-saved" role="status">Preferences saved.</p> if saved else None)}
-        <section className="card settings-card"><h2>Appearance and match controls</h2>
-            <label className="settings-toggle"><span><strong>Dark theme</strong></span><input type="checkbox" checked={theme == "dark"} onChange={lambda (e: ChangeEvent) { theme = "dark" if e.target.checked else "light"; }} /></label>
+        <section className="card settings-card"><h2>Match controls</h2>
             <label className="settings-toggle"><span><strong>Reduce motion</strong></span><input type="checkbox" checked={reduced_motion} onChange={lambda (e: ChangeEvent) { reduced_motion = e.target.checked; }} /></label>
             <label className="settings-toggle"><span><strong>Lock field layout</strong></span><input type="checkbox" checked={field_locked} onChange={lambda (e: ChangeEvent) { field_locked = e.target.checked; }} /></label>
             <label className="settings-toggle"><span><strong>Play alert sounds</strong></span><input type="checkbox" checked={alert_sound} onChange={lambda (e: ChangeEvent) { alert_sound = e.target.checked; }} /></label>
