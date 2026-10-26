@@ -6,6 +6,7 @@ import from "@jac/runtime" { Link, useNavigate, useParams }
 import from ....domain.formations { formation_by_id, formations_for_format }
 import from ....domain.lineups { clear_slot, move_assignment, move_breaks_coed_rule }
 import from ....domain.roster { clamp_min_girls }
+import from ....domain.voice_substitutions { resolve_voice_substitution }
 import from ....domain.live_match { derive_match_state, pause_match, resume_match, go_to_half_time, end_match as end_match_action, move_player, swap_players, substitute_player, add_player_to_match, mark_player_injured, return_player_to_bench, remove_player_from_match, record_goal as record_goal_action, update_goal, record_card as record_card_action, record_note, update_note, delete_event, can_undo, undo_last_action, change_formation, reset_match as reset_match_action, with_alerts, with_settings }
 import from ....domain.models { MatchSettings, ThresholdSetting }
 import from ....domain.alerts { update_alerts, dismiss_alert }
@@ -29,6 +30,17 @@ def play_alert_tone() {
         oscillator.onended = lambda { context.close(); };
         oscillator.start(); oscillator.stop(context.currentTime + 0.16);
     } except Exception { return; }
+}
+
+def speechRecognitionAvailable() -> bool {
+    browser: any = window;
+    return bool(browser.SpeechRecognition or browser.webkitSpeechRecognition);
+}
+
+def stopVoiceRecognition(recognition: any) {
+    if recognition is None { return; }
+    recognition.onresult = None; recognition.onerror = None; recognition.onend = None;
+    try { recognition.abort(); } except Exception { return; }
 }
 
 
@@ -72,6 +84,8 @@ def:pub LiveMatchPage() -> JsxPage {
     has active_token_id: str = ""; has dialog_player_id: str = ""; has dialog_kind: str = "";
     has move_destination: str = ""; has detail_name: str = ""; has detail_group: str = ""; has dialog_error: str = "";
     has field_locked: bool = False;
+    has voice_recognition: Ref[any] = Ref(None); has voice_listening: bool = False;
+    has voice_transcript: str = ""; has voice_error: str = ""; has voice_plan: dict[str, str] | None = None;
     can with entry {
         raw = localStorage.getItem("teamtrack:app-settings");
         if raw { try { field_locked = bool(JSON.parse(raw)["fieldLocked"]); } except Exception { field_locked = False; } }
@@ -79,6 +93,9 @@ def:pub LiveMatchPage() -> JsxPage {
     can with entry {
         ticker = window.setInterval(lambda { now = int(Date.now()); }, 500);
         return lambda { window.clearInterval(ticker); };
+    }
+    can with [id] entry {
+        return lambda { stopVoiceRecognition(voice_recognition.current); voice_recognition.current = None; };
     }
     if not game { return <section className="page narrow-page"><h1>Match not found</h1><Link to="/matches">Back to matches</Link></section>; }
     derived = derive_match_state(game, now); status = derived.status; clock_ms = derived.display_clock_ms; formation = formation_by_id(derived.formation_id);
@@ -117,21 +134,71 @@ def:pub LiveMatchPage() -> JsxPage {
         if status == "in_progress" { apply(pause_match(game, now)); }
         else { apply(resume_match(game, now)); }
     }
-    def set_slot(slot_id: str, next_player_id: str) {
-        if field_locked { action_error = "Unlock the field before moving players."; return; }
+    def set_slot(slot_id: str, next_player_id: str) -> bool {
+        if status in ["setup", "ended"] { action_error = "This match is not open for substitutions."; return False; }
+        if field_locked { action_error = "Unlock the field before moving players."; return False; }
         next_assignments = clear_slot(assignments, slot_id) if not next_player_id else move_assignment(assignments, next_player_id, slot_id);
         for team in state["teams"] {
             if team.id == game.team_id and team.coed and move_breaks_coed_rule(available_players, assignments, next_assignments, clamp_min_girls(team.min_girls_on_field)) {
-                action_error = "Too many guys on the field. Keep the required girls in the lineup."; return;
+                action_error = "Too many guys on the field. Keep the required girls in the lineup."; return False;
             }
         }
         old_player_id = assignments[slot_id] if slot_id in assignments else ""; previous_slot = "";
         for (slot, assigned_id) in assignments.items() { if assigned_id == next_player_id { previous_slot = slot; } }
-        if old_player_id == next_player_id { return; }
-        if previous_slot and old_player_id { apply(swap_players(game, previous_slot, slot_id, now)); }
-        elif old_player_id and next_player_id { apply(substitute_player(game, next_player_id, slot_id, now)); }
-        elif next_player_id { apply(move_player(game, next_player_id, slot_id, now)); }
-        elif old_player_id { apply(move_player(game, old_player_id, "BENCH", now)); }
+        if old_player_id == next_player_id { return True; }
+        try {
+            if previous_slot and old_player_id { return apply(swap_players(game, previous_slot, slot_id, now)); }
+            elif old_player_id and next_player_id { return apply(substitute_player(game, next_player_id, slot_id, now)); }
+            elif next_player_id { return apply(move_player(game, next_player_id, slot_id, now)); }
+            elif old_player_id { return apply(move_player(game, old_player_id, "BENCH", now)); }
+        } except Exception { action_error = "Could not update the lineup. Check the selected players."; return False; }
+        return False;
+    }
+    def handle_voice_transcript(transcript: str) {
+        voice_transcript = transcript; voice_plan = None; voice_error = "";
+        if status in ["setup", "ended"] or field_locked {
+            voice_error = "Unlock the field in an active match before making a substitution."; return;
+        }
+        result = resolve_voice_substitution(transcript, available_players, assignments, [player.id for player in bench_players]);
+        if "error" in result { voice_error = result["error"]; }
+        else { voice_plan = result; }
+    }
+    def toggle_voice {
+        if voice_listening {
+            stopVoiceRecognition(voice_recognition.current); voice_recognition.current = None;
+            voice_listening = False; return;
+        }
+        voice_error = ""; voice_transcript = ""; voice_plan = None;
+        browser: any = window;
+        recognition_class: any = browser.SpeechRecognition or browser.webkitSpeechRecognition;
+        if not recognition_class { voice_error = "Voice recognition is unavailable in this browser."; return; }
+        recognition: any = new(recognition_class);
+        recognition.lang = "en-US"; recognition.continuous = False;
+        recognition.interimResults = False; recognition.maxAlternatives = 1;
+        recognition.onresult = lambda (event: any) {
+            for index in range(event.resultIndex, event.results.length) {
+                result: any = event.results[index];
+                if result.isFinal { handle_voice_transcript(str(result[0].transcript)); break; }
+            }
+        };
+        recognition.onerror = lambda (event: any) {
+            if event.error == "no-speech" { voice_error = "No speech heard. Tap the mic and try again."; }
+            elif event.error in ["not-allowed", "service-not-allowed"] { voice_error = "Allow microphone access in Chrome to use voice substitutions."; }
+            elif event.error == "network" { voice_error = "Speech recognition needs a network connection. Try again."; }
+            elif event.error != "aborted" { voice_error = "Could not recognize speech. Tap the mic and try again."; }
+        };
+        recognition.onend = lambda { voice_listening = False; voice_recognition.current = None; };
+        try { recognition.start(); voice_recognition.current = recognition; voice_listening = True; }
+        except Exception { voice_error = "Could not start the microphone. Tap the mic and try again."; }
+    }
+    def confirm_voice_substitution {
+        if voice_plan is None { return; }
+        slot = voice_plan["slot_id"]; incoming_id = voice_plan["in_id"];
+        if slot not in assignments or assignments[slot] != voice_plan["out_id"] or incoming_id not in [player.id for player in bench_players] {
+            voice_error = "The lineup changed. Tap the mic and say the substitution again."; voice_plan = None; return;
+        }
+        if set_slot(slot, incoming_id) { voice_plan = None; voice_transcript = ""; voice_error = ""; }
+        else { voice_error = action_error; }
     }
     def drop_on_slot(slot_id: str, event: any) {
         event.preventDefault();
@@ -279,6 +346,17 @@ def:pub LiveMatchPage() -> JsxPage {
             <div className="live-workspace"><div className="live-bench"><section className="live-card" onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={drop_on_bench}><h2>Bench ({len(bench_players)})</h2>{<div className="bench-list">{[<div className={"live-bench-token " + ("selected" if active_token_id == player.id else "")} key={player.id} tabIndex={0} onClick={lambda (e: MouseEvent) { e.stopPropagation(); active_token_id = player.id; }} onDoubleClick={lambda (e: MouseEvent) { e.stopPropagation(); open_player_dialog(player, "edit"); }} draggable={not field_locked and status != "ended"} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", player.id); }}>{LivePlayerToken(player, derived.player_states[player.id], "bench")}<div className="live-token-actions"><button type="button" onClick={lambda (e: MouseEvent) { e.stopPropagation(); open_player_dialog(player, "edit"); }}>Edit</button><button type="button" disabled={field_locked or status == "ended"} onClick={lambda (e: MouseEvent) { e.stopPropagation(); open_player_dialog(player, "move"); }}>Move…</button></div></div> for player in bench_players]}</div> if bench_players else <p className="muted">No available players on the bench.</p>}</section></div><div className="live-field"><div className="position-legend" aria-label="Player colors by roster position"><span className="legend-add">Add</span><span><i className="legend-GK"></i> GK Goalkeeper</span><span><i className="legend-DEF"></i> DEF Defender</span><span><i className="legend-MID"></i> MID Midfielder</span><span><i className="legend-FWD"></i> FWD Forward</span></div>{<div className="live-pitch"><svg viewBox="0 0 100 150" preserveAspectRatio="none" className="live-pitch-lines" aria-hidden={True}><rect x="3" y="3" width="94" height="144" /><line x1="3" y1="75" x2="97" y2="75" /><circle cx="50" cy="75" r="9" /><circle cx="50" cy="75" r="0.8" fill="white" /><rect x="30" y="128" width="40" height="19" /><rect x="40" y="141" width="20" height="6" /><path d="M 38 128 A 12 12 0 0 1 62 128" /><rect x="30" y="3" width="40" height="19" /><rect x="40" y="3" width="20" height="6" /><path d="M 38 22 A 12 12 0 0 0 62 22" /></svg>{[<div className={"live-slot group-" + position.group + (" selected" if position.id in assignments and active_token_id == assignments[position.id] else "") + (" occupied" if position.id in assignments else "")} key={position.id} tabIndex={0} onClick={lambda (e: MouseEvent) { e.stopPropagation(); if position.id in assignments { active_token_id = assignments[position.id]; } }} onDoubleClick={lambda (e: MouseEvent) { e.stopPropagation(); for player in available_players { if position.id in assignments and player.id == assignments[position.id] { open_player_dialog(player, "edit"); break; } } }} draggable={not field_locked and status != "ended" and position.id in assignments} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", assignments[position.id]); }} onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={lambda (e: any) { drop_on_slot(position.id, e); }} style={{"left": str(position.x) + "%", "top": str(position.y) + "%"}}>{[LivePlayerToken(player, derived.player_states[player.id], "field") for player in available_players if position.id in assignments and player.id == assignments[position.id]]}{EmptyPosition(position.label) if position.id not in assignments else None}{[<div className="live-token-actions" key={player.id}><button type="button" onClick={lambda (e: MouseEvent) { e.stopPropagation(); open_player_dialog(player, "edit"); }}>Edit</button><button type="button" disabled={field_locked or status == "ended"} onClick={lambda (e: MouseEvent) { e.stopPropagation(); open_player_dialog(player, "move"); }}>Move…</button></div> for player in available_players if position.id in assignments and player.id == assignments[position.id]]}<select aria-label={position.label} disabled={field_locked or status == "ended"} value={assignments[position.id] if position.id in assignments else ""} onChange={lambda (e: ChangeEvent) { set_slot(position.id, e.target.value); }}><option value="">Open</option>{[<option key={player.id} value={player.id}>{jersey_label(player.jersey_number)} {player.name}</option> for player in available_players]}</select></div> for position in formation.positions]}</div> if formation else <p className="error">Formation unavailable.</p>}</div></div>
             <aside className="live-sidebar">
                 <div className="live-save">Saved</div>
+                <section className="live-card live-voice" aria-label="Voice substitution">
+                    <h2>Voice substitution</h2>
+                    <button className={"button " + ("danger" if voice_listening else "secondary")} type="button"
+                        disabled={status in ["setup", "ended"] or field_locked or (not voice_listening and not speechRecognitionAvailable())}
+                        onClick={toggle_voice}>{"Stop listening" if voice_listening else "🎙 Speak substitution"}</button>
+                    {<p className="muted" role="status">Listening… Say “Matteo in for Katie.”</p> if voice_listening else None}
+                    {<p className="muted">Voice recognition is unavailable in this browser. Use the touch controls.</p> if not speechRecognitionAvailable() else None}
+                    {<p className="voice-transcript">Heard: “{voice_transcript}”</p> if voice_transcript else None}
+                    {<p className="error" role="alert">{voice_error}</p> if voice_error else None}
+                    {<div className="voice-confirm"><p>Sub <strong>{player_name(available_players, voice_plan["in_id"])}</strong> in for <strong>{player_name(available_players, voice_plan["out_id"])}</strong>?</p><div className="voice-confirm-actions"><button className="button primary" type="button" onClick={confirm_voice_substitution}>Confirm sub</button><button className="button ghost" type="button" onClick={lambda { voice_plan = None; voice_transcript = ""; }}>Cancel</button></div></div> if voice_plan is not None else None}
+                </section>
                 <section className="live-card live-clock"><div className="clock"><strong>{clock_label(clock_ms)}</strong><span>🟢 {"Live" if status == "in_progress" else status.replace("_", " ").capitalize()} · Half {current_half}</span></div><div className="clock-actions">{<button className="button secondary" type="button" onClick={pause_or_resume}>{"Pause" if status == "in_progress" else ("Start second half" if status == "half_time" else "Resume")}</button> if status != "ended" else None}{<button className="button secondary" type="button" onClick={half_time}>Half-time</button> if status == "in_progress" and game.settings.number_of_halves > 1 and current_half == 1 else None}<button className="button danger" type="button" disabled={status == "ended"} onClick={end_match}>End match</button></div></section>
                 <section className="live-card live-score"><div className="score"><div><span>{game.team_name}</span><strong>{team_score}</strong></div><span>–</span><div><span>{game.opponent_name}</span><strong>{opponent_score}</strong></div></div><button className="button primary" type="button" disabled={status == "ended"} onClick={open_goal_dialog}>+ Goal</button></section>
                 <section className="live-card"><h2>Formation</h2><select className="input" value={derived.formation_id} disabled={status == "ended" or field_locked} onChange={lambda (e: ChangeEvent) { change_live_formation(e.target.value); }}>{[<option key={item.id} value={item.id}>{item.shape}</option> for item in formations_for_format(game.settings.format)]}</select><label className="inline-control"><input type="checkbox" checked={field_locked} onChange={lambda (e: ChangeEvent) { toggle_field_lock(e.target.checked); }} /> Lock field layout</label></section><section className="live-card live-timers"><details><summary>Substitution timers</summary><p className="muted">Changes affect the next alert. The current field stint continues.</p>{[<div className="inline-control" key={group}><strong>{group}</strong><label><input type="checkbox" checked={game.settings.thresholds[group].enabled} onChange={lambda (e: ChangeEvent) { save_live_settings(group, e.target.checked, None, None); }} /> Enabled</label><label>Minutes <input className="input" type="number" min="1" max="60" value={game.settings.thresholds[group].minutes} onChange={lambda (e: ChangeEvent) { save_live_settings(group, None, max(1, min(60, int(e.target.value or "1"))), None); }} /></label></div> for group in ["GK", "DEF", "MID", "FWD"] if group in game.settings.thresholds]}<label className="inline-control"><input type="checkbox" checked={game.settings.goalkeeper_rotation_enabled} onChange={lambda (e: ChangeEvent) { save_live_settings("", None, None, e.target.checked); }} /> Enable goalkeeper rotation alerts</label></details></section><section className="live-card"><h2>Time tracker</h2><p className="muted">Current stint and total field and bench time for each player.</p><div className="table-scroll"><table><thead><tr><th>Player</th><th>Now</th><th>Field</th><th>Bench</th></tr></thead><tbody>{[<tr key={player.id}><td>{player.name}</td><td>{"Field " if derived.player_states[player.id].status == "field" else "Bench "}{clock_label(derived.player_states[player.id].current_stint_ms)}</td><td>{clock_label(derived.player_states[player.id].total_field_ms)}</td><td>{clock_label(derived.player_states[player.id].total_bench_ms)}</td></tr> for player in match_players]}</tbody></table></div><div className="inline-control"><select className="input" value={manage_player_id} onChange={lambda (e: ChangeEvent) { manage_player_id = e.target.value; }}><option value="">Choose match player</option>{[<option key={player.id} value={player.id}>{player.name}</option> for player in match_players]}</select><button className="button secondary small" type="button" disabled={status == "ended" or not manage_player_id} onClick={lambda { manage_player("injure"); }}>Mark injured</button><button className="button secondary small" type="button" disabled={status == "ended" or not manage_player_id} onClick={lambda { manage_player("return"); }}>Return to bench</button><button className="button ghost small" type="button" disabled={status == "ended" or not manage_player_id} onClick={lambda { manage_player("remove"); }}>Remove</button></div>{<div className="inline-control"><select className="input" value={late_player_id} onChange={lambda (e: ChangeEvent) { late_player_id = e.target.value; }}><option value="">Add a late player</option>{[<option key={player.id} value={player.id}>{player.name}</option> for player in late_players]}</select><button className="button secondary small" type="button" disabled={status == "ended" or not late_player_id} onClick={add_late_player}>Add to match</button></div> if late_players else None}</section><section className="live-card"><h2>Card</h2><div className="inline-control"><select className="input" value={card_player_id} onChange={lambda (e: ChangeEvent) { card_player_id = e.target.value; }}><option value="">Choose player</option>{[<option key={player.id} value={player.id}>{player.name}</option> for player in available_players]}</select><select className="input color-select" value={card_color} onChange={lambda (e: ChangeEvent) { card_color = e.target.value; }}><option value="yellow">Yellow</option><option value="red">Red</option></select><button className="button secondary" type="button" disabled={status == "ended"} onClick={record_card}>Record</button></div></section>
