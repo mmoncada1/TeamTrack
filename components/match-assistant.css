@@ -1,0 +1,25 @@
+.match-assistant {
+  margin: 1rem 0;
+  padding: 1.25rem;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  background: #1e293b;
+  color: #f1f5f9;
+}
+.match-assistant h2 { margin: 0 0 .4rem; color: #f1f5f9; }
+.match-assistant p { margin: 0 0 1rem; color: #cbd5e1; }
+.match-assistant form { display: grid; gap: .6rem; }
+.match-assistant label { color: #e2e8f0; font-weight: 600; }
+.match-assistant textarea { width: 100%; min-height: 4rem; box-sizing: border-box; padding: .7rem; border: 1px solid #64748b; border-radius: 8px; background: #0f172a; color: #f1f5f9; font: inherit; resize: vertical; }
+.match-assistant textarea::placeholder { color: #94a3b8; }
+.match-assistant textarea:focus-visible { outline: 2px solid #34d399; outline-offset: 2px; }
+.match-assistant button { justify-self: start; }
+.match-assistant-answer { margin-top: 1rem; white-space: pre-wrap; line-height: 1.5; color: #f1f5f9; }
+.match-assistant-error { margin-top: 1rem !important; color: #fecaca !important; }
+.live-match .live-sidebar > .match-assistant { flex: none; margin: 0; }
+.live-match .live-sidebar .match-assistant h2 { font-size: 16px; }
+.live-match .live-sidebar .match-assistant p,
+.live-match .live-sidebar .match-assistant label,
+.live-match .live-sidebar .match-assistant textarea,
+.live-match .live-sidebar .match-assistant button { font-size: 13px; }
+.summary-page > .match-assistant { margin: 18px 0 0; }

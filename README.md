@@ -43,3 +43,9 @@ jac build
 The build writes `dist/teamtrack.jab`. Run it with `jac run dist/teamtrack.jab`.
 
 Vercel serves the browser client, not the Jac server. `scripts/vercel-build.sh` installs Jac 0.37.23 and runs `jac build --as client`. The static files land in `dist/`, and `vercel.json` sends unknown paths back to `index.html` so client routes keep working on refresh.
+
+## Match assistant
+
+The live match and match summary pages include a read-only AI assistant. Its Vercel Function at `api/match-assistant.js` verifies the Supabase access token and team ownership before sending the current match context to the Gemini Interactions API. Match notes are treated as data, and the assistant cannot change a lineup or match record.
+
+Set `GEMINI_API_KEY` as a server-side Vercel environment variable. The assistant uses `gemini-3.5-flash-lite` with minimal thinking, sends a short match event summary, asks for at most two short sentences, and returns no more than 500 characters. It retries one Gemini 503 and reports which step timed out within 25 seconds. For local testing of the function, use `vercel dev` with the same environment variable; `jac run --dev` serves the Jac app but does not provide the Vercel Function. The key must never be placed in `state/cloud.js` or another browser asset.

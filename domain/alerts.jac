@@ -1,7 +1,7 @@
 """Playing-time alert lifecycle and collision-free incoming recommendations."""
 
-import from .models { Alert, Player, FormationPosition, ThresholdSetting }
-import from .live_match { PlayerRuntimeState }
+import from .models { Alert, Player as RosterPlayer, FormationPosition as FieldPosition, ThresholdSetting }
+import from .live_match { PlayerRuntimeState as RuntimePlayerState }
 import from .formations { formation_by_id }
 import from .recommendations { RecommendationContext, recommend_incoming_player, player_by_id }
 
@@ -9,7 +9,7 @@ obj UpdateAlertsResult {
     has alerts: list[Alert], new_alert_ids: list[str];
 }
 
-def girls_on_field(players: list[Player], states: dict[str, PlayerRuntimeState]) -> int {
+def girls_on_field(players: list[RosterPlayer], states: dict[str, RuntimePlayerState]) -> int {
     count = 0;
     for state in states.values() {
         player = player_by_id(players, state.player_id);
@@ -25,9 +25,9 @@ def should_prefer_girl(min_girls_on_field: int | None, girls_count: int,
 }
 
 def alert_recommendation(position_id: str | None, outgoing_player_id: str,
-    players: list[Player], player_states: dict[str, PlayerRuntimeState],
+    players: list[RosterPlayer], player_states: dict[str, RuntimePlayerState],
     thresholds: dict[str, ThresholdSetting], goalkeeper_rotation_enabled: bool,
-    positions: list[FormationPosition], roster_order: list[str], claimed: list[str],
+    positions: list[FieldPosition], roster_order: list[str], claimed: list[str],
     min_girls_on_field: int | None, girls_count: int) -> dict[str, str] | None {
     if position_id is None { return None; }
     outgoing = player_by_id(players, outgoing_player_id);
@@ -43,9 +43,9 @@ def alert_recommendation(position_id: str | None, outgoing_player_id: str,
 }
 
 def:pub update_alerts(existing_alerts: list[Alert],
-    player_states: dict[str, PlayerRuntimeState], players: list[Player],
+    player_states: dict[str, RuntimePlayerState], players: list[RosterPlayer],
     thresholds: dict[str, ThresholdSetting], goalkeeper_rotation_enabled: bool,
-    positions: list[FormationPosition], roster_order: list[str], match_clock_ms: int,
+    positions: list[FieldPosition], roster_order: list[str], match_clock_ms: int,
     min_girls_on_field: int | None = None) -> UpdateAlertsResult {
     result: list[Alert] = []; new_ids: list[str] = []; claimed: list[str] = [];
     girls_count = girls_on_field(players, player_states);

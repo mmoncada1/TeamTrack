@@ -58,6 +58,10 @@ async function validSession() {
   return session;
 }
 
+export async function getAccessToken() {
+  return (await validSession()).access_token;
+}
+
 async function authorizedRequest(path, options = {}) {
   await validSession();
   try { return await request(path, options, session.access_token); }

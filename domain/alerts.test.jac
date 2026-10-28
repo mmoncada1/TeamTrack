@@ -1,20 +1,20 @@
-def alert_player(id: str, name: str, group: str, gender: str | None = None) -> Player {
-    return Player(id=id, team_id="t1", name=name, preferred_group=group, preferred_groups=[group], gender=gender, availability="active");
+def alert_player(id: str, name: str, group: str, gender: str | None = None) -> RosterPlayer {
+    return RosterPlayer(id=id, team_id="t1", name=name, preferred_group=group, preferred_groups=[group], gender=gender, availability="active");
 }
 
-def alert_state(id: str, status: str, position_id: str | None, group: str | None, stint_ms: int, field_ms: int = 0) -> PlayerRuntimeState {
-    return PlayerRuntimeState(player_id=id, status=status, position_id=position_id, position_group=group, intervals=[], current_stint_start_ms=0, current_stint_ms=stint_ms, total_field_ms=field_ms, total_bench_ms=stint_ms if status == "bench" else 0);
+def alert_state(id: str, status: str, position_id: str | None, group: str | None, stint_ms: int, field_ms: int = 0) -> RuntimePlayerState {
+    return RuntimePlayerState(player_id=id, status=status, position_id=position_id, position_group=group, intervals=[], current_stint_start_ms=0, current_stint_ms=stint_ms, total_field_ms=field_ms, total_bench_ms=stint_ms if status == "bench" else 0);
 }
 
 def alert_thresholds() -> dict[str, ThresholdSetting] {
     return {"GK": ThresholdSetting(enabled=True, minutes=5), "DEF": ThresholdSetting(enabled=True, minutes=5), "MID": ThresholdSetting(enabled=True, minutes=4), "FWD": ThresholdSetting(enabled=True, minutes=5)};
 }
 
-def alert_positions() -> list[FormationPosition] {
+def alert_positions() -> list[FieldPosition] {
     formation = formation_by_id("7v7-2-3-1"); if formation is None { return []; } return formation.positions;
 }
 
-def alert_context() -> tuple[list[Player], dict[str, PlayerRuntimeState], list[FormationPosition]] {
+def alert_context() -> tuple[list[RosterPlayer], dict[str, RuntimePlayerState], list[FieldPosition]] {
     players = [alert_player("out-a", "A", "MID"), alert_player("out-b", "B", "MID"),
         alert_player("bench-a", "Bench A", "MID"), alert_player("bench-b", "Bench B", "MID")];
     states = {"out-a": alert_state("out-a", "field", "mid-l", "MID", 360_000, 360_000),
