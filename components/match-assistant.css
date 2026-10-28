@@ -16,5 +16,10 @@
 .match-assistant button { justify-self: start; }
 .match-assistant-answer { margin-top: 1rem; white-space: pre-wrap; line-height: 1.5; color: #f1f5f9; }
 .match-assistant-error { margin-top: 1rem !important; color: #fecaca !important; }
-.live-match > .match-assistant { flex: none; margin: 0 0 12px; }
+.live-match .live-sidebar > .match-assistant { flex: none; margin: 0; }
+.live-match .live-sidebar .match-assistant h2 { font-size: 16px; }
+.live-match .live-sidebar .match-assistant p,
+.live-match .live-sidebar .match-assistant label,
+.live-match .live-sidebar .match-assistant textarea,
+.live-match .live-sidebar .match-assistant button { font-size: 13px; }
 .summary-page > .match-assistant { margin: 18px 0 0; }

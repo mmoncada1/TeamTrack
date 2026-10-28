@@ -42,7 +42,26 @@ export default async function handler(req, res) {
       }),
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) return send(res, 502, { error: "The assistant is temporarily unavailable." });
+    if (!response.ok) {
+      const code = typeof result.error?.code === "string" ? result.error.code : "unknown_error";
+      const detail = typeof result.error?.message === "string"
+        ? result.error.message.replaceAll(process.env.GEMINI_API_KEY, "[redacted]").slice(0, 180)
+        : "";
+      console.error("Gemini request failed", { status: response.status, code, detail });
+      if (response.status === 401 || response.status === 403) {
+        return send(res, 502, { error: `Gemini key or project access failed (${code}). Check the key in Vercel and Google AI Studio.` });
+      }
+      if (response.status === 402 || code === "failed_precondition") {
+        return send(res, 502, { error: `Gemini billing or project setup needs attention (${code}).` });
+      }
+      if (response.status === 429) {
+        return send(res, 503, { error: `Gemini rate limit or quota reached (${code}). Try again later or check your quota.` });
+      }
+      if (response.status === 400 || response.status === 404) {
+        return send(res, 502, { error: `Gemini rejected the request (${response.status}, ${code}). ${detail}`.trim() });
+      }
+      return send(res, 502, { error: `Gemini is unavailable (${response.status}, ${code}). Try again shortly.` });
+    }
     const answer = (result.steps || []).filter((step) => step.type === "model_output")
       .flatMap((step) => step.content || []).filter((item) => item.type === "text")
       .map((item) => item.text).join("\n").trim();
