@@ -53,7 +53,7 @@ export function MatchAssistant({ game, players, summary, derived }) {
         })),
       };
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
+      const timer = setTimeout(() => controller.abort(), 30000);
       let response;
       try {
         response = await fetch("/api/match-assistant", {
