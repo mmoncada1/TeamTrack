@@ -41,21 +41,34 @@ export function MatchAssistant({ game, players, summary, derived }) {
           player_id: item.player_id, position_group: item.position_group,
           threshold_minutes: item.threshold_minutes, recommendation: item.recommendation,
         })),
-        events: (game.events || []).slice(-80).map((item) => ({
+        events: (game.events || []).filter((item) => ["GOAL", "CARD", "SUBSTITUTION", "NOTE", "MATCH_ENDED"].includes(item.type)).slice(-30).map((item) => ({
           type: item.type, match_clock_ms: item.match_clock_ms,
-          player_ids: item.player_ids, note: item.note, data: item.data,
+          player_ids: item.player_ids, note: item.note?.slice(0, 160),
+          data: item.data ? {
+            team: item.data.team, scorer_id: item.data.scorer_id,
+            assister_id: item.data.assister_id, player_in_id: item.data.player_in_id,
+            player_out_id: item.data.player_out_id, player_id: item.data.player_id,
+            color: item.data.color, is_own_goal: item.data.is_own_goal,
+          } : undefined,
         })),
       };
-      const response = await fetch("/api/match-assistant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ question: prompt, context }),
-      });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      let response;
+      try {
+        response = await fetch("/api/match-assistant", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ question: prompt, context }), signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "The assistant could not answer.");
       setAnswer(result.answer);
     } catch (err) {
-      setError(err.message || "The assistant could not answer.");
+      setError(err.name === "AbortError" ? "The assistant took too long. Please try again." : (err.message || "The assistant could not answer."));
     } finally {
       setBusy(false);
     }
