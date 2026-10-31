@@ -73,15 +73,22 @@ def incoming_rank(state: PlayerRuntimeState, context: RecommendationContext,
         state.total_field_ms, roster_index(context.roster_order, state.player_id));
 }
 
-def:pub recommend_incoming_player(position_id: str, context: RecommendationContext) -> IncomingRecommendation | None {
+def:pub ranked_incoming_player_ids(position_id: str, context: RecommendationContext) -> list[str] {
     position = position_by_id(context.positions, position_id);
     group = position.group if position is not None else None;
     candidates = [state for state in context.player_states.values()
         if state.status == "bench" and state.player_id not in context.exclude_player_ids
         and player_by_id(context.players, state.player_id) is not None];
-    if not candidates { return None; }
     ranked = sorted(candidates, key=lambda (state: PlayerRuntimeState) { incoming_rank(state, context, group); });
-    best = ranked[0]; player = player_by_id(context.players, best.player_id);
+    return [item.player_id for item in ranked];
+}
+
+def:pub recommend_incoming_player(position_id: str, context: RecommendationContext) -> IncomingRecommendation | None {
+    ranked_ids = ranked_incoming_player_ids(position_id, context);
+    if not ranked_ids { return None; }
+    best = context.player_states[ranked_ids[0]]; player = player_by_id(context.players, best.player_id);
+    position = position_by_id(context.positions, position_id);
+    group = position.group if position is not None else None;
     reasons: list[str] = [];
     if context.prefer_gender is not None and player is not None and player.gender == context.prefer_gender {
         reasons.append("keeps a girl on the field");
