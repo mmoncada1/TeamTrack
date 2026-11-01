@@ -75,7 +75,7 @@ def:pub LiveMatchPage() -> JsxPage {
     has active_token_id: str = ""; has dialog_player_id: str = ""; has dialog_kind: str = "";
     has move_destination: str = ""; has detail_name: str = ""; has detail_group: str = ""; has dialog_error: str = "";
     has field_locked: bool = False; has queued_subs: any = []; has queue_mode: bool = False;
-    has queue_outgoing_id: str = ""; has queue_incoming_id: str = ""; has queue_error: str = "";
+    has queue_error: str = "";
     can with [id] entry {
         try {
             saved = JSON.parse(localStorage.getItem("teamtrack:queued-subs:" + id) or "[]");
@@ -139,6 +139,15 @@ def:pub LiveMatchPage() -> JsxPage {
         old_player_id = assignments[slot_id] if slot_id in assignments else ""; previous_slot = "";
         for (slot, assigned_id) in assignments.items() { if assigned_id == next_player_id { previous_slot = slot; } }
         if old_player_id == next_player_id { return ""; }
+        if queue_mode {
+            if not old_player_id or not next_player_id or previous_slot or
+                next_player_id not in derived.player_states or derived.player_states[next_player_id].status != "bench" {
+                queue_error = "In queue mode, drag a bench player onto a player on the field."; return queue_error;
+            }
+            queue_error = queue_substitutions([{"outgoing_player_id": old_player_id,
+                "incoming_player_id": next_player_id, "position_id": slot_id}]);
+            return queue_error;
+        }
         if previous_slot and old_player_id { apply(swap_players(game, previous_slot, slot_id, now)); }
         elif old_player_id and next_player_id { apply(substitute_player(game, next_player_id, slot_id, now)); }
         elif next_player_id { apply(move_player(game, next_player_id, slot_id, now)); }
@@ -205,13 +214,6 @@ def:pub LiveMatchPage() -> JsxPage {
         save_queue([item for item in queued_subs if item["outgoing_player_id"] + ":" + item["incoming_player_id"] not in selected_keys]);
         return "";
     }
-    def queue_manual_substitution {
-        if not queue_outgoing_id or not queue_incoming_id { queue_error = "Choose a field player and a bench player."; return; }
-        player_state = derived.player_states[queue_outgoing_id];
-        queue_error = queue_substitutions([{"outgoing_player_id": queue_outgoing_id,
-            "incoming_player_id": queue_incoming_id, "position_id": player_state.position_id}]);
-        if not queue_error { queue_outgoing_id = ""; queue_incoming_id = ""; }
-    }
     def accept_ai_goal(proposal: any) -> str {
         if status not in ["in_progress", "paused", "half_time"] or proposal["match_id"] != game.id {
             return "This goal proposal is no longer available. Ask TeamTrack again.";
@@ -254,6 +256,7 @@ def:pub LiveMatchPage() -> JsxPage {
     def drop_on_bench(event: any) {
         event.preventDefault();
         if field_locked or status == "ended" { return; }
+        if queue_mode { queue_error = "In queue mode, drag a bench player onto a player on the field."; return; }
         player_id = event.dataTransfer.getData("text/plain");
         for (slot, assigned_id) in assignments.items() { if assigned_id == player_id { set_slot(slot, ""); return; } }
     }
@@ -392,8 +395,8 @@ def:pub LiveMatchPage() -> JsxPage {
             <aside className="live-sidebar">
                 <div className="live-save">Saved</div>
                 <MatchAssistant game={game} players={state["players"]} summary={build_match_summary(game, state["players"], now)} derived={derived} team={active_team} fieldLocked={field_locked} queuedSubs={queued_subs} onQueueSubstitutions={queue_substitutions} onApplyQueuedSubstitutions={apply_queued_substitutions} onAcceptSubstitutions={accept_ai_substitutions} onAcceptGoal={accept_ai_goal} onAcceptMatchAction={accept_ai_match_action} />
-                <section className="live-card live-queue"><div className="section-heading"><h2>Queued substitutions ({len(queued_subs)})</h2><button className="button secondary small" type="button" onClick={lambda { queue_mode = not queue_mode; }}>{"Close" if queue_mode else "Add manually"}</button></div>
-                    {<div className="live-queue-form"><select className="input" aria-label="Field player to replace" value={queue_outgoing_id} onChange={lambda (e: ChangeEvent) { queue_outgoing_id = e.target.value; }}><option value="">Field player</option>{[<option key={player.id} value={player.id}>{player.name}</option> for player in available_players if derived.player_states[player.id].status == "field"]}</select><select className="input" aria-label="Bench player to bring in" value={queue_incoming_id} onChange={lambda (e: ChangeEvent) { queue_incoming_id = e.target.value; }}><option value="">Bench player</option>{[<option key={player.id} value={player.id}>{player.name}</option> for player in bench_players]}</select><button className="button secondary small" type="button" onClick={queue_manual_substitution}>Queue swap</button></div> if queue_mode else None}
+                <section className="live-card live-queue"><div className="section-heading"><h2>Queued substitutions ({len(queued_subs)})</h2><label className="live-queue-toggle"><input type="checkbox" checked={queue_mode} onChange={lambda (e: ChangeEvent) { queue_mode = e.target.checked; queue_error = ""; }} /> Queue mode</label></div>
+                    {<p className="muted">Drag a bench player onto a field player to queue a substitution.</p> if queue_mode else None}
                     {[<div className="live-queue-item" key={item["outgoing_player_id"]}><span>{player_name(match_players, item["incoming_player_id"])} ↝ {player_name(match_players, item["outgoing_player_id"])}{" · lineup changed" if item["position_id"] not in assignments or assignments[item["position_id"]] != item["outgoing_player_id"] or item["incoming_player_id"] not in derived.player_states or derived.player_states[item["incoming_player_id"]].status != "bench" else ""}</span><div><button className="button primary small" type="button" onClick={lambda { queue_error = apply_queued_substitutions([item]); }}>Apply now</button><button className="button ghost small" type="button" onClick={lambda { save_queue([other for other in queued_subs if other["outgoing_player_id"] != item["outgoing_player_id"]]); }}>Remove</button></div></div> for item in queued_subs]}
                     {<button className="button primary small" type="button" onClick={lambda { queue_error = apply_queued_substitutions(queued_subs); }}>Apply all</button> if len(queued_subs) > 1 else None}
                     {<p className="error" role="alert">{queue_error}</p> if queue_error else None}
