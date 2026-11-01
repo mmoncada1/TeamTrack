@@ -1,8 +1,7 @@
 """Pure event-sourced live game engine, ported from src/lib/matchEngine.ts and matchActions.ts."""
 
-import from .models { Match, MatchEvent, MatchSettings, Alert, Player }
+import from .models { Match, MatchEvent, MatchSettings, Alert }
 import from .formations { formation_by_id }
-import from .lineups { move_assignment, move_breaks_coed_rule }
 
 obj StatusInterval {
     has status: str, position_id: str | None, start_ms: int, end_ms: int | None = None;
@@ -320,29 +319,6 @@ def:pub substitute_player(game: Match, player_in_id: str, position_id: str, now_
     if player_in_id not in state.player_states or state.player_states[player_in_id].status != "bench" { raise ValueError("The incoming player must be on the bench."); }
     return append_event(game, make_event(game, "SUBSTITUTION", state.match_clock_ms, now_ms, [player_in_id, player_out_id], data={
         "player_in_id": player_in_id, "player_out_id": player_out_id, "position_id": position_id}));
-}
-
-def:pub apply_substitution_plan(game: Match, suggestions: list[dict[str, str]],
-    players: list[Player], min_girls_on_field: int | None, now_ms: int) -> Match {
-    if not suggestions or len(suggestions) > 5 { raise ValueError("Choose between one and five substitutions."); }
-    next_game = game; used_ids: list[str] = [];
-    for suggestion in suggestions {
-        position_id = suggestion["position_id"]; outgoing_id = suggestion["outgoing_player_id"]; incoming_id = suggestion["incoming_player_id"];
-        current = require_open(next_game, now_ms);
-        if outgoing_id in used_ids or incoming_id in used_ids or position_id not in current.assignments or
-            current.assignments[position_id] != outgoing_id or incoming_id not in current.player_states or
-            current.player_states[incoming_id].status != "bench" {
-            raise ValueError("The lineup changed. Ask TeamTrack for a new substitution plan.");
-        }
-        next_assignments = move_assignment(current.assignments, incoming_id, position_id);
-        if min_girls_on_field is not None and move_breaks_coed_rule(players, current.assignments,
-            next_assignments, min_girls_on_field) {
-            raise ValueError("This plan would break the team's coed rule.");
-        }
-        next_game = substitute_player(next_game, incoming_id, position_id, now_ms);
-        used_ids.append(incoming_id); used_ids.append(outgoing_id);
-    }
-    return next_game;
 }
 
 def:pub add_player_to_match(game: Match, player_id: str, now_ms: int) -> Match {

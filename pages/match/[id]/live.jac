@@ -6,7 +6,7 @@ import from "@jac/runtime" { Link, useNavigate, useParams }
 import from ....domain.formations { formation_by_id, formations_for_format }
 import from ....domain.lineups { clear_slot, move_assignment, move_breaks_coed_rule }
 import from ....domain.roster { clamp_min_girls }
-import from ....domain.live_match { derive_match_state, pause_match, resume_match, go_to_half_time, end_match as end_match_action, move_player, swap_players, substitute_player, apply_substitution_plan, add_player_to_match, mark_player_injured, return_player_to_bench, remove_player_from_match, record_goal as record_goal_action, update_goal, record_card as record_card_action, record_note, update_note, delete_event, can_undo, undo_last_action, change_formation, reset_match as reset_match_action, with_alerts, with_settings }
+import from ....domain.live_match { derive_match_state, pause_match, resume_match, go_to_half_time, end_match as end_match_action, move_player, swap_players, substitute_player, add_player_to_match, mark_player_injured, return_player_to_bench, remove_player_from_match, record_goal as record_goal_action, update_goal, record_card as record_card_action, record_note, update_note, delete_event, can_undo, undo_last_action, change_formation, reset_match as reset_match_action, with_alerts, with_settings }
 import from ....domain.models { MatchSettings, ThresholdSetting }
 import from ....domain.alerts { update_alerts, dismiss_alert }
 import from ....state.AppState { use_app_state }
@@ -140,10 +140,29 @@ def:pub LiveMatchPage() -> JsxPage {
     }
     def accept_ai_substitutions(suggestions: any) -> str {
         if field_locked { return "Unlock the field before accepting substitutions."; }
+        if status == "ended" or status == "setup" or not suggestions or len(suggestions) > 5 {
+            return "This substitution plan is no longer available. Ask TeamTrack again.";
+        }
         try {
-            next_game = apply_substitution_plan(game, suggestions, available_players, min_girls, int(Date.now()));
+            next_game = game; at_ms = int(Date.now()); used_ids: list[str] = [];
+            for suggestion in suggestions {
+                position_id = suggestion["position_id"]; outgoing_id = suggestion["outgoing_player_id"]; incoming_id = suggestion["incoming_player_id"];
+                current = derive_match_state(next_game, at_ms);
+                if outgoing_id in used_ids or incoming_id in used_ids or position_id not in current.assignments or
+                    current.assignments[position_id] != outgoing_id or incoming_id not in current.player_states or
+                    current.player_states[incoming_id].status != "bench" {
+                    return "The lineup changed. Ask TeamTrack for a new substitution plan.";
+                }
+                next_assignments = move_assignment(current.assignments, incoming_id, position_id);
+                if min_girls is not None and move_breaks_coed_rule(available_players,
+                    current.assignments, next_assignments, min_girls) {
+                    return "This plan would break the team's coed rule. Ask TeamTrack again.";
+                }
+                next_game = substitute_player(next_game, incoming_id, position_id, at_ms);
+                used_ids.append(incoming_id); used_ids.append(outgoing_id);
+            }
             return "" if apply(next_game) else action_error;
-        } except ValueError as error { return str(error); }
+        }
         except Exception { return "Could not apply this substitution plan. Check the current lineup."; }
     }
     def drop_on_slot(slot_id: str, event: any) {
