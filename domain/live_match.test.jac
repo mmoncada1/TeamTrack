@@ -46,6 +46,35 @@ test "tracks substitutions and exact field and bench time" {
     assert state.player_states["bench-b"].total_field_ms == 120_000;
 }
 
+test "applies an approved substitution plan as one saved match" {
+    game = start_match(sample_game(), 0);
+    plan = [{"incoming_player_id": "bench-a", "outgoing_player_id": "mid-c", "position_id": "mid-c"},
+        {"incoming_player_id": "bench-b", "outgoing_player_id": "mid-r", "position_id": "mid-r"}];
+    updated = apply_substitution_plan(game, plan, [], None, 180_000);
+    state = derive_match_state(updated, 180_000);
+    assert state.assignments["mid-c"] == "bench-a"; assert state.assignments["mid-r"] == "bench-b";
+    assert len(updated.events) == len(game.events) + 2;
+    assert derive_match_state(game, 180_000).assignments["mid-c"] == "mid-c";
+}
+
+test "rejects a stale second swap without changing the match" {
+    game = start_match(sample_game(), 0);
+    plan = [{"incoming_player_id": "bench-a", "outgoing_player_id": "mid-c", "position_id": "mid-c"},
+        {"incoming_player_id": "bench-b", "outgoing_player_id": "mid-c", "position_id": "mid-c"}];
+    try { apply_substitution_plan(game, plan, [], None, 180_000); assert False; }
+    except ValueError { assert len(game.events) == 1; }
+}
+
+test "rejects a combined coed violation without changing the match" {
+    game = start_match(sample_game(), 0);
+    players = [Player(id=id, team_id="t1", name=id, preferred_group="MID",
+        gender="girl" if id in ["mid-c", "mid-r"] else "boy") for id in game.roster_player_ids];
+    plan = [{"incoming_player_id": "bench-a", "outgoing_player_id": "mid-c", "position_id": "mid-c"},
+        {"incoming_player_id": "bench-b", "outgoing_player_id": "mid-r", "position_id": "mid-r"}];
+    try { apply_substitution_plan(game, plan, players, 1, 180_000); assert False; }
+    except ValueError { assert len(game.events) == 1; }
+}
+
 test "moves and swaps players without resetting field stints" {
     game = start_match(sample_game(), 0);
     game = swap_players(game, "mid-l", "mid-r", 60_000);

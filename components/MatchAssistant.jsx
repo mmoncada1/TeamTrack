@@ -1,24 +1,26 @@
 import React, { useEffect, useRef, useState } from "react";
 import { getAccessToken } from "../state/cloud.js";
 
-export function MatchAssistant({ game, players, summary, derived, team, onAcceptSubstitution, fieldLocked = false }) {
+export function MatchAssistant({ game, players, summary, derived, team, onAcceptSubstitutions, fieldLocked = false }) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [suggestion, setSuggestion] = useState(null);
-  const acceptButton = useRef(null);
+  const [proposals, setProposals] = useState([]);
+  const [dialogError, setDialogError] = useState("");
+  const dialog = useRef(null);
   const dismissButton = useRef(null);
 
   useEffect(() => {
-    if (!suggestion) return;
+    if (!proposals.length) return;
     const previousFocus = document.activeElement;
-    (acceptButton.current?.disabled ? dismissButton.current : acceptButton.current)?.focus();
+    dialog.current?.querySelector("button:not(:disabled)")?.focus();
     function handleKeyDown(event) {
-      if (event.key === "Escape") setSuggestion(null);
+      if (event.key === "Escape") setProposals([]);
       if (event.key === "Tab") {
-        const first = acceptButton.current?.disabled ? dismissButton.current : acceptButton.current;
-        const last = dismissButton.current;
+        const buttons = [...(dialog.current?.querySelectorAll("button:not(:disabled)") || [])];
+        const first = buttons[0];
+        const last = buttons.at(-1);
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
       }
@@ -28,25 +30,28 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
       document.removeEventListener("keydown", handleKeyDown);
       previousFocus?.focus();
     };
-  }, [suggestion]);
+  }, [Boolean(proposals.length)]);
 
-  const incoming = suggestion && players.find((player) => player.id === suggestion.incoming_player_id);
-  const outgoing = suggestion && players.find((player) => player.id === suggestion.outgoing_player_id);
-  const suggestionCurrent = suggestion && suggestion.match_id === game.id && incoming && outgoing &&
-    derived.player_states?.[suggestion.incoming_player_id]?.status === "bench" &&
-    derived.player_states?.[suggestion.outgoing_player_id]?.status === "field" &&
-    derived.player_states?.[suggestion.outgoing_player_id]?.position_id === suggestion.position_id &&
-    derived.assignments?.[suggestion.position_id] === suggestion.outgoing_player_id &&
-    !fieldLocked && !["setup", "ended"].includes(derived.status);
+  function proposalCurrent(proposal) {
+    return proposal.match_id === game.id &&
+      players.some((player) => player.id === proposal.incoming_player_id) &&
+      players.some((player) => player.id === proposal.outgoing_player_id) &&
+      derived.player_states?.[proposal.incoming_player_id]?.status === "bench" &&
+      derived.player_states?.[proposal.outgoing_player_id]?.status === "field" &&
+      derived.player_states?.[proposal.outgoing_player_id]?.position_id === proposal.position_id &&
+      derived.assignments?.[proposal.position_id] === proposal.outgoing_player_id &&
+      !fieldLocked && !["setup", "ended"].includes(derived.status);
+  }
 
-  function acceptSuggestion() {
-    if (!suggestionCurrent || !onAcceptSubstitution) return;
+  function acceptProposals(selected) {
+    if (!onAcceptSubstitutions || !selected.length || !selected.every(proposalCurrent)) return;
+    setDialogError("");
     try {
-      const error = onAcceptSubstitution(suggestion);
-      if (error) setError(error);
-      else setSuggestion(null);
+      const error = onAcceptSubstitutions(selected);
+      if (error) setDialogError(error);
+      else setProposals((current) => current.filter((item) => !selected.includes(item)));
     } catch (err) {
-      setError(err.message || "Could not make that substitution.");
+      setDialogError(err.message || "Could not make those substitutions.");
     }
   }
 
@@ -57,7 +62,8 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
     setBusy(true);
     setError("");
     setAnswer("");
-    setSuggestion(null);
+    setProposals([]);
+    setDialogError("");
     try {
       const token = await getAccessToken();
       const playerIds = new Set(game.roster_player_ids || []);
@@ -123,7 +129,9 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
       }
       if (!response.ok) throw new Error(result.error || `The match assistant returned HTTP ${response.status}.`);
       setAnswer(result.answer);
-      if (onAcceptSubstitution && result.substitution) setSuggestion({ ...result.substitution, match_id: game.id });
+      const suggestions = Array.isArray(result.substitutions)
+        ? result.substitutions : result.substitution ? [result.substitution] : [];
+      if (onAcceptSubstitutions) setProposals(suggestions.map((item) => ({ ...item, match_id: game.id })));
     } catch (err) {
       setError(err.name === "AbortError" ? "The assistant took too long. Please try again." : (err.message || "The assistant could not answer."));
     } finally {
@@ -133,25 +141,37 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
 
   return <section className="match-assistant" aria-label="Match assistant">
     <h2>Ask TeamTrack</h2>
-    <p>{onAcceptSubstitution
-      ? "Ask about this match, player time, recorded events, or who to sub in. Substitutions require your approval."
+    <p>{onAcceptSubstitutions
+      ? "Ask about this match, player time, recorded events, or who to sub in. You can approve swaps one by one or all at once."
       : "Ask about this match, player time, or recorded events."}</p>
     <form onSubmit={ask}>
       <label htmlFor="match-assistant-question">Your question</label>
       <textarea id="match-assistant-question" rows="2" maxLength="500" value={question}
-        onChange={(event) => setQuestion(event.target.value)} placeholder={onAcceptSubstitution ? "Who should I sub in?" : "Summarize this match"} />
+        onChange={(event) => setQuestion(event.target.value)} placeholder={onAcceptSubstitutions ? "Make 3 best subs" : "Summarize this match"} />
       <button className="button primary" type="submit" disabled={busy || !question.trim()}>{busy ? "Thinking…" : "Ask"}</button>
     </form>
     {error && <p role="alert" className="match-assistant-error">{error}</p>}
     {answer && <div className="match-assistant-answer" aria-live="polite">{answer}</div>}
-    {suggestion && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Suggested substitution">
-      <h3>Suggested substitution</h3>
-      <p>Sub in <strong>{incoming?.name || "Unknown player"}</strong> for <strong>{outgoing?.name || "Unknown player"}</strong>?</p>
+    {proposals.length > 0 && <div className="match-assistant-dialog-backdrop"><div ref={dialog} className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Suggested substitutions">
+      <h3>Suggested substitutions</h3>
       {answer && <p>{answer}</p>}
-      {!suggestionCurrent && <p role="alert">The lineup changed or the field is locked. Ask again for a current suggestion.</p>}
+      <ol className="match-assistant-proposals">{proposals.map((proposal) => {
+        const incoming = players.find((player) => player.id === proposal.incoming_player_id);
+        const outgoing = players.find((player) => player.id === proposal.outgoing_player_id);
+        const current = proposalCurrent(proposal);
+        return <li key={`${proposal.outgoing_player_id}:${proposal.incoming_player_id}`}>
+          <strong>Sub in {incoming?.name || "Unknown player"} for {outgoing?.name || "Unknown player"}</strong>
+          {!current && <span className="match-assistant-stale">Lineup changed or field locked. Ask again for this swap.</span>}
+          <div className="match-assistant-dialog-actions">
+            <button className="button primary" type="button" disabled={!current} onClick={() => acceptProposals([proposal])}>Accept</button>
+            <button className="button secondary" type="button" onClick={() => setProposals((items) => items.filter((item) => item !== proposal))}>Skip</button>
+          </div>
+        </li>;
+      })}</ol>
+      {dialogError && <p role="alert" className="match-assistant-error">{dialogError}</p>}
       <div className="match-assistant-dialog-actions">
-        <button ref={acceptButton} className="button primary" type="button" disabled={!suggestionCurrent} onClick={acceptSuggestion}>Accept substitution</button>
-        <button ref={dismissButton} className="button secondary" type="button" onClick={() => setSuggestion(null)}>Dismiss</button>
+        {proposals.length > 1 && <button className="button primary" type="button" disabled={!proposals.every(proposalCurrent)} onClick={() => acceptProposals(proposals)}>Accept all {proposals.length}</button>}
+        <button ref={dismissButton} className="button secondary" type="button" onClick={() => setProposals([])}>Dismiss</button>
       </div>
     </div></div>}
   </section>;

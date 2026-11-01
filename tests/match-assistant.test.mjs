@@ -57,7 +57,7 @@ test("returns a validated suggestion for coach approval", async () => {
     incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid",
   } });
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body.substitution, { incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" });
+  assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
   assert.equal(request.response_format.mime_type, "application/json");
 });
 
@@ -66,7 +66,7 @@ test("does not offer an invalid model suggestion", async () => {
     incoming_player_id: "out", outgoing_player_id: "in", position_id: "mid",
   } }, "Summarize this match");
   assert.equal(res.statusCode, 200);
-  assert.equal(res.body.substitution, null);
+  assert.deepEqual(res.body.substitutions, []);
 });
 
 test("turns an active alert into a popup proposal when Gemini only describes the swap", async () => {
@@ -75,7 +75,7 @@ test("turns an active alert into a popup proposal when Gemini only describes the
     answer: "Sam is on the bench and Alex is on the field. The app recommends Sam for Alex.",
     substitution: { incoming_player_id: "", outgoing_player_id: "", position_id: "" },
   }, "Who should I sub in?", withAlert);
-  assert.deepEqual(res.body.substitution, { incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" });
+  assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
   assert.match(res.body.answer, /Sam for Alex/);
 });
 
@@ -84,7 +84,7 @@ test("selects a valid swap when no alert exists", async () => {
     answer: "There is no alert yet.",
     substitution: { incoming_player_id: "", outgoing_player_id: "", position_id: "" },
   });
-  assert.deepEqual(res.body.substitution, { incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" });
+  assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
 });
 
 test("does not claim an actionable swap when nobody is available on the bench", async () => {
@@ -93,7 +93,7 @@ test("does not claim an actionable swap when nobody is available on the bench", 
   const { res } = await ask({ answer: "Sam for Alex.", substitution: {
     incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid",
   } }, "Who should I sub in?", noBench);
-  assert.equal(res.body.substitution, null);
+  assert.deepEqual(res.body.substitutions, []);
   assert.match(res.body.answer, /couldn't find a valid/);
 });
 
@@ -106,7 +106,7 @@ test("rejects a suggested swap that breaks the coed minimum", async () => {
   const { res } = await ask({ answer: "Sam for Alex.", substitution: {
     incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid",
   } }, "Who should I sub in?", coed);
-  assert.equal(res.body.substitution, null);
+  assert.deepEqual(res.body.substitutions, []);
 });
 
 test("rejects a swap after the outgoing player changes position", async () => {
@@ -115,5 +115,56 @@ test("rejects a swap after the outgoing player changes position", async () => {
   const { res } = await ask({ answer: "Sam for Alex.", substitution: {
     incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid",
   } }, "Summarize this match", moved);
-  assert.equal(res.body.substitution, null);
+  assert.deepEqual(res.body.substitutions, []);
+});
+
+test("plans three distinct substitutions for a three-subs request", async () => {
+  const three = {
+    ...context,
+    players: [
+      { id: "out1", name: "Alex", preferred_groups: ["MID"] },
+      { id: "out2", name: "Jordan", preferred_groups: ["DEF"] },
+      { id: "out3", name: "Casey", preferred_groups: ["FWD"] },
+      { id: "in1", name: "Sam", preferred_groups: ["MID"] },
+      { id: "in2", name: "Maya", preferred_groups: ["DEF"] },
+      { id: "in3", name: "Taylor", preferred_groups: ["FWD"] },
+    ],
+    player_states: [
+      { player_id: "out1", status: "field", position_id: "mid", position_group: "MID", current_stint_ms: 600000 },
+      { player_id: "out2", status: "field", position_id: "def", position_group: "DEF", current_stint_ms: 500000 },
+      { player_id: "out3", status: "field", position_id: "fwd", position_group: "FWD", current_stint_ms: 400000 },
+      { player_id: "in1", status: "bench", current_stint_ms: 300000 },
+      { player_id: "in2", status: "bench", current_stint_ms: 250000 },
+      { player_id: "in3", status: "bench", current_stint_ms: 200000 },
+    ],
+  };
+  const { res } = await ask({ answer: "Three swaps are available." }, "Make 3 best subs", three);
+  assert.equal(res.body.substitutions.length, 3);
+  assert.deepEqual(res.body.substitutions.map((item) => item.incoming_player_id), ["in1", "in2", "in3"]);
+  assert.deepEqual(new Set(res.body.substitutions.flatMap((item) => [item.incoming_player_id, item.outgoing_player_id])).size, 6);
+  assert.match(res.body.answer, /3 valid substitutions/);
+  const words = await ask({ answer: "Three swaps are available." }, "Make three substitutions", three);
+  assert.equal(words.res.body.substitutions.length, 3);
+});
+
+test("stops a batch before a combined coed violation", async () => {
+  const coed = {
+    ...context,
+    team: { coed: true, min_girls_on_field: 1 },
+    players: [
+      { id: "girl1", name: "A", gender: "girl", preferred_groups: ["MID"] },
+      { id: "girl2", name: "B", gender: "girl", preferred_groups: ["MID"] },
+      { id: "boy1", name: "C", gender: "boy", preferred_groups: ["MID"] },
+      { id: "boy2", name: "D", gender: "boy", preferred_groups: ["MID"] },
+    ],
+    player_states: [
+      { player_id: "girl1", status: "field", position_id: "mid1", position_group: "MID", current_stint_ms: 600000 },
+      { player_id: "girl2", status: "field", position_id: "mid2", position_group: "MID", current_stint_ms: 500000 },
+      { player_id: "boy1", status: "bench", current_stint_ms: 400000 },
+      { player_id: "boy2", status: "bench", current_stint_ms: 300000 },
+    ],
+  };
+  const { res } = await ask({ answer: "Two swaps are available." }, "Make two subs", coed);
+  assert.equal(res.body.substitutions.length, 1);
+  assert.match(res.body.answer, /1 of 2 requested/);
 });
