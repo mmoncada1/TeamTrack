@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { getAccessToken } from "../state/cloud.js";
 
-export function MatchAssistant({ game, players, summary, derived, team, onAcceptSubstitutions, fieldLocked = false }) {
+export function MatchAssistant({ game, players, summary, derived, team, onAcceptSubstitutions, onAcceptGoal, onAcceptMatchAction, fieldLocked = false }) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [proposals, setProposals] = useState([]);
+  const [goalProposal, setGoalProposal] = useState(null);
+  const [matchAction, setMatchAction] = useState(null);
   const [dialogError, setDialogError] = useState("");
   const dialog = useRef(null);
   const dismissButton = useRef(null);
@@ -63,6 +65,8 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
     setError("");
     setAnswer("");
     setProposals([]);
+    setGoalProposal(null);
+    setMatchAction(null);
     setDialogError("");
     try {
       const token = await getAccessToken();
@@ -133,6 +137,9 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
       const suggestions = Array.isArray(result.substitutions)
         ? result.substitutions : result.substitution ? [result.substitution] : [];
       if (onAcceptSubstitutions) setProposals(suggestions.map((item) => ({ ...item, match_id: game.id })));
+      if (onAcceptGoal && result.goal) setGoalProposal({ ...result.goal, match_id: game.id,
+        team_score: summary.team_score, opponent_score: summary.opponent_score });
+      if (onAcceptMatchAction && result.matchAction) setMatchAction({ ...result.matchAction, match_id: game.id });
     } catch (err) {
       setError(err.name === "AbortError" ? "The assistant took too long. Please try again." : (err.message || "The assistant could not answer."));
     } finally {
@@ -143,7 +150,7 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
   return <section className="match-assistant" aria-label="Match assistant">
     <h2>Ask TeamTrack</h2>
     <p>{onAcceptSubstitutions
-      ? "Ask about this match, player time, recorded events, or who to sub in. You can approve swaps one by one or all at once."
+      ? "Ask about this match, substitutions, goals, cards, or injuries. Review proposed changes before they update the match."
       : "Ask about this match, player time, or recorded events."}</p>
     <form onSubmit={ask}>
       <label htmlFor="match-assistant-question">Your question</label>
@@ -153,6 +160,36 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
     </form>
     {error && <p role="alert" className="match-assistant-error">{error}</p>}
     {answer && <div className="match-assistant-answer" aria-live="polite">{answer}</div>}
+    {matchAction && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review match action">
+      <h3>Review match action</h3>
+      <p>{players.find((player) => player.id === matchAction.player_id)?.name || "Unknown player"}: {matchAction.type === "card" ? `${matchAction.color} card` : "mark injured"}</p>
+      {dialogError && <p role="alert" className="match-assistant-error">{dialogError}</p>}
+      <div className="match-assistant-dialog-actions">
+        <button className="button primary" type="button" disabled={matchAction.match_id !== game.id || derived.status === "ended" ||
+          derived.player_states?.[matchAction.player_id]?.status === "unavailable"} onClick={() => {
+          const result = onAcceptMatchAction(matchAction);
+          if (result) setDialogError(result); else { setMatchAction(null); setDialogError(""); }
+        }}>Record action</button>
+        <button className="button secondary" type="button" onClick={() => { setMatchAction(null); setDialogError(""); }}>Cancel</button>
+      </div>
+    </div></div>}
+    {goalProposal && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review proposed goal">
+      <h3>Review goal</h3>
+      <p>{goalProposal.team === "opponent" ? `${game.opponent_name} scored` : `${players.find((player) => player.id === goalProposal.scorer_id)?.name || "Unknown player"} scored`}
+        {goalProposal.assister_id ? ` · Assisted by ${players.find((player) => player.id === goalProposal.assister_id)?.name || "Unknown player"}` : ""}</p>
+      <p>Score: {summary.team_score}–{summary.opponent_score} → {summary.team_score + (goalProposal.team === "us" ? 1 : 0)}–{summary.opponent_score + (goalProposal.team === "opponent" ? 1 : 0)}</p>
+      {(goalProposal.team_score !== summary.team_score || goalProposal.opponent_score !== summary.opponent_score) &&
+        <p className="match-assistant-stale">The score changed. Ask again before recording this goal.</p>}
+      {dialogError && <p role="alert" className="match-assistant-error">{dialogError}</p>}
+      <div className="match-assistant-dialog-actions">
+        <button className="button primary" type="button" disabled={goalProposal.match_id !== game.id || derived.status === "ended" ||
+          goalProposal.team_score !== summary.team_score || goalProposal.opponent_score !== summary.opponent_score} onClick={() => {
+          const result = onAcceptGoal(goalProposal);
+          if (result) setDialogError(result); else { setGoalProposal(null); setDialogError(""); }
+        }}>Record goal</button>
+        <button className="button secondary" type="button" onClick={() => { setGoalProposal(null); setDialogError(""); }}>Cancel</button>
+      </div>
+    </div></div>}
     {proposals.length > 0 && <div className="match-assistant-dialog-backdrop"><div ref={dialog} className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Suggested substitutions">
       <h3>Suggested substitutions</h3>
       {answer && <p>{answer}</p>}

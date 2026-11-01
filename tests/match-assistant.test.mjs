@@ -200,3 +200,35 @@ test("stops a batch before a combined coed violation", async () => {
   assert.equal(res.body.substitutions.length, 1);
   assert.match(res.body.answer, /1 of 2 requested/);
 });
+
+test("proposes scorer and optional assist from common goal wording", async () => {
+  const goalContext = { ...context, players: [
+    { id: "katie", name: "Katie Smith" }, { id: "matteo", name: "Matteo Rossi" },
+  ] };
+  for (const question of ["Katie scored assisted by Matteo", "Katie scored passed by Matteo", "Katie scored by Matteo", "Goal by Katie assisted by Matteo"]) {
+    const { res } = await ask({ answer: "Goal." }, question, goalContext);
+    assert.deepEqual(res.body.goal, { team: "us", scorer_id: "katie", assister_id: "matteo" }, question);
+  }
+  const { res } = await ask({ answer: "Goal." }, "Katie scored", goalContext);
+  assert.deepEqual(res.body.goal, { team: "us", scorer_id: "katie", assister_id: null });
+  const opponent = await ask({ answer: "Goal." }, "Opponent scored", goalContext);
+  assert.deepEqual(opponent.res.body.goal, { team: "opponent", scorer_id: null, assister_id: null });
+  const question = await ask({ answer: "No." }, "Did Katie score?", goalContext);
+  assert.equal(question.res.body.goal, null);
+});
+
+test("proposes cards and injuries without recording them", async () => {
+  const actions = { ...context, players: [{ id: "out", name: "Katie Smith" }],
+    player_states: [{ player_id: "out", status: "field", position_id: "mid" }] };
+  for (const [question, expected] of [
+    ["Katie got a yellow card", { type: "card", player_id: "out", color: "yellow" }],
+    ["Red card for Katie", { type: "card", player_id: "out", color: "red" }],
+    ["Katie is injured", { type: "injury", player_id: "out" }],
+  ]) {
+    const { res } = await ask({ answer: "Done." }, question, actions);
+    assert.deepEqual(res.body.matchAction, expected);
+    assert.match(res.body.answer, /Review/);
+  }
+  const question = await ask({ answer: "No." }, "Did Katie get a yellow card?", actions);
+  assert.equal(question.res.body.matchAction, null);
+});
