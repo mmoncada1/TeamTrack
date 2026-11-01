@@ -79,6 +79,24 @@ test("turns an active alert into a popup proposal when Gemini only describes the
   assert.match(res.body.answer, /Sam for Alex/);
 });
 
+test("chooses the longest waiting valid bench player even when an alert names another", async () => {
+  const waiting = { ...context,
+    players: [
+      { id: "out", name: "Alex", preferred_groups: ["MID"] },
+      { id: "short", name: "Sam", preferred_groups: ["MID"] },
+      { id: "long", name: "Katie", preferred_groups: ["DEF"] },
+    ],
+    player_states: [
+      { player_id: "out", status: "field", position_id: "mid", position_group: "MID", current_stint_ms: 660000 },
+      { player_id: "short", status: "bench", current_stint_ms: 120000 },
+      { player_id: "long", status: "bench", current_stint_ms: 900000 },
+    ],
+    alerts: [{ player_id: "out", recommendation: { in_player_id: "short" } }],
+  };
+  const { res } = await ask({ answer: "Sam for Alex." }, "Who should I sub in?", waiting);
+  assert.equal(res.body.substitutions[0].incoming_player_id, "long");
+});
+
 test("selects a valid swap when no alert exists", async () => {
   const { res } = await ask({
     answer: "There is no alert yet.",

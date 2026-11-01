@@ -52,20 +52,12 @@ function suggestSubstitutions(context, limit, eligibleIds = null) {
   if (!["in_progress", "paused", "half_time"].includes(context.match.status)) return [];
   const states = (Array.isArray(context.player_states) ? context.player_states : []).map((state) => ({ ...state }));
   const players = Array.isArray(context.players) ? context.players : [];
-  const alerts = Array.isArray(context.alerts) ? context.alerts : [];
   const planned = [];
   const used = new Set();
   while (planned.length < limit) {
     const projected = { ...context, player_states: states };
     let chosen = null;
-    for (const alert of alerts) {
-      const outgoing = states.find((state) => state.player_id === alert.player_id);
-      const proposal = { incoming_player_id: alert.recommendation?.in_player_id,
-        outgoing_player_id: alert.player_id, position_id: outgoing?.position_id };
-      if ((!eligibleIds || eligibleIds.has(proposal.outgoing_player_id)) && !used.has(proposal.incoming_player_id) && !used.has(proposal.outgoing_player_id) &&
-          validSubstitution(proposal, projected)) { chosen = proposal; break; }
-    }
-    if (!chosen) {
+    {
       const field = states.filter((state) => state.status === "field" && state.position_id &&
         (eligibleIds ? eligibleIds.has(state.player_id) : state.position_group !== "GK") && !used.has(state.player_id))
         .sort((a, b) => (b.current_stint_ms || 0) - (a.current_stint_ms || 0));
@@ -76,7 +68,7 @@ function suggestSubstitutions(context, limit, eligibleIds = null) {
             const bPlayer = players.find((player) => player.id === b.player_id);
             const aMatches = aPlayer?.preferred_groups?.includes(outgoing.position_group) ? 1 : 0;
             const bMatches = bPlayer?.preferred_groups?.includes(outgoing.position_group) ? 1 : 0;
-            return bMatches - aMatches || (b.current_stint_ms || 0) - (a.current_stint_ms || 0);
+            return (b.current_stint_ms || 0) - (a.current_stint_ms || 0) || bMatches - aMatches;
           });
         for (const incoming of bench) {
           const proposal = { incoming_player_id: incoming.player_id,
