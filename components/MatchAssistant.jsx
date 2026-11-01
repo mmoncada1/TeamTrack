@@ -1,11 +1,54 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { getAccessToken } from "../state/cloud.js";
 
-export function MatchAssistant({ game, players, summary, derived }) {
+export function MatchAssistant({ game, players, summary, derived, team, onAcceptSubstitution, fieldLocked = false }) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [suggestion, setSuggestion] = useState(null);
+  const acceptButton = useRef(null);
+  const dismissButton = useRef(null);
+
+  useEffect(() => {
+    if (!suggestion) return;
+    const previousFocus = document.activeElement;
+    (acceptButton.current?.disabled ? dismissButton.current : acceptButton.current)?.focus();
+    function handleKeyDown(event) {
+      if (event.key === "Escape") setSuggestion(null);
+      if (event.key === "Tab") {
+        const first = acceptButton.current?.disabled ? dismissButton.current : acceptButton.current;
+        const last = dismissButton.current;
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus();
+    };
+  }, [suggestion]);
+
+  const incoming = suggestion && players.find((player) => player.id === suggestion.incoming_player_id);
+  const outgoing = suggestion && players.find((player) => player.id === suggestion.outgoing_player_id);
+  const suggestionCurrent = suggestion && suggestion.match_id === game.id && incoming && outgoing &&
+    derived.player_states?.[suggestion.incoming_player_id]?.status === "bench" &&
+    derived.player_states?.[suggestion.outgoing_player_id]?.status === "field" &&
+    derived.player_states?.[suggestion.outgoing_player_id]?.position_id === suggestion.position_id &&
+    derived.assignments?.[suggestion.position_id] === suggestion.outgoing_player_id &&
+    !fieldLocked && !["setup", "ended"].includes(derived.status);
+
+  function acceptSuggestion() {
+    if (!suggestionCurrent || !onAcceptSubstitution) return;
+    try {
+      const error = onAcceptSubstitution(suggestion);
+      if (error) setError(error);
+      else setSuggestion(null);
+    } catch (err) {
+      setError(err.message || "Could not make that substitution.");
+    }
+  }
 
   async function ask(event) {
     event.preventDefault();
@@ -14,10 +57,12 @@ export function MatchAssistant({ game, players, summary, derived }) {
     setBusy(true);
     setError("");
     setAnswer("");
+    setSuggestion(null);
     try {
       const token = await getAccessToken();
       const playerIds = new Set(game.roster_player_ids || []);
       const context = {
+        team: team ? { coed: team.coed, min_girls_on_field: team.min_girls_on_field } : undefined,
         match: {
           id: game.id, team_id: game.team_id, team_name: game.team_name,
           opponent_name: game.opponent_name, date: game.date,
@@ -26,7 +71,7 @@ export function MatchAssistant({ game, players, summary, derived }) {
         },
         players: players.filter((player) => player.team_id === game.team_id && playerIds.has(player.id)).map((player) => ({
           id: player.id, name: player.name, jersey_number: player.jersey_number,
-          preferred_groups: player.preferred_groups, availability: player.availability,
+          preferred_groups: player.preferred_groups, availability: player.availability, gender: player.gender,
         })),
         statistics: summary.summaries.map((item) => ({
           player_id: item.player_id, player_name: item.player_name,
@@ -64,9 +109,16 @@ export function MatchAssistant({ game, players, summary, derived }) {
       } finally {
         clearTimeout(timer);
       }
+      if (!(response.headers.get("content-type") || "").includes("application/json")) {
+        throw new Error("The match assistant API is unavailable. Run `npx vercel dev` and open the URL it prints.");
+      }
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "The assistant could not answer.");
+      if (response.status === 405 && !result.error) {
+        throw new Error("This server does not serve the match assistant API. Run `npx vercel dev` and open the URL it prints.");
+      }
+      if (!response.ok) throw new Error(result.error || `The match assistant returned HTTP ${response.status}.`);
       setAnswer(result.answer);
+      if (onAcceptSubstitution && result.substitution) setSuggestion({ ...result.substitution, match_id: game.id });
     } catch (err) {
       setError(err.name === "AbortError" ? "The assistant took too long. Please try again." : (err.message || "The assistant could not answer."));
     } finally {
@@ -76,14 +128,26 @@ export function MatchAssistant({ game, players, summary, derived }) {
 
   return <section className="match-assistant" aria-label="Match assistant">
     <h2>Ask TeamTrack</h2>
-    <p>Ask about this match, player time, or recorded events. Suggestions are for the coach to review.</p>
+    <p>{onAcceptSubstitution
+      ? "Ask about this match, player time, recorded events, or who to sub in. Substitutions require your approval."
+      : "Ask about this match, player time, or recorded events."}</p>
     <form onSubmit={ask}>
       <label htmlFor="match-assistant-question">Your question</label>
       <textarea id="match-assistant-question" rows="2" maxLength="500" value={question}
-        onChange={(event) => setQuestion(event.target.value)} placeholder="Summarize this match" />
+        onChange={(event) => setQuestion(event.target.value)} placeholder={onAcceptSubstitution ? "Who should I sub in?" : "Summarize this match"} />
       <button className="button primary" type="submit" disabled={busy || !question.trim()}>{busy ? "Thinking…" : "Ask"}</button>
     </form>
     {error && <p role="alert" className="match-assistant-error">{error}</p>}
     {answer && <div className="match-assistant-answer" aria-live="polite">{answer}</div>}
+    {suggestion && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Suggested substitution">
+      <h3>Suggested substitution</h3>
+      <p>Sub in <strong>{incoming?.name || "Unknown player"}</strong> for <strong>{outgoing?.name || "Unknown player"}</strong>?</p>
+      {answer && <p>{answer}</p>}
+      {!suggestionCurrent && <p role="alert">The lineup changed or the field is locked. Ask again for a current suggestion.</p>}
+      <div className="match-assistant-dialog-actions">
+        <button ref={acceptButton} className="button primary" type="button" disabled={!suggestionCurrent} onClick={acceptSuggestion}>Accept substitution</button>
+        <button ref={dismissButton} className="button secondary" type="button" onClick={() => setSuggestion(null)}>Dismiss</button>
+      </div>
+    </div></div>}
   </section>;
 }

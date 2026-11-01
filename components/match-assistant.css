@@ -16,6 +16,10 @@
 .match-assistant button { justify-self: start; }
 .match-assistant-answer { margin-top: 1rem; white-space: pre-wrap; line-height: 1.5; color: #f1f5f9; }
 .match-assistant-error { margin-top: 1rem !important; color: #fecaca !important; }
+.match-assistant-dialog-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 1rem; background: rgb(2 6 23 / 75%); }
+.match-assistant-dialog { width: min(100%, 28rem); max-height: 90vh; overflow: auto; padding: 1.5rem; border: 1px solid #64748b; border-radius: 14px; background: #1e293b; box-shadow: 0 20px 50px rgb(0 0 0 / 40%); }
+.match-assistant-dialog h3 { margin: 0 0 1rem; color: #f1f5f9; }
+.match-assistant-dialog-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
 .live-match .live-sidebar > .match-assistant { flex: none; margin: 0; }
 .live-match .live-sidebar .match-assistant h2 { font-size: 16px; }
 .live-match .live-sidebar .match-assistant p,
