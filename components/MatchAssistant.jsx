@@ -110,7 +110,12 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
         clearTimeout(timer);
       }
       if (!(response.headers.get("content-type") || "").includes("application/json")) {
-        throw new Error("The match assistant API is unavailable. Run `npx vercel dev` and open the URL it prints.");
+        if (response.status >= 500) {
+          throw new Error(`The match assistant server failed (HTTP ${response.status}). Check the Vercel function logs.`);
+        }
+        throw new Error(window.location.hostname === "localhost"
+          ? "The match assistant API is unavailable. Run `npx vercel dev` and open the URL it prints."
+          : `The match assistant API is unavailable on this deployment (HTTP ${response.status}).`);
       }
       const result = await response.json();
       if (response.status === 405 && !result.error) {

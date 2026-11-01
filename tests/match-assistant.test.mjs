@@ -15,6 +15,17 @@ function mockResponse(body) {
   return { ok: true, status: 200, json: async () => body };
 }
 
+test("loads the function and answers an unsupported method with JSON", async () => {
+  const res = {
+    status(code) { this.statusCode = code; return this; },
+    setHeader() { return this; },
+    json(body) { this.body = body; return this; },
+  };
+  await handler({ method: "GET" }, res);
+  assert.equal(res.statusCode, 405);
+  assert.deepEqual(res.body, { error: "Method not allowed." });
+});
+
 async function ask(modelAnswer, question = "Who should I sub in?", matchContext = context) {
   const oldFetch = globalThis.fetch;
   const oldKey = process.env.GEMINI_API_KEY;
@@ -84,4 +95,25 @@ test("does not claim an actionable swap when nobody is available on the bench", 
   } }, "Who should I sub in?", noBench);
   assert.equal(res.body.substitution, null);
   assert.match(res.body.answer, /couldn't find a valid/);
+});
+
+test("rejects a suggested swap that breaks the coed minimum", async () => {
+  const coed = {
+    ...context,
+    team: { coed: true, min_girls_on_field: 1 },
+    players: [{ id: "out", name: "Alex", gender: "girl" }, { id: "in", name: "Sam", gender: "boy" }],
+  };
+  const { res } = await ask({ answer: "Sam for Alex.", substitution: {
+    incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid",
+  } }, "Who should I sub in?", coed);
+  assert.equal(res.body.substitution, null);
+});
+
+test("rejects a swap after the outgoing player changes position", async () => {
+  const moved = { ...context, player_states: context.player_states.map((state) =>
+    state.player_id === "out" ? { ...state, position_id: "def" } : state) };
+  const { res } = await ask({ answer: "Sam for Alex.", substitution: {
+    incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid",
+  } }, "Summarize this match", moved);
+  assert.equal(res.body.substitution, null);
 });
