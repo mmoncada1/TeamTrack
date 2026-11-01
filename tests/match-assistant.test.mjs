@@ -227,12 +227,16 @@ test("proposes scorer and optional assist from common goal wording", async () =>
   ] };
   for (const question of ["Katie scored assisted by Matteo", "Katie scored passed by Matteo", "Katie scored by Matteo", "Goal by Katie assisted by Matteo"]) {
     const { res } = await ask({ answer: "Goal." }, question, goalContext);
-    assert.deepEqual(res.body.goal, { team: "us", scorer_id: "katie", assister_id: "matteo" }, question);
+    assert.deepEqual(res.body.goal, { team: "us", scorer_id: "katie", assister_id: "matteo", minute: null }, question);
   }
   const { res } = await ask({ answer: "Goal." }, "Katie scored", goalContext);
-  assert.deepEqual(res.body.goal, { team: "us", scorer_id: "katie", assister_id: null });
+  assert.deepEqual(res.body.goal, { team: "us", scorer_id: "katie", assister_id: null, minute: null });
   const opponent = await ask({ answer: "Goal." }, "Opponent scored", goalContext);
-  assert.deepEqual(opponent.res.body.goal, { team: "opponent", scorer_id: null, assister_id: null });
+  assert.deepEqual(opponent.res.body.goal, { team: "opponent", scorer_id: null, assister_id: null, minute: null });
+  for (const wording of ["Katie scored at 50th minute", "Katie scored in the 50th minute", "Katie scored at minute 50"]) {
+    const timed = await ask({ answer: "Goal." }, wording, goalContext);
+    assert.deepEqual(timed.res.body.goal, { team: "us", scorer_id: "katie", assister_id: null, minute: 50 });
+  }
   const question = await ask({ answer: "No." }, "Did Katie score?", goalContext);
   assert.equal(question.res.body.goal, null);
 });
