@@ -29,7 +29,7 @@ function isSubstitutionQuestion(question) {
 function requestedSubstitutionCount(question) {
   const quantity = "(\\d+|one|two|three|four|five)";
   const match = new RegExp(`\\b${quantity}\\s+(?:best\\s+)?(?:subs?|substitutions?|swaps?)\\b`, "i").exec(question) ||
-    new RegExp(`\\b(?:sub|substitute|swap|rotate)\\s+${quantity}\\b`, "i").exec(question);
+    new RegExp(`\\b(?:sub|substitute|swap|rotate|queue)\\s+${quantity}\\s*(?:subs?|substitutions?|swaps?)?\\b`, "i").exec(question);
   if (!match) return null;
   const count = { one: 1, two: 2, three: 3, four: 4, five: 5 }[match[1].toLowerCase()] || Number(match[1]);
   return Math.max(1, Math.min(5, count));

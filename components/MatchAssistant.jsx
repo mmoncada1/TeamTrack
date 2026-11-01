@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { getAccessToken } from "../state/cloud.js";
 
-export function MatchAssistant({ game, players, summary, derived, team, onAcceptSubstitutions, onAcceptGoal, onAcceptMatchAction, fieldLocked = false }) {
+export function MatchAssistant({ game, players, summary, derived, team, queuedSubs = [], onQueueSubstitutions, onApplyQueuedSubstitutions, onAcceptSubstitutions, onAcceptGoal, onAcceptMatchAction, fieldLocked = false }) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
@@ -34,7 +34,7 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
     };
   }, [Boolean(proposals.length)]);
 
-  function proposalCurrent(proposal) {
+  function proposalCurrent(proposal, requireUnlocked = true) {
     return proposal.match_id === game.id &&
       players.some((player) => player.id === proposal.incoming_player_id) &&
       players.some((player) => player.id === proposal.outgoing_player_id) &&
@@ -42,7 +42,7 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
       derived.player_states?.[proposal.outgoing_player_id]?.status === "field" &&
       derived.player_states?.[proposal.outgoing_player_id]?.position_id === proposal.position_id &&
       derived.assignments?.[proposal.position_id] === proposal.outgoing_player_id &&
-      !fieldLocked && !["setup", "ended"].includes(derived.status);
+      (!requireUnlocked || !fieldLocked) && !["setup", "ended"].includes(derived.status);
   }
 
   function acceptProposals(selected) {
@@ -57,6 +57,13 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
     }
   }
 
+  function queueProposals(selected) {
+    if (!onQueueSubstitutions || !selected.length || !selected.every((item) => proposalCurrent(item, false))) return;
+    const result = onQueueSubstitutions(selected);
+    if (result) setDialogError(result);
+    else { setProposals((current) => current.filter((item) => !selected.includes(item))); setDialogError(""); setAnswer(`${selected.length} substitution${selected.length === 1 ? "" : "s"} queued. Apply them when they happen.`); }
+  }
+
   async function ask(event) {
     event.preventDefault();
     const prompt = question.trim();
@@ -69,6 +76,14 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
     setMatchAction(null);
     setDialogError("");
     try {
+      if (/\b(?:push|apply|record|make)\s+(?:this\s+|the\s+|next\s+|queued\s+|all\s+)*(?:subs?|substitutions?|swaps?)\b/i.test(prompt) && onApplyQueuedSubstitutions) {
+        if (!queuedSubs.length) { setAnswer("There are no queued substitutions to apply."); return; }
+        const all = /\ball\b/i.test(prompt);
+        const selected = all ? queuedSubs : queuedSubs.slice(0, 1);
+        const result = onApplyQueuedSubstitutions(selected);
+        setAnswer(result || `${selected.length} queued substitution${selected.length === 1 ? "" : "s"} recorded.`);
+        return;
+      }
       const token = await getAccessToken();
       const playerIds = new Set(game.roster_player_ids || []);
       const context = {
@@ -136,7 +151,15 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
       setAnswer(result.answer);
       const suggestions = Array.isArray(result.substitutions)
         ? result.substitutions : result.substitution ? [result.substitution] : [];
-      if (onAcceptSubstitutions) setProposals(suggestions.map((item) => ({ ...item, match_id: game.id })));
+      if (onAcceptSubstitutions) {
+        const next = suggestions.map((item) => ({ ...item, match_id: game.id }));
+        setProposals(next);
+        if (/\bqueue\b/i.test(prompt) && next.length && onQueueSubstitutions) {
+          const result = onQueueSubstitutions(next);
+          if (result) setDialogError(result);
+          else { setProposals([]); setAnswer(`${next.length} substitution${next.length === 1 ? "" : "s"} queued. Apply them when they happen.`); }
+        }
+      }
       if (onAcceptGoal && result.goal) setGoalProposal({ ...result.goal, match_id: game.id,
         team_score: summary.team_score, opponent_score: summary.opponent_score });
       if (onAcceptMatchAction && result.matchAction) setMatchAction({ ...result.matchAction, match_id: game.id });
@@ -150,7 +173,7 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
   return <section className="match-assistant" aria-label="Match assistant">
     <h2>Ask TeamTrack</h2>
     <p>{onAcceptSubstitutions
-      ? "Ask about this match, substitutions, goals, cards, or injuries. Review proposed changes before they update the match."
+      ? "Ask about this match, substitutions, goals, cards, or injuries. Queue swaps for later or record them when they happen."
       : "Ask about this match, player time, or recorded events."}</p>
     <form onSubmit={ask}>
       <label htmlFor="match-assistant-question">Your question</label>
@@ -206,6 +229,7 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
           {!current && <span className="match-assistant-stale">Lineup changed or field locked. Ask again for this swap.</span>}
           <div className="match-assistant-dialog-actions">
             <button className="button primary" type="button" disabled={!current} onClick={() => acceptProposals([proposal])}>Accept</button>
+            {onQueueSubstitutions && <button className="button secondary" type="button" disabled={!proposalCurrent(proposal, false)} onClick={() => queueProposals([proposal])}>Queue for later</button>}
             <button className="button secondary" type="button" onClick={() => setProposals((items) => items.filter((item) => item !== proposal))}>Skip</button>
           </div>
         </li>;
@@ -213,6 +237,7 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
       {dialogError && <p role="alert" className="match-assistant-error">{dialogError}</p>}
       <div className="match-assistant-dialog-actions">
         {proposals.length > 1 && <button className="button primary" type="button" disabled={!proposals.every(proposalCurrent)} onClick={() => acceptProposals(proposals)}>Accept all {proposals.length}</button>}
+        {proposals.length > 1 && onQueueSubstitutions && <button className="button secondary" type="button" disabled={!proposals.every((item) => proposalCurrent(item, false))} onClick={() => queueProposals(proposals)}>Queue all {proposals.length}</button>}
         <button ref={dismissButton} className="button secondary" type="button" onClick={() => setProposals([])}>Dismiss</button>
       </div>
     </div></div>}

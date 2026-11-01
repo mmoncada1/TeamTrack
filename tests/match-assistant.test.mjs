@@ -163,6 +163,8 @@ test("plans three distinct substitutions for a three-subs request", async () => 
   assert.match(res.body.answer, /3 valid substitutions/);
   const words = await ask({ answer: "Three swaps are available." }, "Make three substitutions", three);
   assert.equal(words.res.body.substitutions.length, 3);
+  const queued = await ask({ answer: "Three swaps are available." }, "Queue 3 subs", three);
+  assert.equal(queued.res.body.substitutions.length, 3);
 });
 
 test("an open ended question proposes every player past the configured stint limit", async () => {
