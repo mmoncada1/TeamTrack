@@ -105,11 +105,8 @@ function substitutionAnswer(substitutions, context, requested) {
 function proposedGoal(question, context) {
   if (!/\b(scored?|scores?|goal)\b/i.test(question) || /\?/.test(question) ||
       !["in_progress", "paused", "half_time"].includes(context.match.status)) return null;
-  const minuteMatch = /\b(?:at|in)\s+(?:the\s+)?(\d{1,3})(?:st|nd|rd|th)?\s*(?:minute|min)\b|\b(?:minute|min)\s+(\d{1,3})\b|\b(\d{1,3})\s*['′]/i.exec(question);
-  const minute = minuteMatch ? Number(minuteMatch[1] || minuteMatch[2] || minuteMatch[3]) : null;
-  if (minute !== null && (minute < 1 || minute > 180)) return null;
   if (/\b(opponent|other team|they)\b/i.test(question) && /\b(scored?|scores?|goal)\b/i.test(question)) {
-    return { team: "opponent", scorer_id: null, assister_id: null, minute };
+    return { team: "opponent", scorer_id: null, assister_id: null };
   }
   const players = Array.isArray(context.players) ? context.players : [];
   const normalize = (value) => value.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
@@ -138,7 +135,7 @@ function proposedGoal(question, context) {
   const assistId = assistMatch ? resolve(afterScore.slice(assistMatch.index + assistMatch[0].length)) : null;
   if (assistMatch && !assistId) return null;
   if (assistId === scorerId) return null;
-  return { team: "us", scorer_id: scorerId, assister_id: assistId, minute };
+  return { team: "us", scorer_id: scorerId, assister_id: assistId };
 }
 
 function proposedMatchAction(question, context) {

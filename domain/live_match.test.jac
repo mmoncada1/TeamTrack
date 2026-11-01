@@ -75,13 +75,6 @@ test "records edits deletes and undoes goals deterministically" {
     assert derive_match_state(game, 150_000).opponent_score == 0;
 }
 
-test "records a reported goal minute instead of the current clock" {
-    game = start_match(sample_game(), 0);
-    game = record_goal(game, "us", False, "fwd", None, None, 60_000, 50 * 60_000);
-    assert game.events[-1].match_clock_ms == 50 * 60_000;
-    assert derive_match_state(game, 60_000).team_score == 1;
-}
-
 test "second yellow sends a player off and undo restores them" {
     game = start_match(sample_game(), 0);
     game = record_card(game, "def-l", "yellow", 60_000);

@@ -7,11 +7,6 @@
   color: #f1f5f9;
 }
 .match-assistant h2 { margin: 0 0 .4rem; color: #f1f5f9; }
-.match-assistant-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
-.match-assistant-heading h2 { margin: 0; }
-.match-assistant-mode { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; cursor: pointer; }
-.match-assistant-goal-minute { display: grid; gap: .35rem; margin-bottom: 1rem; }
-.match-assistant-goal-minute input { width: 9rem; padding: .45rem; border: 1px solid #64748b; border-radius: 6px; background: #0f172a; color: #f1f5f9; }
 .match-assistant p { margin: 0 0 1rem; color: #cbd5e1; }
 .match-assistant form { display: grid; gap: .6rem; }
 .match-assistant label { color: #e2e8f0; font-weight: 600; }
