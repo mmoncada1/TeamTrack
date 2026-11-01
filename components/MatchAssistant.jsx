@@ -75,6 +75,7 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
           status: derived.status, clock_ms: derived.display_clock_ms,
           team_score: summary.team_score, opponent_score: summary.opponent_score,
         },
+        settings: { thresholds: game.settings?.thresholds, goalkeeper_rotation_enabled: game.settings?.goalkeeper_rotation_enabled },
         players: players.filter((player) => player.team_id === game.team_id && playerIds.has(player.id)).map((player) => ({
           id: player.id, name: player.name, jersey_number: player.jersey_number,
           preferred_groups: player.preferred_groups, availability: player.availability, gender: player.gender,
@@ -159,8 +160,12 @@ export function MatchAssistant({ game, players, summary, derived, team, onAccept
         const incoming = players.find((player) => player.id === proposal.incoming_player_id);
         const outgoing = players.find((player) => player.id === proposal.outgoing_player_id);
         const current = proposalCurrent(proposal);
+        const fieldMs = derived.player_states?.[proposal.outgoing_player_id]?.current_stint_ms || 0;
+        const benchMs = derived.player_states?.[proposal.incoming_player_id]?.current_stint_ms || 0;
+        const minutes = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
         return <li key={`${proposal.outgoing_player_id}:${proposal.incoming_player_id}`}>
           <strong>Sub in {incoming?.name || "Unknown player"} for {outgoing?.name || "Unknown player"}</strong>
+          <span className="match-assistant-stint">{outgoing?.name || "Outgoing player"} on field: {minutes(fieldMs)} · {incoming?.name || "Incoming player"} on bench: {minutes(benchMs)}</span>
           {!current && <span className="match-assistant-stale">Lineup changed or field locked. Ask again for this swap.</span>}
           <div className="match-assistant-dialog-actions">
             <button className="button primary" type="button" disabled={!current} onClick={() => acceptProposals([proposal])}>Accept</button>

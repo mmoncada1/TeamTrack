@@ -147,6 +147,38 @@ test("plans three distinct substitutions for a three-subs request", async () => 
   assert.equal(words.res.body.substitutions.length, 3);
 });
 
+test("an open ended question proposes every player past the configured stint limit", async () => {
+  const timed = {
+    ...context,
+    settings: { thresholds: { MID: { enabled: true, minutes: 10 }, DEF: { enabled: true, minutes: 12 } } },
+    players: [
+      { id: "out1", name: "Alex", preferred_groups: ["MID"] },
+      { id: "out2", name: "Jordan", preferred_groups: ["DEF"] },
+      { id: "out3", name: "Casey", preferred_groups: ["MID"] },
+      { id: "in1", name: "Sam", preferred_groups: ["MID"] },
+      { id: "in2", name: "Maya", preferred_groups: ["DEF"] },
+      { id: "in3", name: "Taylor", preferred_groups: ["MID"] },
+    ],
+    player_states: [
+      { player_id: "out1", status: "field", position_id: "mid1", position_group: "MID", current_stint_ms: 660000 },
+      { player_id: "out2", status: "field", position_id: "def", position_group: "DEF", current_stint_ms: 780000 },
+      { player_id: "out3", status: "field", position_id: "mid2", position_group: "MID", current_stint_ms: 540000 },
+      { player_id: "in1", status: "bench", current_stint_ms: 600000 },
+      { player_id: "in2", status: "bench", current_stint_ms: 600000 },
+      { player_id: "in3", status: "bench", current_stint_ms: 600000 },
+    ],
+  };
+  for (const question of ["How many subs should I make?", "What subs should I make?"]) {
+    const { res } = await ask({ answer: "Consider rotating players." }, question, timed);
+    assert.deepEqual(res.body.substitutions.map((item) => item.outgoing_player_id), ["out2", "out1"]);
+  }
+  const early = { ...timed, player_states: timed.player_states.map((state) =>
+    state.status === "field" ? { ...state, current_stint_ms: 300000 } : state) };
+  const { res } = await ask({ answer: "Consider rotating players." }, "How many subs should I make?", early);
+  assert.deepEqual(res.body.substitutions, []);
+  assert.match(res.body.answer, /No player has reached/);
+});
+
 test("stops a batch before a combined coed violation", async () => {
   const coed = {
     ...context,

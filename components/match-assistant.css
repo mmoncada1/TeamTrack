@@ -23,6 +23,7 @@
 .match-assistant-proposals { display: grid; gap: .75rem; margin: 0 0 1rem; padding-left: 1.5rem; }
 .match-assistant-proposals li { padding: .75rem; border: 1px solid #475569; border-radius: 8px; }
 .match-assistant-proposals strong { display: block; margin-bottom: .6rem; }
+.match-assistant-stint { display: block; margin-bottom: .6rem; color: #cbd5e1; font-size: .85rem; }
 .match-assistant-stale { display: block; margin-bottom: .6rem; color: #fecaca; }
 .live-match .live-sidebar > .match-assistant { flex: none; margin: 0; }
 .live-match .live-sidebar .match-assistant h2 { font-size: 16px; }

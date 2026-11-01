@@ -30,12 +30,25 @@ function requestedSubstitutionCount(question) {
   const quantity = "(\\d+|one|two|three|four|five)";
   const match = new RegExp(`\\b${quantity}\\s+(?:best\\s+)?(?:subs?|substitutions?|swaps?)\\b`, "i").exec(question) ||
     new RegExp(`\\b(?:sub|substitute|swap|rotate)\\s+${quantity}\\b`, "i").exec(question);
-  if (!match) return 1;
+  if (!match) return null;
   const count = { one: 1, two: 2, three: 3, four: 4, five: 5 }[match[1].toLowerCase()] || Number(match[1]);
   return Math.max(1, Math.min(5, count));
 }
 
-function suggestSubstitutions(context, limit) {
+function duePlayerIds(context) {
+  const thresholds = context.settings?.thresholds || {};
+  const rotationEnabled = context.settings?.goalkeeper_rotation_enabled;
+  return new Set((context.player_states || []).filter((state) => {
+    if (state.status !== "field" || !state.position_id) return false;
+    const group = state.position_group;
+    const setting = thresholds[group];
+    return setting?.enabled && (group !== "GK" || rotationEnabled) &&
+      Number.isFinite(Number(setting.minutes)) && Number(setting.minutes) > 0 &&
+      (state.current_stint_ms || 0) >= Number(setting.minutes) * 60000;
+  }).map((state) => state.player_id));
+}
+
+function suggestSubstitutions(context, limit, eligibleIds = null) {
   if (!["in_progress", "paused", "half_time"].includes(context.match.status)) return [];
   const states = (Array.isArray(context.player_states) ? context.player_states : []).map((state) => ({ ...state }));
   const players = Array.isArray(context.players) ? context.players : [];
@@ -49,11 +62,12 @@ function suggestSubstitutions(context, limit) {
       const outgoing = states.find((state) => state.player_id === alert.player_id);
       const proposal = { incoming_player_id: alert.recommendation?.in_player_id,
         outgoing_player_id: alert.player_id, position_id: outgoing?.position_id };
-      if (!used.has(proposal.incoming_player_id) && !used.has(proposal.outgoing_player_id) &&
+      if ((!eligibleIds || eligibleIds.has(proposal.outgoing_player_id)) && !used.has(proposal.incoming_player_id) && !used.has(proposal.outgoing_player_id) &&
           validSubstitution(proposal, projected)) { chosen = proposal; break; }
     }
     if (!chosen) {
-      const field = states.filter((state) => state.status === "field" && state.position_id && state.position_group !== "GK" && !used.has(state.player_id))
+      const field = states.filter((state) => state.status === "field" && state.position_id &&
+        (eligibleIds ? eligibleIds.has(state.player_id) : state.position_group !== "GK") && !used.has(state.player_id))
         .sort((a, b) => (b.current_stint_ms || 0) - (a.current_stint_ms || 0));
       for (const outgoing of field) {
         const bench = states.filter((state) => state.status === "bench" && !used.has(state.player_id))
@@ -85,6 +99,7 @@ function suggestSubstitutions(context, limit) {
 }
 
 function substitutionAnswer(substitutions, context, requested) {
+  if (requested === 0) return "No player has reached an enabled substitution time limit yet.";
   if (!substitutions.length) return "I couldn't find a valid field-to-bench substitution in the current lineup.";
   const names = substitutions.map((suggestion) => {
     const incoming = context.players.find((player) => player.id === suggestion.incoming_player_id)?.name || "bench player";
@@ -134,8 +149,11 @@ export default async function handler(req, res) {
     if (!Array.isArray(teams) || teams.length !== 1) return send(res, 403, { error: "This team is unavailable." });
     if (!process.env.GEMINI_API_KEY) return send(res, 503, { error: "Match assistant is not configured yet." });
     const substitutionQuestion = isSubstitutionQuestion(question);
-    const requestedCount = substitutionQuestion ? requestedSubstitutionCount(question) : 0;
-    const substitutions = substitutionQuestion ? suggestSubstitutions(context, requestedCount) : [];
+    const explicitCount = requestedSubstitutionCount(question);
+    const dueIds = substitutionQuestion && explicitCount === null ? duePlayerIds(context) : null;
+    const hasThresholds = context.settings?.thresholds && Object.keys(context.settings.thresholds).length > 0;
+    const requestedCount = substitutionQuestion ? (explicitCount ?? (hasThresholds ? Math.min(5, dueIds.size) : 1)) : 0;
+    const substitutions = substitutionQuestion && requestedCount ? suggestSubstitutions(context, requestedCount, dueIds?.size ? dueIds : null) : [];
     stage = "Gemini";
     const geminiRequest = {
       model: "gemini-3.5-flash-lite",
