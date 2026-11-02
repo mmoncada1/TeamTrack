@@ -58,6 +58,10 @@ async function validSession() {
   return session;
 }
 
+export async function getAccessToken() {
+  return (await validSession()).access_token;
+}
+
 async function authorizedRequest(path, options = {}) {
   await validSession();
   try { return await request(path, options, session.access_token); }
@@ -322,7 +326,7 @@ export function AuthGate({ children }) {
         setPhase("signup"); return;
       }
       if (!response.access_token) {
-        setMessage("Check your email to confirm your account, then return and sign in.");
+        setMessage("Account created. Please sign in to continue.");
         setPhase("login"); return;
       }
       await finishSignIn(response);
