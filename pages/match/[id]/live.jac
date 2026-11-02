@@ -121,7 +121,30 @@ def:pub LiveMatchPage() -> JsxPage {
     }
 
     def apply(next_game: any) -> bool {
-        result = state["replaceMatch"].call(None, next_game); action_error = result; return not bool(result);
+        result = state["replaceMatch"].call(None, next_game); action_error = result;
+        if result { return False; }
+        if queued_subs {
+            next_derived = derive_match_state(next_game, int(Date.now()));
+            next_available = [player for player in state["players"] if player.id in next_derived.included_player_ids and next_derived.player_states[player.id].status != "unavailable"];
+            valid_queue: list[any] = []; removed_queue: list[any] = [];
+            for item in queued_subs {
+                outgoing_id = item["outgoing_player_id"]; incoming_id = item["incoming_player_id"]; position_id = item["position_id"];
+                if next_derived.status in ["in_progress", "paused", "half_time"] and
+                    position_id in next_derived.assignments and next_derived.assignments[position_id] == outgoing_id and
+                    incoming_id in next_derived.player_states and next_derived.player_states[incoming_id].status == "bench" and
+                    (min_girls is None or not move_breaks_coed_rule(next_available, next_derived.assignments,
+                        move_assignment(next_derived.assignments, incoming_id, position_id), min_girls)) {
+                    valid_queue.append(item);
+                } else { removed_queue.append(item); }
+            }
+            if removed_queue {
+                queued_subs = valid_queue;
+                localStorage.setItem("teamtrack:queued-subs:" + id, JSON.stringify(valid_queue));
+                labels = [player_name(match_players, item["incoming_player_id"]) + " for " + player_name(match_players, item["outgoing_player_id"]) for item in removed_queue];
+                queue_error = "Removed queued substitution" + ("s" if len(labels) != 1 else "") + " because the lineup changed: " + ", ".join(labels) + ".";
+            }
+        }
+        return True;
     }
     def pause_or_resume {
         if status == "in_progress" { apply(pause_match(game, now)); }
@@ -197,8 +220,11 @@ def:pub LiveMatchPage() -> JsxPage {
     def queue_substitutions(suggestions: any) -> str {
         if status in ["setup", "ended"] { return "This match is not open for substitutions."; }
         if not suggestions or len(queued_subs) + len(suggestions) > 5 { return "The queue can hold up to five substitutions."; }
-        next_items = list(queued_subs); used_ids: list[str] = [];
-        for item in next_items { used_ids.append(item["outgoing_player_id"]); used_ids.append(item["incoming_player_id"]); }
+        next_items = list(queued_subs); used_ids: list[str] = []; projected_assignments = assignments;
+        for item in next_items {
+            used_ids.append(item["outgoing_player_id"]); used_ids.append(item["incoming_player_id"]);
+            projected_assignments = move_assignment(projected_assignments, item["incoming_player_id"], item["position_id"]);
+        }
         for item in suggestions {
             outgoing_id = item["outgoing_player_id"]; incoming_id = item["incoming_player_id"]; position_id = item["position_id"];
             if outgoing_id in used_ids or incoming_id in used_ids or outgoing_id == incoming_id or
@@ -206,10 +232,11 @@ def:pub LiveMatchPage() -> JsxPage {
                 incoming_id not in derived.player_states or derived.player_states[incoming_id].status != "bench" {
                 return "A player is already queued or the lineup changed. Review the queue.";
             }
-            next_assignments = move_assignment(assignments, incoming_id, position_id);
-            if min_girls is not None and move_breaks_coed_rule(available_players, assignments, next_assignments, min_girls) {
+            next_assignments = move_assignment(projected_assignments, incoming_id, position_id);
+            if min_girls is not None and move_breaks_coed_rule(available_players, projected_assignments, next_assignments, min_girls) {
                 return "That substitution would break the coed rule.";
             }
+            projected_assignments = next_assignments;
             next_items.append({"outgoing_player_id": outgoing_id, "incoming_player_id": incoming_id, "position_id": position_id});
             used_ids.append(outgoing_id); used_ids.append(incoming_id);
         }
@@ -221,7 +248,7 @@ def:pub LiveMatchPage() -> JsxPage {
         if result { return result; }
         selected_keys = [item["outgoing_player_id"] + ":" + item["incoming_player_id"] for item in selected];
         save_queue([item for item in queued_subs if item["outgoing_player_id"] + ":" + item["incoming_player_id"] not in selected_keys]);
-        return "";
+        queue_error = ""; return "";
     }
     def accept_ai_goal(proposal: any) -> str {
         if status not in ["in_progress", "paused", "half_time"] or proposal["match_id"] != game.id {

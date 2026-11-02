@@ -28,9 +28,11 @@ function isSubstitutionQuestion(question) {
 
 function namedSubstitution(question, context) {
   const clean = question.trim().replace(/[.!?]+$/, "");
+  const normalized = clean.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const markers = [...normalized.matchAll(/\bin for\b/g)];
   const match = /^(?:(?:substitute|sub)\s+)?(.+?)\s+in\s+for\s+(.+)$/i.exec(clean) ||
     /^(?:substitute|sub)\s+out\s+(.+)$/i.exec(clean);
-  if (!match) return null;
+  if (!markers.length && !match) return null;
   const players = Array.isArray(context.players) ? context.players : [];
   const findPlayer = (spoken) => {
     const name = spoken.trim().toLowerCase();
@@ -57,6 +59,42 @@ function namedSubstitution(question, context) {
     ) })).sort((left, right) => left.edits - right.edits);
     return ranked[0]?.edits <= maxEdits && ranked[1]?.edits !== ranked[0].edits ? ranked[0].player : null;
   };
+  if (markers.length) {
+    if (markers.length > 5) return [];
+    const aliases = players.flatMap((player) => {
+      const full = player.name?.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      return full ? [{ player, value: full }, { player, value: full.split(" ")[0] }] : [];
+    }).sort((left, right) => right.value.length - left.value.length);
+    const resolveEdge = (text, side) => {
+      const found = aliases.filter(({ value }) => side === "end"
+        ? text === value || text.endsWith(` ${value}`)
+        : text === value || text.startsWith(`${value} `));
+      if (!found.length) return null;
+      const longest = found[0].value.length;
+      const ids = [...new Set(found.filter((item) => item.value.length === longest).map((item) => item.player.id))];
+      return ids.length === 1 ? found[0].player : null;
+    };
+    const projected = { ...context, player_states: (context.player_states || []).map((state) => ({ ...state })) };
+    const suggestions = [];
+    const used = new Set();
+    for (let index = 0; index < markers.length; index++) {
+      const marker = markers[index];
+      const before = normalized.slice(index ? markers[index - 1].index + markers[index - 1][0].length : 0, marker.index).trim();
+      const after = normalized.slice(marker.index + marker[0].length, index + 1 < markers.length ? markers[index + 1].index : undefined).trim();
+      const incoming = resolveEdge(before, "end") || (markers.length === 1 ? findPlayer(before.split(" ").at(-1)) : null);
+      const outgoing = resolveEdge(after, "start") || (markers.length === 1 ? findPlayer(after) : null);
+      const outState = projected.player_states.find((item) => item.player_id === outgoing?.id);
+      const inState = projected.player_states.find((item) => item.player_id === incoming?.id);
+      const suggestion = { incoming_player_id: incoming?.id, outgoing_player_id: outgoing?.id, position_id: outState?.position_id };
+      if (!outState || !inState || used.has(incoming.id) || used.has(outgoing.id) ||
+          !validSubstitution(suggestion, projected)) return [];
+      suggestions.push(suggestion);
+      used.add(incoming.id); used.add(outgoing.id);
+      inState.status = "field"; inState.position_id = outState.position_id; inState.position_group = outState.position_group;
+      outState.status = "bench"; outState.position_id = null; outState.position_group = null;
+    }
+    return suggestions;
+  }
   const outgoing = findPlayer(match[2] || match[1]);
   if (!outgoing) return [];
   const states = Array.isArray(context.player_states) ? context.player_states : [];
@@ -146,8 +184,25 @@ function substitutionAnswer(substitutions, context, requested) {
   return `I found ${count}${count < requested ? ` of ${requested} requested` : ""} valid ${count === 1 ? "substitution" : "substitutions"}: ${names.join(", ")}. Review each swap or accept all.`;
 }
 
+function isGoalQuestion(question) {
+  return /\b(?:who|whom|whose|which|what|when|where|how|did|does|do|has|have|was|were|is|are|can|could|tell me|show me|list)\b/i.test(question) || question.includes("?");
+}
+
+function recordedScorers(context) {
+  const goals = (Array.isArray(context.events) ? context.events : []).filter((event) => event.type === "GOAL");
+  if (!goals.length) return "No goals have been recorded for this match.";
+  const players = Array.isArray(context.players) ? context.players : [];
+  const name = (id) => players.find((player) => player.id === id)?.name || "Unknown player";
+  return goals.map((event) => {
+    const data = event.data || {};
+    if (data.is_own_goal) return `Own goal against us${data.scorer_id ? ` by ${name(data.scorer_id)}` : ""}`;
+    if (data.team === "opponent") return "Opponent goal (scorer not recorded)";
+    return data.scorer_id ? name(data.scorer_id) : "TeamTrack goal (scorer not recorded)";
+  }).join(", ") + ".";
+}
+
 function proposedGoal(question, context) {
-  if (!/\b(scored?|scores?|goal)\b/i.test(question) || /\?/.test(question) ||
+  if (!/\b(scored?|scores?|goal)\b/i.test(question) || isGoalQuestion(question) ||
       !["in_progress", "paused", "half_time"].includes(context.match.status)) return null;
   if (/\b(opponent|other team|they)\b/i.test(question) && /\b(scored?|scores?|goal)\b/i.test(question)) {
     return { team: "opponent", scorer_id: null, assister_id: null };
@@ -238,6 +293,9 @@ export default async function handler(req, res) {
     const teams = await supabase(`/rest/v1/teams?select=id&id=eq.${encodeURIComponent(teamId)}`, token, signal);
     if (!Array.isArray(teams) || teams.length !== 1) return send(res, 403, { error: "This team is unavailable." });
     if (!process.env.GEMINI_API_KEY) return send(res, 503, { error: "Match assistant is not configured yet." });
+    if (/\bwho\s+(?:has\s+)?scored\b|\bwho\s+(?:has\s+)?scored?\s+(?:the\s+)?goals?\b/i.test(question)) {
+      return send(res, 200, { answer: recordedScorers(context), substitutions: [], goal: null, matchAction: null });
+    }
     const substitutionQuestion = isSubstitutionQuestion(question);
     const explicitCount = requestedSubstitutionCount(question);
     const dueIds = substitutionQuestion && explicitCount === null ? duePlayerIds(context) : null;
@@ -297,7 +355,7 @@ export default async function handler(req, res) {
       .map((item) => item.text).join("\n").trim();
     let parsed;
     try { parsed = JSON.parse(answer); } catch { parsed = { answer }; }
-    const goalStatement = /\b(scored?|scores?|goal)\b/i.test(question) && !question.includes("?");
+    const goalStatement = /\b(scored?|scores?|goal)\b/i.test(question) && !isGoalQuestion(question);
     const message = matchAction ? "Review the proposed match action before it is recorded." :
       goal ? `Review the proposed goal before it changes the score.` :
       goalStatement && !substitutionQuestion ? "I couldn't identify the scorer and assist with confidence. Please use the goal form or rephrase with player names." : substitutionQuestion
