@@ -14,11 +14,17 @@ def:pub load_teams() -> list[Team] {
     raw = localStorage.getItem(TEAMS_KEY); if raw {
         parsed = JSON.parse(raw) as list[Team];
         if parsed {
+            explicit = JSON.parse(localStorage.getItem("teamtrack:jac:explicit-team-ids") or "[]") as list[str];
+            if len(parsed) == 1 and parsed[0].name in ["New Team", "My Team"] and parsed[0].id not in explicit {
+                id = parsed[0].id;
+                linked = any([item.team_id == id for item in load_players()]) or any([item.team_id == id for item in load_lineups()]) or any([item.team_id == id for item in load_matches()]) or any([item.team_id == id for item in load_football_formations()]) or any([item.team_id == id for item in load_football_plays()]) or any([item.team_id == id for item in load_drive_plans()]) or any([item.team_id == id for item in load_football_whiteboards()]);
+                if not linked { save_teams([]); return []; }
+            }
             for team in parsed { if not team.sport { team.sport = "soccer"; } }
             return parsed;
         }
     }
-    now = int(Date.now()); initial = [Team(id=create_id("team"), name="My Team", created_at=now, updated_at=now)]; save_teams(initial); return initial;
+    return [];
 }
 def:pub save_players(items: list[Player]) { localStorage.setItem(PLAYERS_KEY, JSON.stringify(items)); }
 def:pub load_players() -> list[Player] { raw = localStorage.getItem(PLAYERS_KEY); return JSON.parse(raw) as list[Player] if raw else []; }
@@ -41,6 +47,6 @@ def:pub load_drive_plans() -> list[DrivePlan] { raw = localStorage.getItem(DRIVE
 def:pub save_football_whiteboards(items: list[FootballWhiteboard]) { localStorage.setItem(FOOTBALL_WHITEBOARDS_KEY, JSON.stringify(items)); }
 def:pub load_football_whiteboards() -> list[FootballWhiteboard] { raw = localStorage.getItem(FOOTBALL_WHITEBOARDS_KEY); return JSON.parse(raw) as list[FootballWhiteboard] if raw else []; }
 def:pub load_active_team_id(teams: list[Team]) -> str {
-    saved = localStorage.getItem(ACTIVE_TEAM_KEY); if saved and any([team.id == saved for team in teams]) { return saved; } return teams[0].id;
+    saved = localStorage.getItem(ACTIVE_TEAM_KEY); if saved and any([team.id == saved for team in teams]) { return saved; } return teams[0].id if teams else "";
 }
 def:pub save_active_team_id(id: str) { localStorage.setItem(ACTIVE_TEAM_KEY, id); }

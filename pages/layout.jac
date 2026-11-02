@@ -7,6 +7,7 @@ def NavItem(path: str, label: str, current_path: str) -> JsxElement {
 }
 def:pub AppShell() -> JsxLayout {
     location = useLocation(); state = use_app_state(); active = None;
+    if not state["teams"] { return <main id="main-content" className="main-content"><TeamSwitcher /></main>; }
     for team in state["teams"] { if team.id == state["activeTeamId"] { active = team; break; } }
     football = active is not None and active.sport == "football";
     <div className="app-shell"><a href="#main-content" className="skip-link">Skip to main content</a>

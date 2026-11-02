@@ -6,6 +6,16 @@ def:pub TeamSwitcher() -> JsxElement {
     def open_create { name = ""; sport = "soccer"; coed = False; min_girls = "2"; error = ""; creating = True; }
     def submit_create { result = state["createTeam"].call(None, name, coed, int(min_girls) if min_girls else 2, sport); if result { error = result; } else { creating = False; navigate("/"); } }
     def switch_team(id: str) { if id != state["activeTeamId"] { state["setActiveTeam"].call(None, id); navigate("/"); } }
+    if not state["teams"] {
+        return <section className="page narrow-page team-onboarding"><div className="card form-stack">
+            <h1>Create your first team</h1><p>Give your team a name and choose its sport to get started.</p>
+            <label htmlFor="first-team-name">Team name</label><input id="first-team-name" className="input" value={name} onChange={lambda (e: ChangeEvent) { name = e.target.value; }} />
+            <label htmlFor="first-team-sport">Sport</label><select id="first-team-sport" className="input" value={sport} onChange={lambda (e: ChangeEvent) { sport = e.target.value; }}><option value="soccer">Soccer</option><option value="football">Football</option></select>
+            {<label className="check-row"><input type="checkbox" checked={coed} onChange={lambda (e: ChangeEvent) { coed = e.target.checked; }} /> Co-ed team</label> if sport == "soccer" else None}
+            {<div><label htmlFor="first-team-min">Girls required on the field</label><input id="first-team-min" className="input short-input" type="number" min="1" max="11" value={min_girls} onChange={lambda (e: ChangeEvent) { min_girls = e.target.value; }} /></div> if sport == "soccer" and coed else None}
+            {<p className="error" role="alert">{error}</p> if error else None}<div className="actions"><SignOutButton /><button className="button primary" type="button" onClick={submit_create}>Create team</button></div>
+        </div></section>;
+    }
     active_name = "";
     for team in state["teams"] { if team.id == state["activeTeamId"] { active_name = team.name; break; } }
     name_parts = active_name.strip().split();
