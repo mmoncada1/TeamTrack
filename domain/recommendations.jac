@@ -69,7 +69,7 @@ def incoming_rank(state: PlayerRuntimeState, context: RecommendationContext,
     player = player_by_id(context.players, state.player_id);
     gender_rank = 0 if context.prefer_gender is not None and player is not None and player.gender == context.prefer_gender else 1 if context.prefer_gender is not None else 0;
     matches = player is not None and position_group is not None and position_group in player_groups(player);
-    return (gender_rank, 0 if matches else 1, -state.current_stint_ms,
+    return (gender_rank, -state.current_stint_ms, 0 if matches else 1,
         state.total_field_ms, roster_index(context.roster_order, state.player_id));
 }
 
@@ -90,7 +90,7 @@ def:pub recommend_incoming_player(position_id: str, context: RecommendationConte
         reasons.append(f"matches the {position.label.lower()} role");
     }
     minutes = round(best.current_stint_ms / 60_000);
-    reasons.append(f"has the longest current bench time ({minutes} minute" + ("" if minutes == 1 else "s") + ")");
+    reasons.append(f"has been on the bench for {minutes} minute" + ("" if minutes == 1 else "s") + ")");
     return IncomingRecommendation(player_id=best.player_id, explanation=" and ".join(reasons));
 }
 

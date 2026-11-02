@@ -36,14 +36,14 @@ test "goalkeepers require rotation enabled" {
     context.goalkeeper_rotation_enabled = True; assert len(find_exceeded_outgoing_candidates(context)) == 1;
 }
 
-test "matching position outranks longer bench stint" {
+test "longer bench stint outranks matching position" {
     players = [rec_player("matching", "Matching", "MID"), rec_player("other", "Other", "FWD")];
     states = {"matching": rec_state("matching", "bench", None, None, 120_000),
         "other": rec_state("other", "bench", None, None, 600_000)};
     result = recommend_incoming_player("mid-c", RecommendationContext(players=players, player_states=states,
         thresholds=rec_thresholds(), goalkeeper_rotation_enabled=False,
         roster_order=["matching", "other"], positions=rec_positions()));
-    assert result is not None; assert result.player_id == "matching"; assert "matches the center midfield role" in result.explanation;
+    assert result is not None; assert result.player_id == "other"; assert "10 minutes" in result.explanation;
 }
 
 test "incoming tie breaks use bench time field time then roster order" {
