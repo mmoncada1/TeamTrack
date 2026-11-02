@@ -6,12 +6,29 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
   const [proposals, setProposals] = useState([]);
   const [goalProposal, setGoalProposal] = useState(null);
   const [matchAction, setMatchAction] = useState(null);
   const [dialogError, setDialogError] = useState("");
   const dialog = useRef(null);
   const dismissButton = useRef(null);
+  const recognition = useRef(null);
+  const busyRef = useRef(false);
+
+  useEffect(() => {
+    setSpeechSupported(Boolean(window.SpeechRecognition || window.webkitSpeechRecognition));
+    return () => {
+      if (recognition.current) {
+        recognition.current.onresult = null;
+        recognition.current.onerror = null;
+        recognition.current.onend = null;
+        recognition.current.abort();
+        recognition.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!proposals.length) return;
@@ -64,10 +81,10 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     else { setProposals((current) => current.filter((item) => !selected.includes(item))); setDialogError(""); setAnswer(`${selected.length} substitution${selected.length === 1 ? "" : "s"} queued. Apply them when they happen.`); }
   }
 
-  async function ask(event) {
-    event.preventDefault();
-    const prompt = question.trim();
-    if (!prompt || busy) return;
+  async function submitPrompt(value) {
+    const prompt = value.trim();
+    if (!prompt || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError("");
     setAnswer("");
@@ -166,8 +183,56 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     } catch (err) {
       setError(err.name === "AbortError" ? "The assistant took too long. Please try again." : (err.message || "The assistant could not answer."));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
+  }
+
+  function ask(event) {
+    event.preventDefault();
+    submitPrompt(question);
+  }
+
+  function toggleMicrophone() {
+    if (recognition.current) {
+      const current = recognition.current;
+      recognition.current = null;
+      current.onresult = null;
+      current.onerror = null;
+      current.onend = null;
+      current.abort();
+      setListening(false);
+      return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition || busyRef.current) return;
+    const current = new SpeechRecognition();
+    recognition.current = current;
+    current.lang = "en-US";
+    current.continuous = false;
+    current.interimResults = false;
+    current.maxAlternatives = 1;
+    setError("");
+    current.onresult = (event) => {
+      const transcript = Array.from(event.results).slice(event.resultIndex)
+        .filter((result) => result.isFinal).map((result) => result[0].transcript).join(" ").trim();
+      if (transcript) {
+        setQuestion(transcript);
+        submitPrompt(transcript);
+      }
+    };
+    current.onerror = (event) => {
+      if (event.error === "no-speech") setError("No speech heard. Tap the microphone and try again.");
+      else if (["not-allowed", "service-not-allowed"].includes(event.error)) setError("Allow microphone access to use voice input.");
+      else if (event.error === "network") setError("Speech recognition needs a network connection. Try again.");
+      else if (event.error !== "aborted") setError("Could not recognize speech. Tap the microphone and try again.");
+    };
+    current.onend = () => {
+      if (recognition.current === current) recognition.current = null;
+      setListening(false);
+    };
+    try { current.start(); setListening(true); }
+    catch { recognition.current = null; setListening(false); setError("Could not start the microphone. Tap it and try again."); }
   }
 
   return <section className="match-assistant" aria-label="Match assistant">
@@ -177,8 +242,17 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       : "Ask about this match, player time, or recorded events."}</p>
     <form onSubmit={ask}>
       <label htmlFor="match-assistant-question">Your question</label>
-      <textarea id="match-assistant-question" rows="2" maxLength="500" value={question}
-        onChange={(event) => setQuestion(event.target.value)} placeholder={onAcceptSubstitutions ? "Make 3 best subs" : "Summarize this match"} />
+      <div className="match-assistant-input">
+        <textarea id="match-assistant-question" rows="2" maxLength="500" value={question}
+          onChange={(event) => setQuestion(event.target.value)}
+          onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submitPrompt(question); } }}
+          placeholder={onAcceptSubstitutions ? "Make 3 best subs" : "Summarize this match"} />
+        {speechSupported && <button className={`match-assistant-mic${listening ? " listening" : ""}`} type="button"
+          aria-label={listening ? "Stop listening" : "Speak your question"} aria-pressed={listening}
+          title={listening ? "Stop listening" : "Speak your question"} onClick={toggleMicrophone} disabled={busy && !listening}>
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8"/></svg>
+        </button>}
+      </div>
       <button className="button primary" type="submit" disabled={busy || !question.trim()}>{busy ? "Thinking…" : "Ask"}</button>
     </form>
     {error && <p role="alert" className="match-assistant-error">{error}</p>}

@@ -23,7 +23,51 @@ function validSubstitution(suggestion, context) {
 }
 
 function isSubstitutionQuestion(question) {
-  return /\b(subs?|substitutes?|substitutions?|swaps?|replace|replacements?|rotate|rotations?)\b|\bbring\s+(?:in|on)\b|\btake\s+(?:off|out)\b/i.test(question);
+  return /\b(subs?|substitutes?|substitutions?|swaps?|replace|replacements?|rotate|rotations?)\b|\bbring\s+(?:in|on)\b|\btake\s+(?:off|out)\b|\bin\s+for\b/i.test(question);
+}
+
+function namedSubstitution(question, context) {
+  const clean = question.trim().replace(/[.!?]+$/, "");
+  const match = /^(?:(?:substitute|sub)\s+)?(.+?)\s+in\s+for\s+(.+)$/i.exec(clean) ||
+    /^(?:substitute|sub)\s+out\s+(.+)$/i.exec(clean);
+  if (!match) return null;
+  const players = Array.isArray(context.players) ? context.players : [];
+  const findPlayer = (spoken) => {
+    const name = spoken.trim().toLowerCase();
+    const matches = players.filter((player) => player.name?.toLowerCase() === name);
+    if (matches.length === 1) return matches[0];
+    const firstNames = players.filter((player) => player.name?.split(/\s+/)[0]?.toLowerCase() === name);
+    if (firstNames.length === 1) return firstNames[0];
+    if (matches.length || firstNames.length) return null;
+    const distance = (left, right) => {
+      let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+      for (let index = 0; index < left.length; index++) {
+        const current = [index + 1];
+        for (let other = 0; other < right.length; other++) {
+          current.push(Math.min(current[other] + 1, previous[other + 1] + 1,
+            previous[other] + (left[index] === right[other] ? 0 : 1)));
+        }
+        previous = current;
+      }
+      return previous[right.length];
+    };
+    const maxEdits = name.length >= 8 ? 2 : name.length >= 4 ? 1 : 0;
+    const ranked = players.map((player) => ({ player, edits: Math.min(
+      distance(name, player.name.toLowerCase()), distance(name, player.name.split(/\s+/)[0].toLowerCase()),
+    ) })).sort((left, right) => left.edits - right.edits);
+    return ranked[0]?.edits <= maxEdits && ranked[1]?.edits !== ranked[0].edits ? ranked[0].player : null;
+  };
+  const outgoing = findPlayer(match[2] || match[1]);
+  if (!outgoing) return [];
+  const states = Array.isArray(context.player_states) ? context.player_states : [];
+  const outState = states.find((item) => item.player_id === outgoing.id);
+  if (outState?.status !== "field") return [];
+  if (match[2]) {
+    const incoming = findPlayer(match[1]);
+    const suggestion = { incoming_player_id: incoming?.id, outgoing_player_id: outgoing.id, position_id: outState.position_id };
+    return validSubstitution(suggestion, context) ? [suggestion] : [];
+  }
+  return suggestSubstitutions(context, 1, new Set([outgoing.id]));
 }
 
 function requestedSubstitutionCount(question) {
@@ -198,8 +242,9 @@ export default async function handler(req, res) {
     const explicitCount = requestedSubstitutionCount(question);
     const dueIds = substitutionQuestion && explicitCount === null ? duePlayerIds(context) : null;
     const hasThresholds = context.settings?.thresholds && Object.keys(context.settings.thresholds).length > 0;
-    const requestedCount = substitutionQuestion ? (explicitCount ?? (hasThresholds ? Math.min(5, dueIds.size) : 1)) : 0;
-    const substitutions = substitutionQuestion && requestedCount ? suggestSubstitutions(context, requestedCount, dueIds?.size ? dueIds : null) : [];
+    const named = substitutionQuestion ? namedSubstitution(question, context) : null;
+    const requestedCount = substitutionQuestion ? (named ? 1 : explicitCount ?? (hasThresholds ? Math.min(5, dueIds.size) : 1)) : 0;
+    const substitutions = named ?? (substitutionQuestion && requestedCount ? suggestSubstitutions(context, requestedCount, dueIds?.size ? dueIds : null) : []);
     const goal = !substitutionQuestion ? proposedGoal(question, context) : null;
     const matchAction = !substitutionQuestion && !goal ? proposedMatchAction(question, context) : null;
     stage = "Gemini";

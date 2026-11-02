@@ -61,6 +61,21 @@ test("returns a validated suggestion for coach approval", async () => {
   assert.equal(request.response_format.mime_type, "application/json");
 });
 
+test("respects a spoken substitution with named incoming and outgoing players", async () => {
+  const { res } = await ask({ answer: "Review the substitution." }, "Sam in for Alex");
+  assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
+});
+
+test("respects a spoken sub-out command", async () => {
+  const { res } = await ask({ answer: "Review the substitution." }, "Sub out Alex");
+  assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
+});
+
+test("tolerates a small speech recognition error in a player name", async () => {
+  const { res } = await ask({ answer: "Review the substitution." }, "Samm in for Alex");
+  assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
+});
+
 test("does not offer an invalid model suggestion", async () => {
   const { res } = await ask({ answer: "Consider a substitution.", substitution: {
     incoming_player_id: "out", outgoing_player_id: "in", position_id: "mid",
