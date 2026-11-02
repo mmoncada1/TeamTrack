@@ -275,6 +275,11 @@ function fromConfirmationLink() {
 
 export function AuthGate({ children }) {
   const [phase, setPhase] = useState("loading");
+  const [teamsToChoose, setTeamsToChoose] = useState([]);
+  const [teamName, setTeamName] = useState("");
+  const [teamSport, setTeamSport] = useState("soccer");
+  const [teamCoed, setTeamCoed] = useState(false);
+  const [teamMinGirls, setTeamMinGirls] = useState("2");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -285,11 +290,43 @@ export function AuthGate({ children }) {
     const remote = await loadSnapshot();
     if (remote) {
       replaceData(await hydratePhotos(remote));
-      syncEnabled = true;
-      setPhase("ready");
     } else {
-      setPhase("choose-data");
+      replaceData({});
     }
+    const teams = JSON.parse(localStorage.getItem("teamtrack:jac:teams") || "[]");
+    const explicitIds = JSON.parse(localStorage.getItem("teamtrack:jac:explicit-team-ids") || "[]");
+    const placeholder = teams.length === 1 && ["New Team", "My Team"].includes(teams[0].name) && !explicitIds.includes(teams[0].id);
+    const hasTeamData = Object.entries(currentData()).some(([key, raw]) => {
+      if (key === "teamtrack:jac:teams" || !raw) return false;
+      try { const items = JSON.parse(raw); return Array.isArray(items) && items.some((item) => item.team_id === teams[0]?.id); }
+      catch { return false; }
+    });
+    const availableTeams = placeholder && !hasTeamData ? [] : teams;
+    if (placeholder && !hasTeamData) localStorage.setItem("teamtrack:jac:teams", "[]");
+    setTeamsToChoose(availableTeams);
+    syncEnabled = true;
+    setPhase("select-team");
+  }
+
+  function selectTeam(id) {
+    localStorage.setItem("teamtrack:jac:active-team-id", id);
+    setPhase("ready");
+  }
+
+  function createFirstTeam(event) {
+    event.preventDefault();
+    const name = teamName.trim();
+    if (!name) { setError("Team name is required."); return; }
+    const now = Date.now();
+    const team = {
+      id: crypto.randomUUID(), name, sport: teamSport,
+      coed: teamSport === "soccer" && teamCoed,
+      min_girls_on_field: teamSport === "soccer" ? Math.max(1, Math.min(11, Number(teamMinGirls) || 2)) : null,
+      created_at: now, updated_at: now,
+    };
+    localStorage.setItem("teamtrack:jac:teams", JSON.stringify([team]));
+    localStorage.setItem("teamtrack:jac:explicit-team-ids", JSON.stringify([team.id]));
+    selectTeam(team.id);
   }
 
   useEffect(() => {
@@ -338,15 +375,6 @@ export function AuthGate({ children }) {
     }
   }
 
-  async function chooseData(importBrowserData) {
-    try {
-      if (!importBrowserData) replaceData({});
-      syncEnabled = true;
-      await saveSnapshot();
-      setPhase("ready");
-    } catch (problem) { syncEnabled = false; setError(problem.message); }
-  }
-
   async function signOut() {
     clearTimeout(syncTimer);
     try {
@@ -386,10 +414,21 @@ export function AuthGate({ children }) {
     h("section", { className: "card form-stack" },
       h("h1", null, "TeamTrack"),
       phase === "loading" ? h("p", null, "Connecting to Supabase…") : null,
-      phase === "choose-data" ? h(React.Fragment, null,
-        h("p", null, "No cloud data exists for this account. Choose how to begin."),
-        h("button", { className: "button primary", onClick: () => chooseData(true) }, "Import this browser's teams"),
-        h("button", { className: "button secondary", onClick: () => chooseData(false) }, "Start with a new team")) : null,
+      phase === "select-team" ? teamsToChoose.length
+        ? h(React.Fragment, null,
+          h("h2", null, "Select a team"),
+          h("p", null, "Choose the team you want to manage."),
+          ...teamsToChoose.map((team) => h("button", { key: team.id, type: "button", className: "button secondary", onClick: () => selectTeam(team.id) }, team.name)),
+          h("button", { type: "button", className: "button ghost", onClick: signOut }, "Sign out"))
+        : h("form", { className: "form-stack", onSubmit: createFirstTeam },
+          h("h2", null, "Create your first team"),
+          h("label", null, "Team name", h("input", { className: "input", required: true, value: teamName, onChange: (event) => setTeamName(event.target.value) })),
+          h("label", null, "Sport", h("select", { className: "input", value: teamSport, onChange: (event) => setTeamSport(event.target.value) },
+            h("option", { value: "soccer" }, "Soccer"), h("option", { value: "football" }, "Football"))),
+          teamSport === "soccer" ? h("label", { className: "check-row" }, h("input", { type: "checkbox", checked: teamCoed, onChange: (event) => setTeamCoed(event.target.checked) }), " Co-ed team") : null,
+          teamSport === "soccer" && teamCoed ? h("label", null, "Girls required on the field", h("input", { className: "input short-input", type: "number", min: 1, max: 11, value: teamMinGirls, onChange: (event) => setTeamMinGirls(event.target.value) })) : null,
+          h("button", { className: "button primary", type: "submit" }, "Create team"),
+          h("button", { className: "button ghost", type: "button", onClick: signOut }, "Sign out")) : null,
       phase === "login" || phase === "signup" ? h("form", { className: "form-stack", onSubmit: (event) => signIn(event, phase === "signup") },
         h("h2", null, phase === "signup" ? "Create an account" : "Sign in"),
         h("label", null, "Email", h("input", { className: "input", type: "email", required: true, value: email, onChange: (event) => setEmail(event.target.value) })),

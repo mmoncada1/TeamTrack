@@ -34,6 +34,7 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
         if sport not in ["soccer", "football"] { return "Choose soccer or football."; }
         if any([team.name.lower() == trimmed.lower() for team in teams]) { return "A team with that name already exists."; }
         now = int(Date.now()); team = Team(id=create_id("team"), name=trimmed, sport=sport, coed=coed if sport == "soccer" else False, min_girls_on_field=clamp_min_girls(min_girls) if sport == "soccer" else None, created_at=now, updated_at=now);
+        explicit = JSON.parse(localStorage.getItem("teamtrack:jac:explicit-team-ids") or "[]") as list[str]; localStorage.setItem("teamtrack:jac:explicit-team-ids", JSON.stringify(explicit + [team.id]));
         teams = sorted(teams + [team], key=team_sort_key); active_team_id = team.id; return "";
     }
     def update_team(id: str, name: str, coed: bool, min_girls: int, photo_data: str | None = None) -> str {
