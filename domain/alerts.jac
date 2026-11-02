@@ -28,7 +28,8 @@ def alert_recommendation(position_id: str | None, outgoing_player_id: str,
     players: list[RosterPlayer], player_states: dict[str, RuntimePlayerState],
     thresholds: dict[str, ThresholdSetting], goalkeeper_rotation_enabled: bool,
     positions: list[FieldPosition], roster_order: list[str], claimed: list[str],
-    min_girls_on_field: int | None, girls_count: int) -> dict[str, str] | None {
+    min_girls_on_field: int | None, girls_count: int,
+    minimum_playing_time_minutes: int, remaining_match_ms: int) -> dict[str, str] | None {
     if position_id is None { return None; }
     outgoing = player_by_id(players, outgoing_player_id);
     outgoing_gender = outgoing.gender if outgoing is not None else None;
@@ -36,7 +37,8 @@ def alert_recommendation(position_id: str | None, outgoing_player_id: str,
     recommendation = recommend_incoming_player(position_id, RecommendationContext(
         players=players, player_states=player_states, thresholds=thresholds,
         goalkeeper_rotation_enabled=goalkeeper_rotation_enabled, roster_order=roster_order,
-        positions=positions, exclude_player_ids=claimed, prefer_gender=prefer));
+        positions=positions, exclude_player_ids=claimed, prefer_gender=prefer,
+        minimum_playing_time_minutes=minimum_playing_time_minutes, remaining_match_ms=remaining_match_ms));
     if recommendation is None { return None; }
     claimed.append(recommendation.player_id);
     return {"in_player_id": recommendation.player_id, "explanation": recommendation.explanation};
@@ -46,7 +48,8 @@ def:pub update_alerts(existing_alerts: list[Alert],
     player_states: dict[str, RuntimePlayerState], players: list[RosterPlayer],
     thresholds: dict[str, ThresholdSetting], goalkeeper_rotation_enabled: bool,
     positions: list[FieldPosition], roster_order: list[str], match_clock_ms: int,
-    min_girls_on_field: int | None = None) -> UpdateAlertsResult {
+    min_girls_on_field: int | None = None,
+    minimum_playing_time_minutes: int = 0, remaining_match_ms: int = 0) -> UpdateAlertsResult {
     result: list[Alert] = []; new_ids: list[str] = []; claimed: list[str] = [];
     girls_count = girls_on_field(players, player_states);
     for alert in existing_alerts {
@@ -62,7 +65,7 @@ def:pub update_alerts(existing_alerts: list[Alert],
             status=status, snooze_until_clock_ms=alert.snooze_until_clock_ms,
             recommendation=alert_recommendation(state.position_id, alert.player_id, players,
                 player_states, thresholds, goalkeeper_rotation_enabled, positions, roster_order,
-                claimed, min_girls_on_field, girls_count)));
+                claimed, min_girls_on_field, girls_count, minimum_playing_time_minutes, remaining_match_ms)));
     }
     keys = [f"{alert.player_id}:{alert.stint_start_ms}" for alert in result];
     for state in player_states.values() {
@@ -79,7 +82,7 @@ def:pub update_alerts(existing_alerts: list[Alert],
             stint_start_ms=state.current_stint_start_ms, created_at_clock_ms=match_clock_ms,
             status="active", recommendation=alert_recommendation(state.position_id, state.player_id,
                 players, player_states, thresholds, goalkeeper_rotation_enabled, positions,
-                roster_order, claimed, min_girls_on_field, girls_count)));
+                roster_order, claimed, min_girls_on_field, girls_count, minimum_playing_time_minutes, remaining_match_ms)));
         new_ids.append(alert_id); keys.append(key);
     }
     return UpdateAlertsResult(alerts=result, new_alert_ids=new_ids);

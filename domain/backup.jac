@@ -64,6 +64,9 @@ def:pub validate_backup(candidate: any) -> list[str] {
         if match_settings.get("format") not in ["7v7", "9v9", "11v11"] or not isinstance(match_settings.get("formation_id"), str) or not is_json_object(match_settings.get("thresholds")) or not isinstance(match_settings.get("half_length_minutes"), int) or not isinstance(match_settings.get("number_of_halves"), int) {
             errors.append("A match has invalid settings.");
         }
+        if "minimum_playing_time_minutes" in match_settings and (not isinstance(match_settings["minimum_playing_time_minutes"], int) or match_settings["minimum_playing_time_minutes"] < 1) {
+            errors.append("A match has an invalid minimum playing time.");
+        }
         for player_id in game["roster_player_ids"] {
             if player_id in player_team and player_team[player_id] != game["team_id"] { errors.append("A match includes a player from another team."); break; }
         }

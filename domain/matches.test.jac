@@ -3,6 +3,7 @@ test "creates a default 7v7 draft" {
     assert draft.id == "m1"; assert draft.team_name == "Falcons"; assert draft.settings.format == "7v7";
     assert draft.pending_formation_id == "7v7-2-3-1"; assert draft.roster_player_ids == ["p1", "p2"];
     assert not draft.events; assert draft.created_at == 1000;
+    assert draft.settings.minimum_playing_time_minutes == 10;
 }
 test "requires opponent and match date" {
     result = validate_match_setup("Falcons", "", "", "7v7", "7v7-2-3-1", 25, 2, [], {});

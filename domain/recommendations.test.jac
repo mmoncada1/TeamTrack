@@ -57,6 +57,18 @@ test "incoming tie breaks use bench time field time then roster order" {
     assert result is not None; assert result.player_id == "c";
 }
 
+test "minimum target prioritizes a bench player who can still reach it" {
+    players = [rec_player("met", "Met", "MID"), rec_player("needs", "Needs", "MID")];
+    states = {"met": rec_state("met", "bench", None, None, 600_000, 700_000),
+        "needs": rec_state("needs", "bench", None, None, 120_000, 300_000)};
+    result = recommend_incoming_player("mid-c", RecommendationContext(players=players, player_states=states,
+        thresholds=rec_thresholds(), goalkeeper_rotation_enabled=False,
+        roster_order=["met", "needs"], positions=rec_positions(),
+        minimum_playing_time_minutes=10, remaining_match_ms=480_000));
+    assert result is not None; assert result.player_id == "needs";
+    assert "minimum" in result.explanation;
+}
+
 test "preferred gender outranks position match for coed safety" {
     players = [rec_player("boy", "Boy Mid", "MID", "boy"), rec_player("girl", "Girl Forward", "FWD", "girl")];
     states = {"boy": rec_state("boy", "bench", None, None, 600_000),

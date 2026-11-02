@@ -10,7 +10,15 @@
 .match-assistant p { margin: 0 0 1rem; color: #cbd5e1; }
 .match-assistant form { display: grid; gap: .6rem; }
 .match-assistant label { color: #e2e8f0; font-weight: 600; }
-.match-assistant textarea { width: 100%; min-height: 4rem; box-sizing: border-box; padding: .7rem; border: 1px solid #64748b; border-radius: 8px; background: #0f172a; color: #f1f5f9; font: inherit; resize: vertical; }
+.match-assistant-input { position: relative; }
+.match-assistant textarea { width: 100%; min-height: 4rem; box-sizing: border-box; padding: .7rem 3.6rem .7rem .7rem; border: 1px solid #64748b; border-radius: 8px; background: #0f172a; color: #f1f5f9; font: inherit; resize: vertical; }
+.match-assistant .match-assistant-mic { position: absolute; right: .55rem; top: .5rem; display: grid; place-items: center; width: 2.5rem; height: 2.5rem; padding: 0; border: 1px solid #64748b; border-radius: 50%; background: #334155; color: #f1f5f9; cursor: pointer; }
+.match-assistant .match-assistant-mic:hover { background: #475569; }
+.match-assistant .match-assistant-mic:focus-visible { outline: 2px solid #34d399; outline-offset: 2px; }
+.match-assistant .match-assistant-mic.listening { border-color: #f87171; background: #b91c1c; box-shadow: 0 0 0 4px rgb(248 113 113 / 22%); animation: assistant-mic-pulse 1.4s ease-in-out infinite; }
+.match-assistant .match-assistant-mic:disabled { opacity: .55; cursor: not-allowed; }
+@keyframes assistant-mic-pulse { 50% { box-shadow: 0 0 0 8px rgb(248 113 113 / 10%); } }
+@media (prefers-reduced-motion: reduce) { .match-assistant .match-assistant-mic.listening { animation: none; } }
 .match-assistant textarea::placeholder { color: #94a3b8; }
 .match-assistant textarea:focus-visible { outline: 2px solid #34d399; outline-offset: 2px; }
 .match-assistant button { justify-self: start; }
@@ -19,6 +27,9 @@
 .match-assistant-dialog-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 1rem; background: rgb(2 6 23 / 75%); }
 .match-assistant-dialog { width: min(100%, 36rem); max-height: 90vh; overflow: auto; padding: 1.5rem; border: 1px solid #64748b; border-radius: 14px; background: #1e293b; box-shadow: 0 20px 50px rgb(0 0 0 / 40%); }
 .match-assistant-dialog h3 { margin: 0 0 1rem; color: #f1f5f9; }
+.match-assistant-confirm-mic { margin: 0 0 1rem; padding: .55rem .8rem; border: 1px solid #64748b; border-radius: 999px; background: #334155; color: #f1f5f9; cursor: pointer; }
+.match-assistant-confirm-mic.listening { border-color: #f87171; background: #b91c1c; }
+.match-assistant-confirm-mic:focus-visible { outline: 2px solid #34d399; outline-offset: 2px; }
 .match-assistant-dialog-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
 .match-assistant-proposals { display: grid; gap: .75rem; margin: 0 0 1rem; padding-left: 1.5rem; }
 .match-assistant-proposals li { padding: .75rem; border: 1px solid #475569; border-radius: 8px; }

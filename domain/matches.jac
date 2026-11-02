@@ -16,7 +16,7 @@ def:pub create_draft_match(id: str, team_id: str, team_name: str, date: str,
     roster_player_ids: list[str], now_ms: int) -> Match {
     return Match(id=id, team_id=team_id, team_name=team_name, opponent_name="", date=date,
         settings=MatchSettings(format="7v7", formation_id="7v7-2-3-1", half_length_minutes=25,
-            number_of_halves=2, thresholds=standard_thresholds()),
+            number_of_halves=2, thresholds=standard_thresholds(), minimum_playing_time_minutes=10),
         roster_player_ids=roster_player_ids, unavailable_player_ids=[], pending_assignments={},
         pending_formation_id="7v7-2-3-1", events=[], active_alerts=[], created_at=now_ms, updated_at=now_ms);
 }

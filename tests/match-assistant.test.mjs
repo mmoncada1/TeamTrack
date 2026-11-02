@@ -61,6 +61,47 @@ test("returns a validated suggestion for coach approval", async () => {
   assert.equal(request.response_format.mime_type, "application/json");
 });
 
+test("respects a spoken substitution with named incoming and outgoing players", async () => {
+  const { res } = await ask({ answer: "Review the substitution." }, "Sam in for Alex");
+  assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
+});
+
+test("respects a spoken sub-out command", async () => {
+  const { res } = await ask({ answer: "Review the substitution." }, "Sub out Alex");
+  assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
+});
+
+test("tolerates a small speech recognition error in a player name", async () => {
+  const { res } = await ask({ answer: "Review the substitution." }, "Samm in for Alex");
+  assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
+});
+
+test("plans all named swaps in a spoken batch, in order", async () => {
+  const batch = { ...context,
+    players: [
+      { id: "katie", name: "Katie" }, { id: "matteo", name: "Matteo" },
+      { id: "audrey", name: "Audrey" }, { id: "lauren", name: "Lauren" },
+      { id: "spencer", name: "Spencer" }, { id: "henry", name: "Henry" },
+    ],
+    player_states: [
+      { player_id: "matteo", status: "field", position_id: "mid" },
+      { player_id: "lauren", status: "field", position_id: "def" },
+      { player_id: "henry", status: "field", position_id: "fwd" },
+      { player_id: "katie", status: "bench" },
+      { player_id: "audrey", status: "bench" },
+      { player_id: "spencer", status: "bench" },
+    ],
+  };
+  const { res } = await ask({ answer: "Review." }, "I just subbed Katie in for Matteo Audrey in for Lauren and Spencer in for Henry", batch);
+  assert.deepEqual(res.body.substitutions, [
+    { incoming_player_id: "katie", outgoing_player_id: "matteo", position_id: "mid" },
+    { incoming_player_id: "audrey", outgoing_player_id: "lauren", position_id: "def" },
+    { incoming_player_id: "spencer", outgoing_player_id: "henry", position_id: "fwd" },
+  ]);
+  const duplicate = await ask({ answer: "Review." }, "Katie in for Matteo and Katie in for Lauren", batch);
+  assert.deepEqual(duplicate.res.body.substitutions, []);
+});
+
 test("does not offer an invalid model suggestion", async () => {
   const { res } = await ask({ answer: "Consider a substitution.", substitution: {
     incoming_player_id: "out", outgoing_player_id: "in", position_id: "mid",
@@ -95,6 +136,25 @@ test("chooses the longest waiting valid bench player even when an alert names an
   };
   const { res } = await ask({ answer: "Sam for Alex." }, "Who should I sub in?", waiting);
   assert.equal(res.body.substitutions[0].incoming_player_id, "long");
+});
+
+test("prioritizes a bench player who can reach the playing time minimum", async () => {
+  const withMinimum = { ...context,
+    match: { ...context.match, remaining_ms: 480000 },
+    settings: { minimum_playing_time_minutes: 10 },
+    players: [
+      { id: "out", name: "Alex", preferred_groups: ["MID"] },
+      { id: "met", name: "Sam", preferred_groups: ["MID"] },
+      { id: "needs", name: "Katie", preferred_groups: ["MID"] },
+    ],
+    player_states: [
+      { player_id: "out", status: "field", position_id: "mid", position_group: "MID", current_stint_ms: 660000, total_field_ms: 700000 },
+      { player_id: "met", status: "bench", current_stint_ms: 900000, total_field_ms: 700000 },
+      { player_id: "needs", status: "bench", current_stint_ms: 120000, total_field_ms: 300000 },
+    ],
+  };
+  const { res } = await ask({ answer: "Review Katie for Alex." }, "Make one substitution", withMinimum);
+  assert.equal(res.body.substitutions[0].incoming_player_id, "needs");
 });
 
 test("selects a valid swap when no alert exists", async () => {
@@ -235,6 +295,32 @@ test("proposes scorer and optional assist from common goal wording", async () =>
   assert.deepEqual(opponent.res.body.goal, { team: "opponent", scorer_id: null, assister_id: null });
   const question = await ask({ answer: "No." }, "Did Katie score?", goalContext);
   assert.equal(question.res.body.goal, null);
+});
+
+test("answers who scored from recorded goal events without a question mark", async () => {
+  const recorded = { ...context,
+    players: [{ id: "katie", name: "Katie Smith" }, { id: "matteo", name: "Matteo Rossi" }],
+    events: [
+      { type: "GOAL", data: { team: "us", scorer_id: "katie" } },
+      { type: "CARD", data: { player_id: "matteo", color: "red" } },
+      { type: "GOAL", data: { team: "opponent" } },
+    ],
+  };
+  const { res } = await ask({ answer: "Wrong model answer." }, "who scored this game", recorded);
+  assert.equal(res.body.answer, "Katie Smith, Opponent goal (scorer not recorded).");
+  assert.equal(res.body.goal, null);
+});
+
+test("treats a goal question without punctuation as a question", async () => {
+  const { res } = await ask({ answer: "Katie scored earlier." }, "which player scored the first goal", context);
+  assert.equal(res.body.answer, "Katie scored earlier.");
+  assert.equal(res.body.goal, null);
+});
+
+test("reports when no goal has been recorded", async () => {
+  const { res } = await ask({ answer: "Wrong model answer." }, "who scored", { ...context, events: [] });
+  assert.equal(res.body.answer, "No goals have been recorded for this match.");
+  assert.equal(res.body.goal, null);
 });
 
 test("proposes cards and injuries without recording them", async () => {

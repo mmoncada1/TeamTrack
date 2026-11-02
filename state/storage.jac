@@ -25,7 +25,13 @@ def:pub load_players() -> list[Player] { raw = localStorage.getItem(PLAYERS_KEY)
 def:pub save_lineups(items: list[SavedLineup]) { localStorage.setItem(LINEUPS_KEY, JSON.stringify(items)); }
 def:pub load_lineups() -> list[SavedLineup] { raw = localStorage.getItem(LINEUPS_KEY); return JSON.parse(raw) as list[SavedLineup] if raw else []; }
 def:pub save_matches(items: list[Match]) { localStorage.setItem(MATCHES_KEY, JSON.stringify(items)); }
-def:pub load_matches() -> list[Match] { raw = localStorage.getItem(MATCHES_KEY); return JSON.parse(raw) as list[Match] if raw else []; }
+def:pub load_matches() -> list[Match] {
+    raw = localStorage.getItem(MATCHES_KEY); items = JSON.parse(raw) as list[Match] if raw else [];
+    for game in items {
+        if not game.settings.minimum_playing_time_minutes { game.settings.minimum_playing_time_minutes = 10; }
+    }
+    return items;
+}
 def:pub save_football_formations(items: list[FootballFormation]) { localStorage.setItem(FOOTBALL_FORMATIONS_KEY, JSON.stringify(items)); }
 def:pub load_football_formations() -> list[FootballFormation] { raw = localStorage.getItem(FOOTBALL_FORMATIONS_KEY); return JSON.parse(raw) as list[FootballFormation] if raw else []; }
 def:pub save_football_plays(items: list[FootballPlay]) { localStorage.setItem(FOOTBALL_PLAYS_KEY, JSON.stringify(items)); }

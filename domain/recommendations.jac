@@ -12,7 +12,9 @@ obj RecommendationContext {
         roster_order: list[str],
         positions: list[FormationPosition],
         exclude_player_ids: list[str] = [],
-        prefer_gender: str | None = None;
+        prefer_gender: str | None = None,
+        minimum_playing_time_minutes: int = 0,
+        remaining_match_ms: int = 0;
 }
 
 obj ExceededCandidate {
@@ -65,23 +67,33 @@ def:pub find_exceeded_outgoing_candidates(context: RecommendationContext) -> lis
 }
 
 def incoming_rank(state: PlayerRuntimeState, context: RecommendationContext,
-    position_group: str | None) -> tuple[int, int, int, int, int] {
+    position_group: str | None) -> tuple[int, int, int, int, int, int] {
     player = player_by_id(context.players, state.player_id);
     gender_rank = 0 if context.prefer_gender is not None and player is not None and player.gender == context.prefer_gender else 1 if context.prefer_gender is not None else 0;
     matches = player is not None and position_group is not None and position_group in player_groups(player);
-    return (gender_rank, -state.current_stint_ms, 0 if matches else 1,
+    deficit_ms = max(0, context.minimum_playing_time_minutes * 60_000 - state.total_field_ms);
+    minimum_rank = 0 if deficit_ms > 0 and deficit_ms <= context.remaining_match_ms else 1 if deficit_ms > 0 else 2;
+    return (gender_rank, minimum_rank if context.minimum_playing_time_minutes > 0 and context.remaining_match_ms > 0 else 0,
+        -state.current_stint_ms, 0 if matches else 1,
         state.total_field_ms, roster_index(context.roster_order, state.player_id));
 }
 
-def:pub recommend_incoming_player(position_id: str, context: RecommendationContext) -> IncomingRecommendation | None {
+def:pub ranked_incoming_player_ids(position_id: str, context: RecommendationContext) -> list[str] {
     position = position_by_id(context.positions, position_id);
     group = position.group if position is not None else None;
     candidates = [state for state in context.player_states.values()
         if state.status == "bench" and state.player_id not in context.exclude_player_ids
         and player_by_id(context.players, state.player_id) is not None];
-    if not candidates { return None; }
     ranked = sorted(candidates, key=lambda (state: PlayerRuntimeState) { incoming_rank(state, context, group); });
-    best = ranked[0]; player = player_by_id(context.players, best.player_id);
+    return [item.player_id for item in ranked];
+}
+
+def:pub recommend_incoming_player(position_id: str, context: RecommendationContext) -> IncomingRecommendation | None {
+    ranked_ids = ranked_incoming_player_ids(position_id, context);
+    if not ranked_ids { return None; }
+    best = context.player_states[ranked_ids[0]]; player = player_by_id(context.players, best.player_id);
+    position = position_by_id(context.positions, position_id);
+    group = position.group if position is not None else None;
     reasons: list[str] = [];
     if context.prefer_gender is not None and player is not None and player.gender == context.prefer_gender {
         reasons.append("keeps a girl on the field");
@@ -89,6 +101,8 @@ def:pub recommend_incoming_player(position_id: str, context: RecommendationConte
     if player is not None and group is not None and group in player_groups(player) and position is not None {
         reasons.append(f"matches the {position.label.lower()} role");
     }
+    deficit_ms = max(0, context.minimum_playing_time_minutes * 60_000 - best.total_field_ms);
+    if deficit_ms > 0 { reasons.append(f"needs {round(deficit_ms / 60_000)} more minutes to meet the minimum"); }
     minutes = round(best.current_stint_ms / 60_000);
     reasons.append(f"has been on the bench for {minutes} minute" + ("" if minutes == 1 else "s") + ")");
     return IncomingRecommendation(player_id=best.player_id, explanation=" and ".join(reasons));
