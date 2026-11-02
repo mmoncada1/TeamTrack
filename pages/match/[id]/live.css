@@ -72,8 +72,6 @@
 .live-player-dialog:not(.live-goal-dialog) .live-dialog-footer{gap:8px;margin-top:16px}
 .live-player-dialog:not(.live-goal-dialog) .live-dialog-footer .button{min-height:38px;padding:7px 12px;font-size:13px}
 .live-player-dialog:not(.live-goal-dialog) .live-detail-label{gap:5px;margin-top:12px;font-size:13px}
-/* One back line, with enough vertical room for names and timers above the keeper. */
-.live-match .live-pitch .live-slot.group-DEF{top:min(calc(80% - 10px),calc(100% - 150px))!important}
 .live-match .live-bench-heading h2{height:auto;margin:0;line-height:1.2}
 .live-match .live-bench-heading .live-bench-add{padding:0;line-height:1.2}
 /* Scoreboard arranged for a narrow sidebar. */
@@ -89,3 +87,25 @@
 .live-match-status .live-score-divider{align-self:end;padding-bottom:2px;color:#64748b;font-size:23px}
 .live-match-status .live-status-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px}
 .live-match-status .live-status-actions .button{min-width:0;min-height:36px;padding:7px 8px;font-size:11px;white-space:normal}
+.live-match-status{position:relative}
+.live-status-settings{position:absolute;top:12px;right:12px;display:grid;place-items:center;width:30px;height:30px;border:1px solid #475569;border-radius:7px;background:#334155;color:#e2e8f0;font-size:19px;line-height:1;cursor:pointer}
+.live-status-settings:hover{background:#475569}
+.live-settings-dialog{width:min(440px,100%);padding:22px}
+.live-settings-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.live-settings-heading h2{font-size:20px}
+.live-settings-heading button{border:0;background:transparent;color:#cbd5e1;font-size:26px;cursor:pointer}
+.live-settings-dialog>p{margin:8px 0 18px;color:#94a3b8;font-size:13px}
+.live-settings-row{display:grid;grid-template-columns:42px 1fr 120px;align-items:center;gap:8px;padding:9px 0;border-top:1px solid #334155;font-size:13px}
+.live-settings-row label{display:flex;align-items:center;gap:6px}
+.live-settings-row .input{width:58px;padding:5px;background:#0f172a;color:#f8fafc}
+.minimum-playing-time-label{display:grid;gap:6px;max-width:250px;margin-bottom:16px}
+.live-minimum-setting{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 0 13px;font-size:13px;font-weight:700}
+.live-minimum-setting span{display:flex;align-items:center;gap:6px;font-weight:400}
+.live-minimum-setting .input{width:58px;padding:5px;background:#0f172a;color:#f8fafc}
+.live-minimum-progress{display:block;width:max-content;max-width:none;padding:2px 4px;border-radius:4px;font-size:9px;font-weight:700;line-height:1.1;white-space:nowrap}
+.live-minimum-progress.below{background:#78350f;color:#fcd34d}
+.live-minimum-progress.met{background:#064e3b;color:#6ee7b7}
+.live-match .live-player-token .live-minimum-progress{font-size:8px}
+/* Keep the expanded playing-time labels clear of the goalkeeper. */
+.live-match .live-pitch .live-slot.group-DEF{top:min(calc(80% - 22px),calc(100% - 162px))!important}
+.live-match .table-scroll .live-minimum-progress{width:max-content;font-size:9px}

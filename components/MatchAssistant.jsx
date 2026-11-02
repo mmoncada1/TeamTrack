@@ -136,16 +136,18 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
         return;
       }
       const token = await getAccessToken();
-      const playerIds = new Set(game.roster_player_ids || []);
+      const playerIds = new Set(derived.included_player_ids || game.roster_player_ids || []);
       const context = {
         team: team ? { coed: team.coed, min_girls_on_field: team.min_girls_on_field } : undefined,
         match: {
           id: game.id, team_id: game.team_id, team_name: game.team_name,
           opponent_name: game.opponent_name, date: game.date,
           status: derived.status, clock_ms: derived.display_clock_ms,
+          remaining_ms: Math.max(0, (game.settings?.half_length_minutes || 0) * (game.settings?.number_of_halves || 0) * 60000 - derived.match_clock_ms),
           team_score: summary.team_score, opponent_score: summary.opponent_score,
         },
-        settings: { thresholds: game.settings?.thresholds, goalkeeper_rotation_enabled: game.settings?.goalkeeper_rotation_enabled },
+        settings: { thresholds: game.settings?.thresholds, goalkeeper_rotation_enabled: game.settings?.goalkeeper_rotation_enabled,
+          minimum_playing_time_minutes: game.settings?.minimum_playing_time_minutes ?? 10 },
         players: players.filter((player) => player.team_id === game.team_id && playerIds.has(player.id)).map((player) => ({
           id: player.id, name: player.name, jersey_number: player.jersey_number,
           preferred_groups: player.preferred_groups, availability: player.availability, gender: player.gender,
@@ -158,6 +160,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
         player_states: Object.values(derived.player_states || {}).map((item) => ({
           player_id: item.player_id, status: item.status, position_id: item.position_id,
           position_group: item.position_group, current_stint_ms: item.current_stint_ms,
+          total_field_ms: item.total_field_ms,
         })),
         alerts: (game.active_alerts || []).filter((item) => item.status === "active").map((item) => ({
           player_id: item.player_id, position_group: item.position_group,

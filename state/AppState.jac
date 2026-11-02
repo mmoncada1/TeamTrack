@@ -132,14 +132,14 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
     }
     def save_match_setup(id: str, team_name: str, opponent_name: str, date: str, kickoff_time: str, title: str,
         format: str, formation_id: str, half_length: int, halves: int, thresholds: dict[str, ThresholdSetting],
-        goalkeeper_rotation: bool, alert_sound: bool, roster_ids: list[str], unavailable_ids: list[str], assignments: dict[str, str], start_now: bool = False) -> str {
+        goalkeeper_rotation: bool, alert_sound: bool, roster_ids: list[str], unavailable_ids: list[str], assignments: dict[str, str], minimum_playing_time_minutes: int = 10, start_now: bool = False) -> str {
         existing: Match | None = None; for item in matches { if item.id == id { existing = item; break; } }
         if existing is None { return "Match draft not found."; }
         if any([team.id == existing.team_id and team.sport == "football" for team in teams]) { return "Soccer match setup requires a soccer team."; }
         updated = Match(id=existing.id, team_id=existing.team_id, team_name=team_name, opponent_name=opponent_name, date=date,
             kickoff_time=kickoff_time if kickoff_time else None, title=title if title else None,
             settings=MatchSettings(format=format, formation_id=formation_id, half_length_minutes=half_length, number_of_halves=halves,
-                thresholds=thresholds, goalkeeper_rotation_enabled=goalkeeper_rotation, alert_sound_enabled=alert_sound),
+                thresholds=thresholds, minimum_playing_time_minutes=max(1, minimum_playing_time_minutes), goalkeeper_rotation_enabled=goalkeeper_rotation, alert_sound_enabled=alert_sound),
             roster_player_ids=roster_ids, unavailable_player_ids=unavailable_ids, pending_assignments=assignments,
             pending_formation_id=formation_id, events=existing.events, active_alerts=existing.active_alerts,
             created_at=existing.created_at, updated_at=int(Date.now()));

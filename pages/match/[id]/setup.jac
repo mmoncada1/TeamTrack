@@ -49,7 +49,7 @@ def:pub MatchSetupPage() -> JsxPage {
     team_players = [player for player in state["players"] if game and player.team_id == game.team_id];
     has loaded_id: str = ""; has team_name: str = ""; has opponent: str = ""; has date: str = "";
     has kickoff: str = ""; has title: str = ""; has format: str = "7v7"; has formation_id: str = "7v7-2-3-1";
-    has half_length: str = "25"; has halves: str = "2"; has thresholds: dict[str, ThresholdSetting] = standard_thresholds();
+    has half_length: str = "25"; has halves: str = "2"; has thresholds: dict[str, ThresholdSetting] = standard_thresholds(); has minimum_playing_time: str = "10";
     has goalkeeper_rotation: bool = False; has alert_sound: bool = False; has roster_ids: list[str] = [];
     has unavailable_ids: list[str] = []; has assignments: dict[str, str] = {}; has notice: str = ""; has saved: bool = False;
     match_id = game.id if game else "";
@@ -58,7 +58,7 @@ def:pub MatchSetupPage() -> JsxPage {
             loaded_id = game.id; team_name = game.team_name; opponent = game.opponent_name; date = game.date;
             kickoff = game.kickoff_time or ""; title = game.title or ""; format = game.settings.format;
             formation_id = game.pending_formation_id; half_length = str(game.settings.half_length_minutes);
-            halves = str(game.settings.number_of_halves); thresholds = game.settings.thresholds;
+            halves = str(game.settings.number_of_halves); thresholds = game.settings.thresholds; minimum_playing_time = str(game.settings.minimum_playing_time_minutes);
             goalkeeper_rotation = game.settings.goalkeeper_rotation_enabled; alert_sound = game.settings.alert_sound_enabled;
             roster_ids = game.roster_player_ids; unavailable_ids = game.unavailable_player_ids;
             assignments = game.pending_assignments; notice = ""; saved = False;
@@ -120,7 +120,7 @@ def:pub MatchSetupPage() -> JsxPage {
     def persist {
         result = state["saveMatchSetup"].call(None, id, team_name, opponent, date, kickoff, title, format, formation_id,
             positive_minutes(half_length), positive_minutes(halves), thresholds, goalkeeper_rotation,
-            alert_sound, roster_ids, unavailable_ids, assignments, False);
+            alert_sound, roster_ids, unavailable_ids, assignments, positive_minutes(minimum_playing_time), False);
         notice = result; saved = not bool(result);
     }
 
@@ -129,7 +129,7 @@ def:pub MatchSetupPage() -> JsxPage {
         try {
             result = state["saveMatchSetup"].call(None, id, team_name, opponent, date, kickoff, title, format, formation_id,
                 positive_minutes(half_length), positive_minutes(halves), thresholds, goalkeeper_rotation,
-                alert_sound, roster_ids, unavailable_ids, assignments, True);
+                alert_sound, roster_ids, unavailable_ids, assignments, positive_minutes(minimum_playing_time), True);
         } except Exception as error { notice = "Could not start match: " + str(error); return; }
         notice = result;
         if not result { navigate("/match/" + id + "/live"); }
@@ -145,7 +145,7 @@ def:pub MatchSetupPage() -> JsxPage {
             <label>Formation<select className="input compact" value={formation_id} onChange={lambda (e: ChangeEvent) { change_formation(e.target.value); }}>{[<option key={item.id} value={item.id}>{item.shape}</option> for item in formations_for_format(format)]}</select></label></section>
         <section className="setup-section"><h2>Match timing</h2><div className="setup-grid"><label>Half length (minutes)<input className="input" type="number" min="1" value={half_length} onChange={lambda (e: ChangeEvent) { half_length = e.target.value; saved = False; }} /></label>
             <label>Number of halves<select className="input" value={halves} onChange={lambda (e: ChangeEvent) { halves = e.target.value; saved = False; }}><option value="2">2 halves</option><option value="1">1 running clock</option></select></label></div></section>
-        <section className="setup-section"><h2>Playing-time alerts</h2><div className="threshold-grid">{[<div className="threshold" key={group}><label className="check-row"><input type="checkbox" checked={thresholds[group].enabled} onChange={lambda (e: ChangeEvent) { set_threshold(group, e.target.checked, thresholds[group].minutes); }} /> {label}</label>
+        <section className="setup-section"><h2>Playing-time alerts</h2><label className="minimum-playing-time-label">Minimum Playing Time (minutes)<input className="input compact" type="number" min="1" value={minimum_playing_time} onChange={lambda (e: ChangeEvent) { minimum_playing_time = e.target.value; saved = False; }} /></label><div className="threshold-grid">{[<div className="threshold" key={group}><label className="check-row"><input type="checkbox" checked={thresholds[group].enabled} onChange={lambda (e: ChangeEvent) { set_threshold(group, e.target.checked, thresholds[group].minutes); }} /> {label}</label>
             <input type="range" min="1" max="30" value={thresholds[group].minutes} disabled={not thresholds[group].enabled} onChange={lambda (e: ChangeEvent) { set_threshold(group, thresholds[group].enabled, int(e.target.value)); }} /><span>{thresholds[group].minutes} min</span></div>
             for (group, label) in [("GK", "Goalkeeper"), ("DEF", "Defender"), ("MID", "Midfielder"), ("FWD", "Forward")]]}</div>
             <label className="check-row"><input type="checkbox" checked={goalkeeper_rotation} onChange={lambda (e: ChangeEvent) { goalkeeper_rotation = e.target.checked; saved = False; }} /> Enable goalkeeper rotation alerts</label>
