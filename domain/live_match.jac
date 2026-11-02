@@ -324,6 +324,9 @@ def:pub substitute_player(game: Match, player_in_id: str, position_id: str, now_
 def:pub add_player_to_match(game: Match, player_id: str, now_ms: int) -> Match {
     state = require_open(game, now_ms);
     if player_id in state.included_player_ids { raise ValueError("That player is already in this game."); }
+    if any([event.type == "CARD" and event.data["player_id"] == player_id and event.data["color"] == "red" for event in game.events]) {
+        raise ValueError("A sent-off player cannot rejoin this match.");
+    }
     return append_event(game, make_event(game, "PLAYER_JOINED", state.match_clock_ms, now_ms, [player_id], data={"player_id": player_id}));
 }
 

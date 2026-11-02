@@ -28,3 +28,64 @@
 .live-match .live-queued-ghost{display:block;max-width:6.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 5px;border:1px dashed #d8b4fe;border-radius:5px;background:#581c87bb;color:#faf5ff;font-size:10px;font-weight:700;pointer-events:none}
 .live-match .live-queue{display:grid;gap:8px}.live-match .live-queue-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px;border:1px dashed #a78bfa;border-radius:8px;font-size:12px}.live-match .live-queue-item>div{display:flex;gap:4px}.live-match .live-queue .button.small{padding:5px 7px;font-size:11px}
 .live-match .live-queue-toggle{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-size:12px;cursor:pointer}.live-match .live-queue-toggle input{accent-color:#a78bfa}
+/* Bench availability shares one scroll region, leaving the field fixed. */
+.live-match .live-bench>section{position:relative}
+.live-bench-heading{display:flex;align-items:center;justify-content:space-between;min-height:28px}
+.live-bench-add{border:0;background:transparent;color:#34d399;font:inherit;cursor:pointer}
+.live-bench-add:hover{text-decoration:underline}
+.live-bench-scroll{min-height:0;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.live-bench-scroll .bench-list{flex:none;overflow:visible;min-height:120px}
+.live-unavailable{padding-bottom:8px}
+.live-unavailable h2{height:auto;margin-bottom:8px;font-size:14px}
+.live-unavailable .bench-list{min-height:0}
+.live-unavailable-token{display:flex;justify-content:center;min-width:0}
+.live-unavailable-avatar{position:relative;filter:none}
+.live-unavailable-avatar .token-avatar{filter:grayscale(1);opacity:.58;border-color:#64748b;background:#334155}
+.live-unavailable-avatar .token-name{background:#334155;color:#f1f5f9}
+.unavailable-badge{position:absolute;top:-2px;right:4px;display:grid;place-items:center;width:18px;height:18px;border-radius:4px;background:#dc2626;color:#fff;font-size:15px;font-weight:900;line-height:1}
+.live-add-menu{position:absolute;z-index:20;top:28px;left:0;right:0;display:grid;gap:4px;max-height:240px;overflow:auto;padding:10px;border:1px solid #475569;border-radius:8px;background:#1e293b;box-shadow:0 12px 24px #02061799}
+.live-add-menu strong{font-size:13px}.live-add-menu button{padding:7px;border:0;border-radius:5px;background:#334155;color:#f8fafc;text-align:left;cursor:pointer}.live-add-menu button:hover{background:#475569}.live-add-menu p{margin:0;color:#94a3b8;font-size:12px}
+/* Keep the keeper's full token above the lower field boundary at every pitch size. */
+.live-match .live-slot.group-GK{top:auto!important;bottom:clamp(12px,3%,28px);transform:translateX(-50%)}
+.live-unavailable-token .lineup-token{width:74.25px;padding:0;text-align:center}
+.live-unavailable-token .token-avatar{width:53.625px;height:53.625px;border-width:4px;font-size:13.75px}
+.live-unavailable-token .token-name{width:74.25px;max-width:none;padding:3px 4px;font-size:10px;line-height:1.15}
+.live-unavailable-token .girl-mark{width:13.75px;height:13.75px;top:-3px;right:-3px;font-size:8px}
+
+/* Draw the card with CSS so its proportions do not depend on the font glyph. */
+.unavailable-badge.red-card-badge{background:#0f172a;border:1px solid #fca5a5}
+.unavailable-badge.red-card-badge::before{content:"";display:block;width:9px;height:13px;border-radius:1px;background:#ef4444;box-shadow:inset 0 0 0 1px #fecaca66}
+
+.live-unavailable-token{flex-direction:column;align-items:center;gap:4px}.unavailable-edit{padding:2px 8px;border:1px solid #475569;border-radius:5px;background:#1e293b;color:#f8fafc;font-size:11px;cursor:pointer}.unavailable-edit:hover{background:#334155}
+
+.live-player-avatar{position:relative}.yellow-card-badge{position:absolute;z-index:3;top:-2px;left:2px;display:grid;place-items:center;width:18px;height:18px;border:1px solid #fde68a;border-radius:4px;background:#0f172a;pointer-events:none}.yellow-card-badge::before{content:"";display:block;width:9px;height:13px;border-radius:1px;background:#facc15;box-shadow:inset 0 0 0 1px #fef9c366}
+/* Compact player actions while preserving the larger goal entry form. */
+.live-player-dialog:not(.live-goal-dialog){width:min(440px,100%);max-height:min(88vh,650px);padding:22px;border-radius:10px}
+.live-player-dialog:not(.live-goal-dialog) h2{font-size:21px}
+.live-player-dialog:not(.live-goal-dialog)>p{margin:6px 0 16px;font-size:13px}
+.live-player-dialog:not(.live-goal-dialog) .live-edit-actions{gap:7px}
+.live-player-dialog:not(.live-goal-dialog) .live-edit-actions .button{min-height:38px;padding:7px 12px;border-radius:7px;font-size:14px}
+.live-player-dialog:not(.live-goal-dialog) .live-move-options{max-height:45vh;gap:5px}
+.live-player-dialog:not(.live-goal-dialog) .live-move-option{min-height:46px;padding:8px 11px;border-radius:7px;font-size:15px}
+.live-player-dialog:not(.live-goal-dialog) .live-move-option small{font-size:11px}
+.live-player-dialog:not(.live-goal-dialog) .live-move-option input{width:16px;height:16px}
+.live-player-dialog:not(.live-goal-dialog) .live-dialog-footer{gap:8px;margin-top:16px}
+.live-player-dialog:not(.live-goal-dialog) .live-dialog-footer .button{min-height:38px;padding:7px 12px;font-size:13px}
+.live-player-dialog:not(.live-goal-dialog) .live-detail-label{gap:5px;margin-top:12px;font-size:13px}
+/* One back line, with enough vertical room for names and timers above the keeper. */
+.live-match .live-pitch .live-slot.group-DEF{top:min(calc(80% - 10px),calc(100% - 150px))!important}
+.live-match .live-bench-heading h2{height:auto;margin:0;line-height:1.2}
+.live-match .live-bench-heading .live-bench-add{padding:0;line-height:1.2}
+/* Scoreboard arranged for a narrow sidebar. */
+.live-match .live-match-status{padding:18px 20px}
+.live-match-status .live-status-clock{text-align:center}
+.live-match-status .live-status-clock strong{display:block;color:#f8fafc;font-size:30px;font-weight:750;line-height:1.1;font-variant-numeric:tabular-nums}
+.live-match-status .live-status-clock span{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:5px;color:#94a3b8;font-size:11px}
+.live-match-status .live-status-clock i{width:7px;height:7px;border-radius:50%;background:#34d399}
+.live-match-status .live-status-score{display:grid;grid-template-columns:minmax(0,1fr) 14px minmax(0,1fr);align-items:end;gap:8px;margin-top:16px;padding:14px 0;border-top:1px solid #334155;border-bottom:1px solid #334155;text-align:center}
+.live-match-status .live-score-team{min-width:0}
+.live-match-status .live-score-team span{display:block;overflow:hidden;color:#cbd5e1;font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.live-match-status .live-score-team strong{display:block;margin-top:3px;color:#f8fafc;font-size:30px;line-height:1;font-variant-numeric:tabular-nums}
+.live-match-status .live-score-divider{align-self:end;padding-bottom:2px;color:#64748b;font-size:23px}
+.live-match-status .live-status-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px}
+.live-match-status .live-status-actions .button{min-width:0;min-height:36px;padding:7px 8px;font-size:11px;white-space:normal}

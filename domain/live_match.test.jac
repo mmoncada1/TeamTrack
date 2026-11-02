@@ -99,6 +99,18 @@ test "handles injury return removal and late join" {
     assert "late" in state.included_player_ids; assert state.player_states["late"].total_bench_ms == 60_000;
 }
 
+test "late join cannot re-add a player sent off then removed" {
+    game = start_match(sample_game(), 0);
+    game = record_card(game, "bench-a", "red", 10_000);
+    game = remove_player_from_match(game, "bench-a", 20_000);
+    try {
+        add_player_to_match(game, "bench-a", 30_000);
+        assert False;
+    } except ValueError {
+        assert "bench-a" not in derive_match_state(game, 30_000).included_player_ids;
+    }
+}
+
 test "changes formations and retains same-group players" {
     game = start_match(sample_game(), 0);
     changed = change_formation(game, "7v7-2-2-2", 60_000);
