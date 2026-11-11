@@ -330,9 +330,7 @@ def:pub LiveMatchPage() -> JsxPage {
         if apply(record_note(game, note.strip(), now)) { note = ""; }
     }
     def end_match {
-        if window.confirm("End this match? The clock will stop and the summary will open.") {
-            if apply(end_match_action(game, now)) { navigate("/match/" + id + "/summary"); }
-        }
+        if apply(end_match_action(game, now)) { navigate("/match/" + id + "/summary"); }
     }
     def edit_goal(event: any) {
         editing_goal_id = event.id; goal_team = event.data["team"]; own_goal = bool(event.data.get("is_own_goal")); scorer_id = event.data.get("scorer_id") or ""; assister_id = event.data.get("assister_id") or ""; goal_error = ""; goal_dialog_open = True;
