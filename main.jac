@@ -15,3 +15,4 @@ def:pub app(children: any) -> JsxElement {
     }
     return <AuthGate><AppStateProvider>{children}</AppStateProvider></AuthGate>;
 }
+
