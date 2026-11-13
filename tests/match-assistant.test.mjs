@@ -66,6 +66,30 @@ test("respects a spoken substitution with named incoming and outgoing players", 
   assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
 });
 
+test("previews Matteo for Katie at the exact position without recording a swap", async () => {
+  const matchContext = { ...context,
+    players: [{ id: "katie", name: "Katie" }, { id: "matteo", name: "Matteo" }],
+    player_states: [
+      { player_id: "katie", status: "field", position_id: "mid-c", total_field_ms: 120000 },
+      { player_id: "matteo", status: "bench", position_id: null, total_field_ms: 0 },
+    ],
+    events: [{ type: "MATCH_STARTED", match_clock_ms: 0 }],
+  };
+  const original = structuredClone(matchContext);
+  const { res } = await ask({ answer: "Done." }, "Sub Matteo in for Katie", matchContext);
+  assert.deepEqual(res.body.substitutions, [
+    { incoming_player_id: "matteo", outgoing_player_id: "katie", position_id: "mid-c" },
+  ]);
+  assert.match(res.body.answer, /Review/);
+  assert.deepEqual(matchContext, original);
+  const changed = { ...matchContext, player_states: matchContext.player_states.map((state) =>
+    state.player_id === "katie" ? { ...state, position_id: "mid-l" } : state) };
+  const stale = await ask({ answer: "Done." }, "Sub Matteo in for Katie", changed);
+  assert.deepEqual(stale.res.body.substitutions, [
+    { incoming_player_id: "matteo", outgoing_player_id: "katie", position_id: "mid-l" },
+  ]);
+});
+
 test("respects a spoken sub-out command", async () => {
   const { res } = await ask({ answer: "Review the substitution." }, "Sub out Alex");
   assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);

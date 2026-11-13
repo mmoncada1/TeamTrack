@@ -11,6 +11,7 @@ import from ....domain.models { MatchSettings, ThresholdSetting }
 import from ....domain.alerts { update_alerts, dismiss_alert }
 import from ....state.AppState { use_app_state }
 import from ....domain.stats { build_match_summary }
+import from ....domain.assistant_actions { apply_substitution_plan, goal_proposal_is_current }
 import from "../../../components/MatchAssistant.jsx" { MatchAssistant }
 import "../../../components/match-assistant.css";
 
@@ -202,28 +203,10 @@ def:pub LiveMatchPage() -> JsxPage {
     }
     def accept_ai_substitutions(suggestions: any) -> str {
         if field_locked { return "Unlock the field before accepting substitutions."; }
-        if status == "ended" or status == "setup" or not suggestions or len(suggestions) > 5 {
-            return "This substitution plan is no longer available. Ask TeamTrack again.";
-        }
         try {
-            next_game = game; at_ms = int(Date.now()); used_ids: list[str] = [];
-            for suggestion in suggestions {
-                position_id = suggestion["position_id"]; outgoing_id = suggestion["outgoing_player_id"]; incoming_id = suggestion["incoming_player_id"];
-                current = derive_match_state(next_game, at_ms);
-                if outgoing_id in used_ids or incoming_id in used_ids or position_id not in current.assignments or
-                    current.assignments[position_id] != outgoing_id or incoming_id not in current.player_states or
-                    current.player_states[incoming_id].status != "bench" {
-                    return "The lineup changed. Ask TeamTrack for a new substitution plan.";
-                }
-                next_assignments = move_assignment(current.assignments, incoming_id, position_id);
-                if min_girls is not None and move_breaks_coed_rule(available_players,
-                    current.assignments, next_assignments, min_girls) {
-                    return "This plan would break the team's coed rule. Ask TeamTrack again.";
-                }
-                next_game = substitute_player(next_game, incoming_id, position_id, at_ms);
-                used_ids.append(incoming_id); used_ids.append(outgoing_id);
-            }
-            return "" if apply(next_game) else action_error;
+            result = apply_substitution_plan(game, suggestions, state["players"], min_girls, int(Date.now()));
+            if "error" in result { return result["error"]; }
+            return "" if apply(result["game"]) else action_error;
         }
         except Exception { return "Could not apply this substitution plan. Check the current lineup."; }
     }
@@ -258,15 +241,23 @@ def:pub LiveMatchPage() -> JsxPage {
     }
     def apply_queued_substitutions(selected: any) -> str {
         if not selected { return "Select a queued substitution."; }
+        saved_queue = JSON.parse(localStorage.getItem("teamtrack:queued-subs:" + id) or "[]") as list[dict[str, str]];
+        for item in selected {
+            if not any([queued["outgoing_player_id"] == item["outgoing_player_id"] and
+                queued["incoming_player_id"] == item["incoming_player_id"] and
+                queued["position_id"] == item["position_id"] for queued in saved_queue]) {
+                return "That substitution is no longer queued.";
+            }
+        }
         result = accept_ai_substitutions(selected);
         if result { return result; }
         selected_keys = [item["outgoing_player_id"] + ":" + item["incoming_player_id"] for item in selected];
-        save_queue([item for item in queued_subs if item["outgoing_player_id"] + ":" + item["incoming_player_id"] not in selected_keys]);
+        save_queue([item for item in saved_queue if item["outgoing_player_id"] + ":" + item["incoming_player_id"] not in selected_keys]);
         queue_error = ""; return "";
     }
     def accept_ai_goal(proposal: any) -> str {
-        if status not in ["in_progress", "paused", "half_time"] or proposal["match_id"] != game.id {
-            return "This goal proposal is no longer available. Ask TeamTrack again.";
+        if not goal_proposal_is_current(game, proposal, int(Date.now())) {
+            return "The score changed or this goal proposal expired. Ask TeamTrack again.";
         }
         team_value = proposal["team"];
         if team_value not in ["us", "opponent"] { return "Invalid goal proposal."; }
@@ -444,9 +435,9 @@ def:pub LiveMatchPage() -> JsxPage {
             <aside className="live-sidebar">
                 <section className="live-card live-match-status"><button className="live-status-settings" type="button" aria-label="Substitution timer settings" title="Substitution timer settings" onClick={lambda { timer_settings_open = True; }}>⚙</button><div className="live-status-clock"><strong>{clock_label(clock_ms)}</strong><span><i aria-hidden={True}></i>{"Live" if status == "in_progress" else status.replace("_", " ").capitalize()} · Half {current_half}</span></div><div className="live-status-score" aria-label="Match score"><div className="live-score-team"><span title={game.team_name}>{game.team_name}</span><strong>{team_score}</strong></div><span className="live-score-divider" aria-hidden={True}>–</span><div className="live-score-team"><span title={game.opponent_name}>{game.opponent_name}</span><strong>{opponent_score}</strong></div></div><div className="live-status-actions">{<button className="button secondary" type="button" onClick={pause_or_resume}>{"Pause" if status == "in_progress" else ("Start second half" if status == "half_time" else "Resume")}</button> if status != "ended" else None}{<button className="button secondary" type="button" onClick={half_time}>Half-time</button> if status == "in_progress" and game.settings.number_of_halves > 1 and current_half == 1 else None}<button className="button primary" type="button" disabled={status == "ended"} onClick={open_goal_dialog}>+ Goal</button><button className="button danger" type="button" disabled={status == "ended"} onClick={end_match}>End match</button></div></section>
                 <MatchAssistant game={game} players={state["players"]} summary={build_match_summary(game, state["players"], now)} derived={derived} team={active_team} fieldLocked={field_locked} queuedSubs={queued_subs} onQueueSubstitutions={queue_substitutions} onApplyQueuedSubstitutions={apply_queued_substitutions} onAcceptSubstitutions={accept_ai_substitutions} onAcceptGoal={accept_ai_goal} onAcceptMatchAction={accept_ai_match_action} />
-                <section className="live-card live-queue"><div className="section-heading"><h2>Queued substitutions ({len(queued_subs)})</h2><label className="live-queue-toggle"><input type="checkbox" checked={queue_mode} onChange={lambda (e: ChangeEvent) { queue_mode = e.target.checked; queue_error = ""; }} /> Queue mode</label></div>
+                <section className="live-card live-queue"><div className="section-heading"><h2>Queued, not recorded ({len(queued_subs)})</h2><label className="live-queue-toggle"><input type="checkbox" checked={queue_mode} onChange={lambda (e: ChangeEvent) { queue_mode = e.target.checked; queue_error = ""; }} /> Queue mode</label></div>
                     {<p className="muted">Drag a bench player onto a field player to queue a substitution.</p> if queue_mode else None}
-                    {[<div className="live-queue-item" key={item["outgoing_player_id"]}><span>{player_name(match_players, item["incoming_player_id"])} ↝ {player_name(match_players, item["outgoing_player_id"])}{" · lineup changed" if item["position_id"] not in assignments or assignments[item["position_id"]] != item["outgoing_player_id"] or item["incoming_player_id"] not in derived.player_states or derived.player_states[item["incoming_player_id"]].status != "bench" else ""}</span><div><button className="button primary small" type="button" onClick={lambda { queue_error = apply_queued_substitutions([item]); }}>Apply now</button><button className="button ghost small" type="button" onClick={lambda { save_queue([other for other in queued_subs if other["outgoing_player_id"] != item["outgoing_player_id"]]); }}>Remove</button></div></div> for item in queued_subs]}
+                    {[<div className="live-queue-item" key={item["outgoing_player_id"]}><span>{player_name(match_players, item["incoming_player_id"])} ↝ {player_name(match_players, item["outgoing_player_id"])} · {item["position_id"]}{" · lineup changed" if item["position_id"] not in assignments or assignments[item["position_id"]] != item["outgoing_player_id"] or item["incoming_player_id"] not in derived.player_states or derived.player_states[item["incoming_player_id"]].status != "bench" else ""}</span><div><button className="button primary small" type="button" onClick={lambda { queue_error = apply_queued_substitutions([item]); }}>Apply now</button><button className="button ghost small" type="button" onClick={lambda { save_queue([other for other in queued_subs if other["outgoing_player_id"] != item["outgoing_player_id"]]); }}>Remove</button></div></div> for item in queued_subs]}
                     {<button className="button primary small" type="button" onClick={lambda { queue_error = apply_queued_substitutions(queued_subs); }}>Apply all</button> if len(queued_subs) > 1 else None}
                     {<p className="error" role="alert">{queue_error}</p> if queue_error else None}
                 </section>
