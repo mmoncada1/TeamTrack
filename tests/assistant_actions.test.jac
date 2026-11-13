@@ -1,6 +1,7 @@
-import from .models { Match, MatchSettings, Player }
-import from .live_match { start_match, derive_match_state, move_player, record_goal, end_match }
-import from .stats { build_match_summary }
+import from domain.assistant_actions { apply_substitution_plan, goal_proposal_is_current }
+import from domain.models { Match, MatchSettings, Player }
+import from domain.live_match { start_match, derive_match_state, move_player, record_goal, end_match }
+import from domain.stats { build_match_summary }
 
 def assistant_game() -> Match {
     return Match(id="match-1", team_id="team-1", team_name="TeamTrack", opponent_name="Visitors",
