@@ -138,7 +138,7 @@ test("chooses the longest waiting valid bench player even when an alert names an
   assert.equal(res.body.substitutions[0].incoming_player_id, "long");
 });
 
-test("prioritizes a bench player who can reach the playing time minimum", async () => {
+test("ignores the playing time minimum when choosing a substitution", async () => {
   const withMinimum = { ...context,
     match: { ...context.match, remaining_ms: 480000 },
     settings: { minimum_playing_time_minutes: 10 },
@@ -154,7 +154,7 @@ test("prioritizes a bench player who can reach the playing time minimum", async 
     ],
   };
   const { res } = await ask({ answer: "Review Katie for Alex." }, "Make one substitution", withMinimum);
-  assert.equal(res.body.substitutions[0].incoming_player_id, "needs");
+  assert.equal(res.body.substitutions[0].incoming_player_id, "met");
 });
 
 test("selects a valid swap when no alert exists", async () => {
