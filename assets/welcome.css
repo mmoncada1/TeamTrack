@@ -74,7 +74,7 @@
 .wt-btn.pressed { transform: scale(.94); box-shadow: 0 0 0 .6cqw rgb(16 185 129 / .35); }
 .wt-caret { display: inline-block; width: 1px; height: 1.1em; margin-left: 1px; vertical-align: -.15em; background: var(--text); animation: wt-blink 1s steps(1) infinite; }
 
-.wt-roster ul { margin: 0; padding: 0; list-style: none; overflow: hidden; }
+.wt-roster ul { margin: 0; padding: 0; list-style: none; }
 .wt-row { display: flex; align-items: center; gap: 1.2cqw; padding: 1cqw .6cqw; border-top: 1px solid var(--border); opacity: 0; transform: translateY(1cqw); transition: opacity .35s, transform .35s, background-color .8s; }
 .wt-row.in { opacity: 1; transform: none; }
 .wt-row.fresh { background: rgb(16 185 129 / .14); }
