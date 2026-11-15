@@ -276,6 +276,7 @@ function fromConfirmationLink() {
 
 export function AuthGate({ children }) {
   const [phase, setPhase] = useState("loading");
+  const [teamsToChoose, setTeamsToChoose] = useState([]);
   const [teamName, setTeamName] = useState("");
   const [teamSport, setTeamSport] = useState("soccer");
   const [teamCoed, setTeamCoed] = useState(false);
@@ -303,12 +304,9 @@ export function AuthGate({ children }) {
     });
     const availableTeams = placeholder && !hasTeamData ? [] : teams;
     if (placeholder && !hasTeamData) localStorage.setItem("teamtrack:jac:teams", "[]");
+    setTeamsToChoose(availableTeams);
     syncEnabled = true;
-    if (!availableTeams.length) { setPhase("create-team"); return; }
-    const lastActiveId = localStorage.getItem("teamtrack:jac:active-team-id");
-    const lastActive = availableTeams.find((team) => team.id === lastActiveId)
-      || [...availableTeams].sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))[0];
-    selectTeam(lastActive.id);
+    setPhase("select-team");
   }
 
   function selectTeam(id) {
@@ -416,9 +414,15 @@ export function AuthGate({ children }) {
     h("footer", { className: "welcome-footer" }, "TeamTrack"));
   return h("main", { className: "auth-screen" },
     h("section", { className: "card form-stack" },
-      h("h1", null, h("span", { className: "brand-mark", "aria-hidden": true }), "TeamTrack"),
-      phase === "loading" ? h("p", null, "Loading…") : null,
-      phase === "create-team" ? h("form", { className: "form-stack", onSubmit: createFirstTeam },
+      h("h1", null, "TeamTrack"),
+      phase === "loading" ? h("p", null, "Connecting to Supabase…") : null,
+      phase === "select-team" ? teamsToChoose.length
+        ? h(React.Fragment, null,
+          h("h2", null, "Select a team"),
+          h("p", null, "Choose the team you want to manage."),
+          ...teamsToChoose.map((team) => h("button", { key: team.id, type: "button", className: "button secondary", onClick: () => selectTeam(team.id) }, team.name)),
+          h("button", { type: "button", className: "button ghost", onClick: signOut }, "Sign out"))
+        : h("form", { className: "form-stack", onSubmit: createFirstTeam },
           h("h2", null, "Create your first team"),
           h("label", null, "Team name", h("input", { className: "input", required: true, value: teamName, onChange: (event) => setTeamName(event.target.value) })),
           h("label", null, "Sport", h("select", { className: "input", value: teamSport, onChange: (event) => setTeamSport(event.target.value) },
@@ -432,8 +436,8 @@ export function AuthGate({ children }) {
         h("label", null, "Email", h("input", { className: "input", type: "email", required: true, value: email, onChange: (event) => setEmail(event.target.value) })),
         h("label", null, "Password", h("input", { className: "input", type: "password", required: true, minLength: 6, value: password, onChange: (event) => setPassword(event.target.value) })),
         h("button", { className: "button primary", type: "submit" }, phase === "signup" ? "Create account" : "Sign in"),
-        h("button", { className: "button ghost", type: "button", onClick: () => { setError(""); setPhase(phase === "signup" ? "login" : "signup"); } }, phase === "signup" ? "Already have an account? Sign in" : "Need an account? Create one"),
-        h("button", { className: "welcome-back", type: "button", onClick: () => { setError(""); setMessage(""); setPhase("home"); } }, "Back")) : null,
+        h("button", { className: "button secondary", type: "button", onClick: () => { setError(""); setPhase(phase === "signup" ? "login" : "signup"); } }, phase === "signup" ? "Already have an account? Sign in" : "New here? Create an account"),
+        h("button", { className: "welcome-back", type: "button", onClick: () => { setError(""); setMessage(""); setPhase("home"); } }, "← Back to home")) : null,
       error ? h("p", { className: "error", role: "alert" }, error) : null,
       message ? h("p", { role: "status" }, message) : null));
 }
