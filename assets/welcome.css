@@ -1,3 +1,10 @@
+.welcome-page, .auth-screen {
+  --bg: #0f172a; --surface: #1e293b; --surface-2: #273449; --surface-3: #334155;
+  --border: #334155; --border-strong: #475569;
+  --text: #e2e8f0; --text-2: #94a3b8; --text-3: #64748b;
+  --accent: #047857; --accent-text: #6ee7b7;
+  --radius-sm: 4px; --radius-lg: 8px;
+}
 .welcome-page { min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); color: var(--text); }
 .welcome-header, .welcome-hero, .welcome-footer { width: 100%; max-width: 72rem; margin: 0 auto; padding-left: 1.5rem; padding-right: 1.5rem; }
 
@@ -20,8 +27,8 @@
 
 .welcome-footer { margin-top: auto; padding-top: 1.5rem; padding-bottom: 2rem; border-top: 1px solid var(--border); color: var(--text-3); font-size: .8125rem; }
 
-.welcome-back { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--text-2); font-size: .8125rem; }
-.welcome-back:hover { color: var(--text); text-decoration: underline; }
+.welcome-back { align-self: center; padding: 8px; border: 0; background: none; color: #6ee7b7; font-weight: 700; }
+.welcome-back:hover { text-decoration: underline; }
 
 /* Walkthrough */
 .walkthrough { width: 100%; max-width: 72rem; margin: 0 auto; padding: 4rem 1.5rem 4.5rem; border-top: 1px solid var(--border); scroll-margin-top: 1rem; }
