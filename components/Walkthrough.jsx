@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 const DURATION = 9000;
-const NAV = ["Dashboard", "Roster", "Lineups", "Matches", "Playbook"];
+const NAV = ["Dashboard", "Roster", "Lineups", "Matches", "Team"];
 
 const cx = (...parts) => parts.filter(Boolean).join(" ");
 const box = (left, top, width, height) => ({ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` });
@@ -130,36 +130,6 @@ function LiveScene({ t, pin }) {
   </div>;
 }
 
-const FIELD = { l: 4, t: 6, w: 56, h: 88 };
-const FB_PLAYERS = [["WR", 12, 70], ["WR", 30, 72], ["C", 50, 70, "c"], ["WR", 70, 72], ["WR", 88, 70], ["QB", 50, 84, "qb"], ["RB", 62, 88]];
-const ROUTES = [["M12 70 L12 20", [12, 20]], ["M30 72 L30 54 L60 54", [60, 54]], ["M70 72 L70 56 L42 48", [42, 48]], ["M88 70 L88 44 L72 28", [72, 28]], ["M62 88 L82 82 L92 64", [92, 64]]];
-const DRIVE = ["Mesh", "Slants", "Four Verticals", "Flood"];
-
-function PlaybookScene({ t, pin }) {
-  const thrown = t >= 4700;
-  const target = ROUTES[2][1];
-  const ballAt = thrown ? target : [50, 84];
-  return <div className="wt-scene">
-    <div className="wt-field" style={box(FIELD.l, FIELD.t, FIELD.w, FIELD.h)}>
-      <span className="wt-endzone">End zone</span>
-      <span className="wt-los" />
-      <svg className="wt-routes" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {ROUTES.map(([path, [ex, ey]], index) => {
-          const drawn = t >= 700 + index * 600;
-          return <g key={path}><path d={path} pathLength="1" className={cx(drawn && "drawn")} /><circle cx={ex} cy={ey} r="1.6" className={cx(drawn && "drawn")} /></g>;
-        })}
-        <path d={`M50 84 L${target[0]} ${target[1]}`} pathLength="1" className={cx("ball", t >= 4200 && "drawn")} />
-      </svg>
-      {FB_PLAYERS.map(([label, x, y, kind], index) => <span key={index} className={cx("wt-fb", kind)} style={{ left: `${x}%`, top: `${y}%` }}>{label}{index === 0 && pin(0)}{kind === "qb" && pin(1)}</span>)}
-      <span className={cx("wt-ball", t >= 4200 && "on")} style={{ left: `${ballAt[0]}%`, top: `${ballAt[1]}%` }} />
-    </div>
-    <div className="wt-panel wt-drive" style={box(64, 6, 32, 88)}>
-      <div className="wt-panel-head"><strong>Opening drive</strong>{pin(2)}</div>
-      <ol>{DRIVE.map((play, index) => <li key={play} className={cx(t >= 6000 + index * 400 && "on")}><span>{index + 1}</span>{play}</li>)}</ol>
-    </div>
-  </div>;
-}
-
 const MINUTES = [["Alex Rivera", 50], ["Maya Torres", 42], ["Priya Shah", 38], ["Diego Santos", 30], ["Sam Okafor", 25]];
 const ANSWER = "Riverside won 2–1. Maya scored both goals, and every player got at least 25 minutes.";
 
@@ -217,16 +187,6 @@ const STEPS = [
       { at: 4500, text: "Alerts flag who's due for a rest. One tap makes the substitution." },
     ],
     Scene: LiveScene,
-  },
-  {
-    nav: "Playbook", label: "Draw up plays", title: "Flag football plays and drives",
-    body: "Flag football teams get a playbook: position seven players, draw routes, and order plays into a drive plan.",
-    callouts: [
-      { at: 0, text: "Draw a route for each receiver on a 7v7 field." },
-      { at: 4200, text: "Add the ball sequence: snap, handoff, pitch, or pass." },
-      { at: 6000, text: "Line plays up into a drive plan for game day." },
-    ],
-    Scene: PlaybookScene,
   },
   {
     nav: "Matches", label: "Review the result", title: "See how it went",

@@ -136,25 +136,6 @@
 .wt-events li.on { opacity: 1; transform: none; }
 .wt-events time { color: var(--text-2); font-variant-numeric: tabular-nums; }
 
-.wt-field { position: absolute; overflow: hidden; border: .3cqw solid rgb(255 255 255 / .85); border-radius: 1.2cqw; background: repeating-linear-gradient(to bottom, #166534 0 10%, #15803d 10% 20%); }
-.wt-endzone { position: absolute; left: 0; right: 0; top: 0; height: 12%; display: grid; place-items: center; background: #174b35; color: rgb(255 255 255 / .75); font-size: 1.3cqw; letter-spacing: .04em; }
-.wt-los { position: absolute; left: 0; right: 0; top: 70%; border-top: .3cqw solid #60a5fa; }
-.wt-routes { position: absolute; inset: 0; width: 100%; height: 100%; }
-.wt-routes path { fill: none; stroke: #fff; stroke-width: .9; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset .9s ease; }
-.wt-routes path.ball { stroke: #fbbf24; stroke-width: .6; }
-.wt-routes path.drawn { stroke-dashoffset: 0; }
-.wt-routes circle { fill: #fff; opacity: 0; transition: opacity .3s .7s; }
-.wt-routes circle.drawn { opacity: 1; }
-.wt-fb { position: absolute; z-index: 2; display: grid; place-items: center; width: 4cqw; height: 4cqw; border: .35cqw solid #0f172a; border-radius: 50%; background: #f8fafc; color: #0f172a; font-size: 1.25cqw; font-weight: 600; transform: translate(-50%, -50%); }
-.wt-fb.qb { background: #d97706; color: #fff; }
-.wt-fb.c { background: #2563eb; color: #fff; }
-.wt-ball { position: absolute; z-index: 3; width: 2cqw; height: 1.3cqw; border: .2cqw solid #fff; border-radius: 50%; background: #92400e; opacity: 0; transform: translate(-50%, -50%); transition: left .8s ease-out, top .8s ease-out, opacity .2s; }
-.wt-ball.on { opacity: 1; }
-.wt-drive ol { margin: 0; padding: 0; list-style: none; display: grid; gap: .8cqw; }
-.wt-drive li { display: flex; align-items: center; gap: 1cqw; padding: 1cqw; border: 1px solid var(--border); border-radius: .8cqw; background: var(--bg); font-size: 1.5cqw; opacity: 0; transform: translateX(2cqw); transition: opacity .35s, transform .35s; }
-.wt-drive li.on { opacity: 1; transform: none; }
-.wt-drive li span { display: grid; place-items: center; width: 2.4cqw; height: 2.4cqw; border-radius: 50%; background: var(--surface-3); color: var(--text-2); font-size: 1.2cqw; }
-
 .wt-scorecard { flex-direction: row; align-items: center; justify-content: space-around; }
 .wt-team { display: flex; flex-direction: column; align-items: center; gap: .8cqw; font-size: 1.6cqw; font-weight: 500; }
 .wt-mark { display: grid; place-items: center; width: 6cqw; height: 6cqw; border-radius: 50%; background: #059669; color: #fff; font-size: 1.8cqw; font-weight: 600; }

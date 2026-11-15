@@ -400,7 +400,7 @@ export function AuthGate({ children }) {
       h("button", { className: "button ghost small", type: "button", onClick: () => setPhase("login") }, "Sign in")),
     h("section", { className: "welcome-hero" },
       h("div", { className: "welcome-copy" },
-        h("h1", null, "Team management for soccer and flag football coaches"),
+        h("h1", null, "Team management for soccer coaches"),
         h("p", { className: "welcome-intro" }, "Keep your roster, lineups, plays, and match-day records in one place."),
         h("div", { className: "welcome-actions" },
           h("button", { className: "button primary", type: "button", onClick: () => setPhase("signup") }, "Create account"),
