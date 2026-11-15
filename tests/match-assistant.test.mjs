@@ -66,6 +66,20 @@ test("respects a spoken substitution with named incoming and outgoing players", 
   assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
 });
 
+test("sub in names the requested outgoing player even when another player has waited longer", async () => {
+  const named = { ...context,
+    players: [{ id: "jude", name: "Jude" }, { id: "audrey", name: "Audrey" }, { id: "alexis", name: "Alexis" }],
+    player_states: [
+      { player_id: "jude", status: "bench", current_stint_ms: 300000 },
+      { player_id: "audrey", status: "field", position_id: "mid", current_stint_ms: 120000 },
+      { player_id: "alexis", status: "field", position_id: "def", current_stint_ms: 900000 },
+    ],
+  };
+  const { res } = await ask({ answer: "Review the substitution." }, "sub in Jude for Audrey", named);
+  assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "jude", outgoing_player_id: "audrey", position_id: "mid" }]);
+  assert.match(res.body.answer, /Jude for Audrey/);
+});
+
 test("respects a spoken sub-out command", async () => {
   const { res } = await ask({ answer: "Review the substitution." }, "Sub out Alex");
   assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);

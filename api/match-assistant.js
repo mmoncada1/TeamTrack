@@ -28,7 +28,8 @@ function isSubstitutionQuestion(question) {
 
 function namedSubstitution(question, context) {
   const clean = question.trim().replace(/[.!?]+$/, "");
-  const normalized = clean.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const normalized = clean.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+    .replace(/^(?:sub|substitute) in (.+?) for (.+)$/, "$1 in for $2");
   const markers = [...normalized.matchAll(/\bin for\b/g)];
   const match = /^(?:(?:substitute|sub)\s+)?(.+?)\s+in\s+for\s+(.+)$/i.exec(clean) ||
     /^(?:substitute|sub)\s+out\s+(.+)$/i.exec(clean);
