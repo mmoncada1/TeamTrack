@@ -142,8 +142,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
           remaining_ms: Math.max(0, (game.settings?.half_length_minutes || 0) * (game.settings?.number_of_halves || 0) * 60000 - derived.match_clock_ms),
           team_score: summary.team_score, opponent_score: summary.opponent_score,
         },
-        settings: { thresholds: game.settings?.thresholds, goalkeeper_rotation_enabled: game.settings?.goalkeeper_rotation_enabled,
-          minimum_playing_time_minutes: game.settings?.minimum_playing_time_minutes ?? 10 },
+        settings: { thresholds: game.settings?.thresholds, goalkeeper_rotation_enabled: game.settings?.goalkeeper_rotation_enabled },
         players: players.filter((player) => player.team_id === game.team_id && playerIds.has(player.id)).map((player) => ({
           id: player.id, name: player.name, jersey_number: player.jersey_number,
           preferred_groups: player.preferred_groups, availability: player.availability, gender: player.gender,

@@ -74,6 +74,20 @@ test("respects a spoken substitution with named incoming and outgoing players", 
     [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
 });
 
+test("sub in names the requested outgoing player even when another player has waited longer", async () => {
+  const named = { ...context,
+    players: [{ id: "jude", name: "Jude" }, { id: "audrey", name: "Audrey" }, { id: "alexis", name: "Alexis" }],
+    player_states: [
+      { player_id: "jude", status: "bench", current_stint_ms: 300000 },
+      { player_id: "audrey", status: "field", position_id: "mid", current_stint_ms: 120000 },
+      { player_id: "alexis", status: "field", position_id: "def", current_stint_ms: 900000 },
+    ],
+  };
+  const { res } = await ask({ answer: "Review the substitution." }, "sub in Jude for Audrey", named);
+  assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "jude", outgoing_player_id: "audrey", position_id: "mid" }]);
+  assert.match(res.body.answer, /Jude for Audrey/);
+});
+
 test("respects a spoken sub-out command", async () => {
   const { res } = await ask({ answer: "Review the substitution." }, "Sub out Alex");
   assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
@@ -149,7 +163,7 @@ test("chooses the longest waiting valid bench player even when an alert names an
   assert.equal(res.body.substitutions[0].incoming_player_id, "long");
 });
 
-test("prioritizes a bench player who can reach the playing time minimum", async () => {
+test("ignores the playing time minimum when choosing a substitution", async () => {
   const withMinimum = { ...context,
     match: { ...context.match, remaining_ms: 480000 },
     settings: { minimum_playing_time_minutes: 10 },
@@ -165,7 +179,7 @@ test("prioritizes a bench player who can reach the playing time minimum", async 
     ],
   };
   const { res } = await ask({ answer: "Review Katie for Alex." }, "Make one substitution", withMinimum);
-  assert.equal(res.body.substitutions[0].incoming_player_id, "needs");
+  assert.equal(res.body.substitutions[0].incoming_player_id, "met");
 });
 
 test("selects a valid swap when no alert exists", async () => {
@@ -266,8 +280,10 @@ test("an open ended question proposes every player past the configured stint lim
   const early = { ...timed, player_states: timed.player_states.map((state) =>
     state.status === "field" ? { ...state, current_stint_ms: 300000 } : state) };
   const { res } = await ask({ answer: "Consider rotating players." }, "How many subs should I make?", early);
-  assert.deepEqual(res.body.substitutions, []);
-  assert.match(res.body.answer, /No player has reached/);
+  assert.equal(res.body.substitutions.length, 1);
+  assert.match(res.body.answer, /1 valid substitution/);
+  const direct = await ask({ answer: "Consider rotating players." }, "Who should I sub in?", early);
+  assert.equal(direct.res.body.substitutions.length, 1);
 });
 
 test("stops a batch before a combined coed violation", async () => {
