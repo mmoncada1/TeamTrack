@@ -29,9 +29,9 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   const busyRef = useRef(false);
   const acceptLatest = useRef(null);
   acceptLatest.current = () => {
-    if (proposals.length) { if (queueRequested) queueProposals(proposals); else acceptProposals(proposals); }
-    else if (goalProposal) acceptGoal();
-    else if (matchAction) acceptMatchAction();
+    if (proposals.length) { if (queueRequested) queueProposals(proposals, true); else acceptProposals(proposals, true); }
+    else if (goalProposal) acceptGoal(true);
+    else if (matchAction) acceptMatchAction(true);
   };
 
   useEffect(() => {
@@ -84,7 +84,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       (!requireUnlocked || !fieldLocked) && !["setup", "ended"].includes(derived.status);
   }
 
-  function acceptProposals(selected) {
+  function acceptProposals(selected, fromTimer = false) {
     if (!onAcceptSubstitutions || !selected.length || !selected.every((item) => proposalCurrent(item))) {
       setDialogError("The lineup changed or the field is locked. Review the swaps and try again.");
       return;
@@ -95,6 +95,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       if (error) setDialogError(error);
       else {
         setProposals((current) => current.filter((item) => !selected.includes(item)));
+        if (fromTimer && selected.length === proposals.length) setQuestion("");
         setAnswer(`${selected.length} substitution${selected.length === 1 ? "" : "s"} recorded.`);
       }
     } catch (err) {
@@ -102,11 +103,11 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     }
   }
 
-  function queueProposals(selected) {
+  function queueProposals(selected, fromTimer = false) {
     if (!onQueueSubstitutions || !selected.length || !selected.every((item) => proposalCurrent(item, false))) return;
     const result = onQueueSubstitutions(selected);
     if (result) setDialogError(result);
-    else { setProposals((current) => current.filter((item) => !selected.includes(item))); setDialogError(""); setAnswer(`${selected.length} substitution${selected.length === 1 ? "" : "s"} queued. Apply them when they happen.`); }
+    else { setProposals((current) => current.filter((item) => !selected.includes(item))); if (fromTimer && selected.length === proposals.length) setQuestion(""); setDialogError(""); setAnswer(`${selected.length} substitution${selected.length === 1 ? "" : "s"} queued. Apply them when they happen.`); }
   }
 
   function goalCurrent() {
@@ -116,11 +117,11 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
         (!goalProposal.assister_id || derived.player_states?.[goalProposal.assister_id]?.status === "field")));
   }
 
-  function acceptGoal() {
+  function acceptGoal(fromTimer = false) {
     if (!goalCurrent() || !onAcceptGoal) { setDialogError("The score or lineup changed. Ask again before recording this goal."); return; }
     try {
       const result = onAcceptGoal(goalProposal);
-      if (result) setDialogError(result); else { setGoalProposal(null); setDialogError(""); }
+      if (result) setDialogError(result); else { setGoalProposal(null); if (fromTimer === true) setQuestion(""); setDialogError(""); }
     } catch (error) { setDialogError(error.message || "Could not record the goal."); }
   }
 
@@ -129,11 +130,11 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       derived.player_states?.[matchAction.player_id]?.status !== "unavailable";
   }
 
-  function acceptMatchAction() {
+  function acceptMatchAction(fromTimer = false) {
     if (!actionCurrent() || !onAcceptMatchAction) { setDialogError("The match or player status changed. Ask again before recording this action."); return; }
     try {
       const result = onAcceptMatchAction(matchAction);
-      if (result) setDialogError(result); else { setMatchAction(null); setDialogError(""); }
+      if (result) setDialogError(result); else { setMatchAction(null); if (fromTimer === true) setQuestion(""); setDialogError(""); }
     } catch (error) { setDialogError(error.message || "Could not record the action."); }
   }
 
