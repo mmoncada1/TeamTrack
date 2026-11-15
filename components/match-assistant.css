@@ -1,15 +1,15 @@
 .match-assistant {
   margin: 1rem 0;
   padding: 1.25rem;
-  border: 1px solid #334155;
-  border-radius: 14px;
-  background: #1e293b;
-  color: #f1f5f9;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
 }
-.match-assistant h2 { margin: 0 0 .4rem; color: #f1f5f9; }
-.match-assistant p { margin: 0 0 1rem; color: #cbd5e1; }
+.match-assistant h2 { margin: 0 0 .25rem; font-size: 1rem; color: var(--text); }
+.match-assistant p { margin: 0 0 1rem; font-size: .875rem; color: var(--text-2); }
 .match-assistant form { display: grid; gap: .6rem; }
-.match-assistant label { color: #e2e8f0; font-weight: 600; }
+.match-assistant label { color: var(--text); font-size: .8125rem; font-weight: 500; }
 .match-assistant-input { position: relative; }
 .match-assistant textarea { width: 100%; min-height: 4rem; box-sizing: border-box; padding: .7rem 3.6rem .7rem .7rem; border: 1px solid #64748b; border-radius: 8px; background: #0f172a; color: #f1f5f9; font: inherit; resize: vertical; }
 .match-assistant .match-assistant-mic { position: absolute; right: .55rem; top: .5rem; display: grid; place-items: center; width: 2.5rem; height: 2.5rem; padding: 0; border: 1px solid #64748b; border-radius: 50%; background: #334155; color: #f1f5f9; cursor: pointer; }
@@ -18,10 +18,10 @@
 .match-assistant .match-assistant-mic.listening { border-color: #f87171; background: #b91c1c; box-shadow: 0 0 0 4px rgb(248 113 113 / 22%); animation: assistant-mic-pulse 1.4s ease-in-out infinite; }
 .match-assistant .match-assistant-mic.starting { border-color: #fbbf24; background: #92400e; }
 .match-assistant .match-assistant-mic:disabled { opacity: .55; cursor: not-allowed; }
-@keyframes assistant-mic-pulse { 50% { box-shadow: 0 0 0 8px rgb(248 113 113 / 10%); } }
+@keyframes assistant-mic-pulse { 50% { box-shadow: 0 0 0 8px rgb(229 72 77 / 10%); } }
 @media (prefers-reduced-motion: reduce) { .match-assistant .match-assistant-mic.listening { animation: none; } }
-.match-assistant textarea::placeholder { color: #94a3b8; }
-.match-assistant textarea:focus-visible { outline: 2px solid #34d399; outline-offset: 2px; }
+.match-assistant textarea::placeholder { color: var(--text-3); }
+.match-assistant textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .match-assistant button { justify-self: start; }
 .match-assistant-answer { margin-top: 1rem; white-space: pre-wrap; line-height: 1.5; color: #f1f5f9; }
 .match-assistant-error { margin-top: 1rem !important; color: #fecaca !important; }
@@ -34,14 +34,14 @@
 .match-assistant-confirm-mic:focus-visible { outline: 2px solid #34d399; outline-offset: 2px; }
 .match-assistant-dialog-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
 .match-assistant-proposals { display: grid; gap: .75rem; margin: 0 0 1rem; padding-left: 1.5rem; }
-.match-assistant-proposals li { padding: .75rem; border: 1px solid #475569; border-radius: 8px; }
+.match-assistant-proposals li { padding: .75rem; border: 1px solid var(--border); border-radius: 6px; }
 .match-assistant-proposals strong { display: block; margin-bottom: .6rem; }
-.match-assistant-stint { display: block; margin-bottom: .6rem; color: #cbd5e1; font-size: .85rem; }
-.match-assistant-stale { display: block; margin-bottom: .6rem; color: #fecaca; }
+.match-assistant-stint { display: block; margin-bottom: .6rem; color: var(--text-2); font-size: .85rem; }
+.match-assistant-stale { display: block; margin-bottom: .6rem; color: var(--danger-text); }
 .live-match .live-sidebar > .match-assistant { flex: none; margin: 0; }
-.live-match .live-sidebar .match-assistant h2 { font-size: 16px; }
+.live-match .live-sidebar .match-assistant h2 { font-size: 13px; }
 .live-match .live-sidebar .match-assistant p,
 .live-match .live-sidebar .match-assistant label,
 .live-match .live-sidebar .match-assistant textarea,
-.live-match .live-sidebar .match-assistant button { font-size: 13px; }
+.live-match .live-sidebar .match-assistant button { font-size: 12px; }
 .summary-page > .match-assistant { margin: 18px 0 0; }

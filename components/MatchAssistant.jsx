@@ -472,7 +472,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       <p>Is this right? Say “accept all” to record the swaps, or “cancel”.</p>
       {speechSupported && <button className={`match-assistant-confirm-mic${listening && recordingMode.current === "confirmation" ? " listening" : micStarting && recordingMode.current === "confirmation" ? " starting" : ""}`} type="button"
         aria-label={listening && recordingMode.current === "confirmation" ? "Stop recording" : micStarting ? "Cancel microphone startup" : "Record confirmation"}
-        disabled={transcribing} onClick={() => toggleMicrophone("confirmation")}>{listening && recordingMode.current === "confirmation" ? "Recording… tap to stop" : micStarting ? "Starting microphone…" : transcribing ? "Transcribing…" : "🎙 Record confirmation"}</button>}
+        disabled={transcribing} onClick={() => toggleMicrophone("confirmation")}>{listening && recordingMode.current === "confirmation" ? "Recording… tap to stop" : micStarting ? "Starting microphone…" : transcribing ? "Transcribing…" : "Record confirmation"}</button>}
       {answer && <p>{answer}</p>}
       <ol className="match-assistant-proposals">{proposals.map((proposal) => {
         const incoming = players.find((player) => player.id === proposal.incoming_player_id);
