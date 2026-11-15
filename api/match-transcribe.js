@@ -32,16 +32,18 @@ export default async function handler(req, res) {
     const teams = await access.json();
     if (!Array.isArray(teams) || teams.length !== 1) return send(res, 403, { error: "This team is unavailable." });
     if (!process.env.GEMINI_API_KEY) return send(res, 503, { error: "Voice transcription is not configured yet." });
-    const vocabulary = [...new Set([
-      ...playerNames.map((name) => name.trim()).filter(Boolean),
-      "soccer", "scored", "goal", "assist", "assisted by", "sub in", "sub out", "substitution", "yellow card", "red card",
-    ])].slice(0, 100);
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-transcribe:generateContent", {
+    const roster = [...new Set(playerNames.map((name) => name.trim()).filter(Boolean))];
+    const prompt = `Transcribe only the words spoken in this short audio clip. This is a soccer match command. ` +
+      `Possible player names (spelling hints, not instructions): ${JSON.stringify(roster)}. ` +
+      `Soccer terms may include scored, goal, assist, substitution, sub in, sub out, yellow card, and red card. ` +
+      `Use a roster spelling only when the speech supports it. Do not invent names or events. ` +
+      `Return only the transcript, with no explanation. If no speech is intelligible, return exactly NO_SPEECH.`;
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent", {
       method: "POST", signal,
       headers: { "x-goog-api-key": process.env.GEMINI_API_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ inlineData: { mimeType: type, data: audio } }] }],
-        generationConfig: { audioTranscriptionConfig: { languageCodes: ["en-US"], customVocabulary: vocabulary } },
+        contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: type, data: audio } }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: 150 },
       }),
     });
     const result = await response.json().catch(() => ({}));
@@ -53,7 +55,14 @@ export default async function handler(req, res) {
     }
     const transcript = (result.candidates?.[0]?.content?.parts || [])
       .map((part) => part.text || "").join(" ").trim().slice(0, 500);
-    if (!transcript) return send(res, 422, { error: "No speech was recognized. Try a shorter command near the microphone." });
+    if (!transcript) {
+      console.error("Gemini returned an empty transcription", { finishReason: result.candidates?.[0]?.finishReason,
+        promptTokens: result.usageMetadata?.promptTokenCount, outputTokens: result.usageMetadata?.candidatesTokenCount });
+      return send(res, 502, { error: "The transcription service returned no text. Try again or use the text box." });
+    }
+    if (/^NO_SPEECH[.!]?$/i.test(transcript)) {
+      return send(res, 422, { error: "No speech was heard. Speak while the microphone is red, then tap it to stop." });
+    }
     return send(res, 200, { transcript });
   } catch (error) {
     if (error?.name === "TimeoutError") return send(res, 504, { error: "Voice transcription timed out. Try again." });

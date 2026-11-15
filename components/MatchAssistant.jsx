@@ -255,7 +255,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
         method: "POST", signal: controller.signal,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ teamId: game.team_id, audio: btoa(binary), mimeType: blob.type,
-          playerNames: players.filter((player) => player.team_id === game.team_id).map((player) => player.name) }),
+          playerNames: players.filter((player) => player.team_id === game.team_id).map((player) => player.name).slice(0, 80) }),
       });
     } finally { clearTimeout(timer); }
     if (!(response.headers.get("content-type") || "").includes("application/json")) {
@@ -283,12 +283,12 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     report("");
     let stream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       const mimeType = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"]
         .find((type) => window.MediaRecorder.isTypeSupported(type));
       if (!mimeType) throw new Error("This browser cannot record a supported audio format.");
       const recorder = new window.MediaRecorder(stream, { mimeType });
-      const active = { recorder, stream, chunks: [], cancelled: false, timer: null };
+      const active = { recorder, stream, chunks: [], cancelled: false, timer: null, startedAt: 0 };
       recording.current = active;
       recordingMode.current = mode;
       recorder.ondataavailable = (event) => { if (event.data.size) active.chunks.push(event.data); };
@@ -296,12 +296,17 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       recorder.onstop = async () => {
         stream.getTracks().forEach((track) => track.stop());
         if (active.cancelled) return;
+        if (performance.now() - active.startedAt < 600) {
+          report("Recording was too short. Speak after the microphone turns red, then tap to stop.");
+          return;
+        }
         setTranscribing(true);
         try { await transcribeAudio(new Blob(active.chunks, { type: recorder.mimeType }), mode); }
         catch (error) { report(error.name === "AbortError" ? "Voice transcription timed out. Try again." : error.message); }
         finally { setTranscribing(false); }
       };
       recorder.start();
+      active.startedAt = performance.now();
       startingRecording.current = false;
       setListening(true);
       active.timer = setTimeout(() => stopRecording(), 8000);
