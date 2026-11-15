@@ -4,6 +4,7 @@ import "./assets/crud.css";
 import "./assets/parity.css";
 import "./assets/welcome.css";
 import "./state/migrate-local-ids.js";
+import "./components/Walkthrough.jsx";
 import from "./state/cloud.js" { AuthGate }
 import from .state.AppState { AppStateProvider }
 def:pub app(children: any) -> JsxElement {

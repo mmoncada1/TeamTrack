@@ -14,7 +14,7 @@
 
 /* Cards */
 .card, .danger-card { margin-top: 1.25rem; padding: 1.25rem; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); color: var(--text); }
-.danger-card { margin-top: 2rem; border-color: rgb(229 72 77 / .35); }
+.danger-card { margin-top: 2rem; border-color: rgb(220 38 38 / .4); }
 .card h2, .danger-card h2, .modal h2 { margin: 0 0 .75rem; font-size: 1rem; }
 .card > p, .danger-card > p { color: var(--text-2); font-size: .875rem; }
 
@@ -36,7 +36,7 @@
 }
 select { width: auto; }
 .input:hover, select:hover, textarea:hover { border-color: #3d3d44; }
-.input:focus, select:focus, textarea:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px rgb(138 180 248 / .18); }
+.input:focus, select:focus, textarea:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px rgb(37 99 235 / .25); }
 .input::placeholder, textarea::placeholder { color: var(--text-3); }
 .short-input { max-width: 7rem; }
 input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color: var(--accent); }
@@ -63,18 +63,18 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
   transition: background-color .12s, border-color .12s, color .12s;
 }
 .button.small { min-height: 1.875rem; padding: .25rem .625rem; font-size: .8125rem; }
-.button.primary { background: var(--text); color: var(--bg); }
-.button.primary:hover { background: #ffffff; }
+.button.primary { background: var(--accent); color: #fff; }
+.button.primary:hover { background: var(--accent-strong); }
 .button.secondary { background: var(--surface-2); border-color: var(--border-strong); color: var(--text); }
 .button.secondary:hover { background: var(--surface-3); }
 .button.ghost { background: transparent; color: var(--text-2); }
 .button.ghost:hover { background: var(--surface-2); color: var(--text); }
-.button.danger { background: transparent; border-color: rgb(229 72 77 / .45); color: var(--danger-text); }
-.button.danger:hover { background: var(--danger-soft); border-color: var(--danger); }
+.button.danger { background: var(--danger); color: #fff; }
+.button.danger:hover { background: #b91c1c; }
 .button:disabled, .button:disabled:hover { opacity: .45; cursor: not-allowed; }
 
 /* Feedback */
-.error { margin: 0; padding: .5rem .75rem; border: 1px solid rgb(229 72 77 / .35); border-radius: var(--radius); background: var(--danger-soft); color: var(--danger-text); font-size: .8125rem; }
+.error { margin: 0; padding: .5rem .75rem; border: 1px solid rgb(220 38 38 / .4); border-radius: var(--radius); background: var(--danger-soft); color: var(--danger-text); font-size: .8125rem; }
 .success { color: var(--accent-text); font-size: .875rem; }
 
 /* Modal */
@@ -93,7 +93,7 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
 .roster-list li { display: flex; align-items: center; gap: .75rem; padding: .625rem .875rem; border-bottom: 1px solid var(--border); }
 .roster-list li:hover { background: var(--surface-2); }
 .roster-list li:last-child { border-bottom: 0; }
-.player-avatar { width: 2.25rem; height: 2.25rem; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface-3); color: var(--text-2); font-size: .8125rem; font-weight: 600; }
+.player-avatar { width: 2.25rem; height: 2.25rem; flex: 0 0 auto; display: grid; place-items: center; border-radius: 999px; background: #d1fae5; color: #065f46; font-size: .8125rem; font-weight: 600; }
 .player-info { flex: 1; min-width: 0; font-size: .875rem; }
 .player-info strong { color: var(--text-2); font-weight: 500; font-variant-numeric: tabular-nums; }
 .player-info small { color: var(--text-2); font-size: .8125rem; }

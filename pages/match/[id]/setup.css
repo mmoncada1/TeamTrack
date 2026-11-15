@@ -22,13 +22,13 @@
 .setup-lineup-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
 .setup-lineup-heading h2 { margin-bottom: .25rem; }
 .setup-lineup-heading p { margin: 0; color: var(--text-2); font-size: .8125rem; }
-.setup-lineup-count { flex: none; padding: .125rem .5rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text-2); font-size: .75rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.setup-lineup-count { flex: none; padding: .25rem .625rem; border: 1px solid #166534; border-radius: 999px; background: #064e3b; color: #bbf7d0; font-size: .75rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .setup-field { width: min(100%, 38.25rem); margin-top: 1rem; }
 .setup-field .position-legend { height: auto; min-height: 1.75rem; display: flex; align-items: center; gap: .75rem; overflow-x: auto; white-space: nowrap; color: var(--text-2); font-size: .75rem; font-weight: 500; }
 .setup-field .position-legend span { display: flex; align-items: center; gap: .3125rem; }
 .setup-field .position-legend i { display: block; width: .5rem; height: .5rem; flex: none; border-radius: 50%; }
-.setup-pitch { position: relative; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--radius-lg); background: repeating-linear-gradient(to bottom, #2d6a49 0 18.75%, #2a6444 18.75% 37.5%); }
+.setup-pitch { position: relative; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--radius-lg); background: repeating-linear-gradient(to bottom, #2e7d4f 0 18.75%, #2b7649 18.75% 37.5%); }
 .setup-pitch-lines { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: rgb(255 255 255 / .85); stroke-width: .5; pointer-events: none; }
 
 .setup-slot { position: absolute; z-index: 1; display: flex; align-items: center; justify-content: center; width: 6.6rem; height: 6.6rem; transform: translate(-50%, -50%); text-align: center; }

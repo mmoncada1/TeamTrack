@@ -6,14 +6,14 @@
 .tool-buttons .button { justify-content: flex-start; }
 .swatches, .widths { display: flex; flex-wrap: wrap; gap: .375rem; }
 .swatch { width: 1.75rem; height: 1.75rem; border: 1px solid var(--border-strong); border-radius: 999px; }
-.swatch.selected { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
+.swatch.selected { border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }
 .width-button { width: 2.125rem; height: 2.125rem; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); display: grid; place-items: center; }
 .width-button:hover { background: var(--surface-2); }
-.width-button.selected { border-color: var(--text); }
+.width-button.selected { border-color: #2563eb; }
 .width-button span { display: block; border-radius: 999px; background: var(--text); }
 .board-wrap { position: relative; margin: 0 auto; height: min(78vh, 53.75rem); aspect-ratio: 2 / 3; max-width: 100%; overflow: hidden; border-radius: var(--radius-lg); }
 .tactics-board { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; cursor: crosshair; }
-.pitch-stripes { fill: #2a6444; }
+.pitch-stripes { fill: #2b7649; }
 .pitch-lines { stroke: rgb(255 255 255 / .85); stroke-width: .5; }
 .board-note { pointer-events: none; position: absolute; max-width: 40%; transform: translate(-50%, -50%); padding: .1875rem .375rem; border-radius: var(--radius-sm); background: rgb(0 0 0 / .72); font-size: .75rem; font-weight: 500; }
 .note-editor { position: absolute; z-index: 5; width: 10rem; transform: translate(-50%, 0); padding: .375rem; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-overlay); }

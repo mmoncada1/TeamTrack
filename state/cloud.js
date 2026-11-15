@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useState } from "react";
+import { Walkthrough } from "../components/Walkthrough.jsx";
 
 const SignOutContext = React.createContext(null);
 
@@ -403,11 +404,13 @@ export function AuthGate({ children }) {
         h("p", { className: "welcome-intro" }, "Keep your roster, lineups, plays, and match-day records in one place."),
         h("div", { className: "welcome-actions" },
           h("button", { className: "button primary", type: "button", onClick: () => setPhase("signup") }, "Create account"),
-          h("button", { className: "button secondary", type: "button", onClick: () => setPhase("login") }, "Sign in")))),
-    h("section", { className: "welcome-features", "aria-label": "Features" },
-      h("article", null, h("h2", null, "Roster"), h("p", null, "Player details, positions, and availability for every team you manage.")),
-      h("article", null, h("h2", null, "Game preparation"), h("p", null, "Soccer lineups and formations, or flag football plays and drive plans.")),
-      h("article", null, h("h2", null, "Match day"), h("p", null, "Live clock, substitutions, and playing time, with a full recap afterward."))),
+          h("button", { className: "button secondary", type: "button", onClick: () => setPhase("login") }, "Sign in"),
+          h("a", { className: "welcome-link", href: "#how-it-works" }, "See how it works")))),
+    h(Walkthrough),
+    h("section", { className: "welcome-cta" },
+      h("h2", null, "Set up your team in a few minutes"),
+      h("p", null, "Create an account, add your players, and you're ready for the next game."),
+      h("button", { className: "button primary", type: "button", onClick: () => setPhase("signup") }, "Create account")),
     h("footer", { className: "welcome-footer" }, "TeamTrack"));
   return h("main", { className: "auth-screen" },
     h("section", { className: "card form-stack" },

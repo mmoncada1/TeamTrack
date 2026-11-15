@@ -20,3 +20,10 @@
   .match-result-main { flex-wrap: wrap; gap: .5rem; }
   .match-result-teams { flex-basis: 100%; }
 }
+
+.match-results .match-result { border-left: 4px solid var(--result-accent); background: var(--result-bg); }
+.match-result-win { --result-accent: #15803d; --result-bg: #102b22; --result-ink: #86efac; }
+.match-result-loss { --result-accent: #dc2626; --result-bg: #351c22; --result-ink: #fca5a5; }
+.match-result-draw { --result-accent: #64748b; --result-bg: #273449; --result-ink: #cbd5e1; }
+.match-result-score { color: var(--result-ink); }
+.match-result-outcome { border: 0; background: var(--result-accent); color: #fff; }

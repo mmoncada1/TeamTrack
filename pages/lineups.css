@@ -17,7 +17,7 @@
 .format-row { margin-top: 1rem; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; font-size: .8125rem; color: var(--text-2); }
 .format { min-height: 2rem; padding: .25rem .75rem; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text-2); font-size: .8125rem; font-weight: 500; }
 .format:hover { color: var(--text); background: var(--surface-2); }
-.format.active { border-color: var(--text); background: var(--text); color: var(--bg); }
+.format.active { border-color: #10b981; background: var(--accent); color: #fff; }
 .lineup-help { margin: 1rem 0; color: var(--text-2); font-size: .8125rem; }
 
 .formation-board { display: flex; align-items: stretch; gap: .75rem; }
@@ -30,25 +30,25 @@
 .position-legend { height: 1.75rem; display: flex; align-items: center; gap: .75rem; white-space: nowrap; color: var(--text-2); font-size: .75rem; font-weight: 500; }
 .position-legend span { display: flex; align-items: center; gap: .3125rem; }
 .position-legend i { width: .5rem; height: .5rem; flex: none; border-radius: 50%; }
-.legend-GK { background: #e2b04a; }
-.legend-DEF { background: #3576b0; }
-.legend-MID { background: #6d5cc0; }
-.legend-FWD { background: #d9783a; }
+.legend-GK { background: #fbbf24; }
+.legend-DEF { background: #0284c7; }
+.legend-MID { background: #7c3aed; }
+.legend-FWD { background: #f97316; }
 
-.pitch { position: relative; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--radius-lg); background: #2d6a49; }
+.pitch { position: relative; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--radius-lg); background: #2e7d4f; }
 .pitch > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .field-position { position: absolute; display: flex; align-items: center; justify-content: center; width: 5rem; height: 5rem; transform: translate(-50%, -50%); border: 2px dashed #ffffffb3; border-radius: 50%; }
 .field-position.occupied { width: auto; height: auto; border: 0; }
 
 /* Player tokens, shared by lineup, setup, and live pages. */
 .lineup-token { position: relative; display: flex; flex-direction: column; align-items: center; width: 5rem; padding: .25rem; text-align: center; cursor: grab; }
-.token-avatar { position: relative; display: grid; place-items: center; width: 3.25rem; height: 3.25rem; border: 3px solid var(--ring); border-radius: 50%; background: #2a2a2f; color: var(--text); font-size: .875rem; font-weight: 600; }
-.girl-mark { position: absolute; top: -.375rem; right: -.25rem; display: grid; place-items: center; width: .9rem; height: .9rem; border-radius: 50%; background: #c2456b; color: #fff; font-size: .55rem; font-weight: 600; }
+.token-avatar { position: relative; display: grid; place-items: center; width: 3.25rem; height: 3.25rem; border: 3px solid var(--ring); border-radius: 50%; background: #475569; color: var(--text); font-size: .875rem; font-weight: 600; }
+.girl-mark { position: absolute; top: -.375rem; right: -.25rem; display: grid; place-items: center; width: .9rem; height: .9rem; border-radius: 50%; background: #e11d48; color: #fff; font-size: .55rem; font-weight: 600; }
 .token-name { max-width: 100%; margin-top: .125rem; padding: .125rem .3125rem; border-radius: var(--radius-sm); background: var(--badge); color: var(--badge-text); font-size: .625rem; font-weight: 600; line-height: 1.15; overflow-wrap: anywhere; }
-.group-GK { --ring: #e2b04a; --badge: #e2b04a; --badge-text: #17130a; }
-.group-DEF { --ring: #5d9cd3; --badge: #3576b0; --badge-text: #fff; }
-.group-MID { --ring: #9485d6; --badge: #6d5cc0; --badge-text: #fff; }
-.group-FWD { --ring: #d9783a; --badge: #d9783a; --badge-text: #fff; }
+.group-GK { --ring: #fbbf24; --badge: #fbbf24; --badge-text: #0f172a; }
+.group-DEF { --ring: #38bdf8; --badge: #0284c7; --badge-text: #fff; }
+.group-MID { --ring: #a78bfa; --badge: #7c3aed; --badge-text: #fff; }
+.group-FWD { --ring: #f97316; --badge: #f97316; --badge-text: #fff; }
 .token-move { display: none; position: absolute; top: 100%; z-index: 3; padding: .125rem .375rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); font-size: .625rem; white-space: nowrap; }
 .lineup-token:hover .token-move, .lineup-token:focus-within .token-move { display: block; }
 
@@ -68,9 +68,9 @@
 }
 
 /* Shared marker for an unassigned soccer position. */
-.missing-position { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .125rem; width: 5.1rem; height: 5.1rem; padding: .4rem; border: 2px dashed rgb(255 255 255 / .55); border-radius: 50%; background: rgb(0 0 0 / .28); color: #fff; font-size: .65rem; font-weight: 500; line-height: 1.1; text-align: center; cursor: pointer; transition: background-color .12s, border-color .12s; }
-.missing-position-plus { display: grid; place-items: center; width: 1.125rem; height: 1.125rem; border-radius: 50%; background: rgb(255 255 255 / .9); color: #0b0b0c; font-size: 1rem; font-weight: 500; line-height: 1; }
-.setup-slot:hover .missing-position, .setup-slot:focus-within .missing-position, .live-slot:hover .missing-position, .live-slot:focus-within .missing-position, .field-position:hover .missing-position { border-color: #fff; border-style: solid; background: rgb(0 0 0 / .45); }
+.missing-position { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .125rem; width: 5.1rem; height: 5.1rem; padding: .4rem; border: 3px solid var(--ring); border-radius: 50%; background: #243b50e6; color: #fff; box-shadow: 0 4px 12px rgb(0 0 0 / .2), inset 0 0 0 2px rgb(255 255 255 / .08); font-size: .65rem; font-weight: 600; line-height: 1.1; text-align: center; cursor: pointer; }
+.missing-position-plus { display: grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 50%; background: var(--ring); color: #0f172a; font-size: 1.1rem; font-weight: 600; line-height: 1; }
+.setup-slot:hover .missing-position, .setup-slot:focus-within .missing-position, .live-slot:hover .missing-position, .live-slot:focus-within .missing-position, .field-position:hover .missing-position { background: #1a3147; box-shadow: 0 0 0 3px rgb(255 255 255 / .65), 0 6px 16px rgb(0 0 0 / .24); }
 .field-position:not(.occupied) { border: 0; }
 .field-position .missing-position { width: 5rem; height: 5rem; }
 @media (max-width: 700px) {
