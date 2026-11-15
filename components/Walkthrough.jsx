@@ -207,7 +207,6 @@ function prefersReducedMotion() {
 export function Walkthrough() {
   const [index, setIndex] = useState(0);
   const [t, setT] = useState(0);
-  const [hovered, setHovered] = useState(false);
   const [userPaused, setUserPaused] = useState(false);
   const [visible, setVisible] = useState(false);
   const [reduced] = useState(prefersReducedMotion);
@@ -220,7 +219,7 @@ export function Walkthrough() {
     return () => observer.disconnect();
   }, []);
 
-  const running = visible && !hovered && !userPaused && !reduced;
+  const running = visible && !userPaused && !reduced;
   useEffect(() => {
     if (!running) return undefined;
     let last = performance.now();
@@ -265,8 +264,7 @@ export function Walkthrough() {
           </button>
         </li>)}
       </ol>
-      <div className="wt-stage" id="walkthrough-stage" role="tabpanel" aria-label={step.title}
-        onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+      <div className="wt-stage" id="walkthrough-stage" role="tabpanel" aria-label={step.title}>
         <div className="wt-stage-head">
           <h3>{step.title}</h3>
           {!reduced && <button type="button" className="button ghost small" onClick={() => setUserPaused((value) => !value)}>{userPaused ? "Play" : "Pause"}</button>}
