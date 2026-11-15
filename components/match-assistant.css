@@ -28,10 +28,9 @@
 .match-assistant-dialog-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 1rem; background: rgb(0 0 0 / 75%); }
 .match-assistant-dialog { width: min(100%, 36rem); max-height: 90vh; overflow: auto; padding: 1.5rem; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow-overlay); }
 .match-assistant-dialog h3 { margin: 0 0 1rem; color: var(--text); }
-.match-assistant-confirm-mic { margin: 0 0 1rem; padding: .55rem .8rem; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2); color: var(--text); cursor: pointer; }
-.match-assistant-confirm-mic.listening { border-color: #f87171; background: #b91c1c; }
-.match-assistant-confirm-mic.starting { border-color: #fbbf24; background: #92400e; }
-.match-assistant-confirm-mic:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.match-assistant-countdown { display: flex; align-items: center; gap: .9rem; margin: 0 0 1rem; padding: .75rem 1rem; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface-2); color: var(--text); }
+.match-assistant-countdown strong { flex: none; min-width: 2ch; font-size: 2rem; line-height: 1; font-variant-numeric: tabular-nums; text-align: center; }
+.match-assistant-countdown span { color: var(--text-2); font-size: .875rem; line-height: 1.4; }
 .match-assistant-dialog-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
 .match-assistant-proposals { display: grid; gap: .75rem; margin: 0 0 1rem; padding-left: 1.5rem; }
 .match-assistant-proposals li { padding: .75rem; border: 1px solid var(--border); border-radius: 6px; }

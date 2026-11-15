@@ -1,6 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { getAccessToken } from "../state/cloud.js";
 
+function CountdownNotice({ seconds, action }) {
+  return <div className="match-assistant-countdown" role="timer" aria-live="off">
+    <strong aria-label={`${seconds} seconds remaining`}>{seconds}</strong>
+    <span>seconds until {action}. Choose an option before the timer ends.</span>
+  </div>;
+}
+
 export function MatchAssistant({ game, players, summary, derived, team, queuedSubs = [], onQueueSubstitutions, onApplyQueuedSubstitutions, onAcceptSubstitutions, onAcceptGoal, onAcceptMatchAction, fieldLocked = false }) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
@@ -442,7 +449,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     {matchAction && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review match action">
       <h3>Review match action</h3>
       <p>{players.find((player) => player.id === matchAction.player_id)?.name || "Unknown player"}: {matchAction.type === "card" ? `${matchAction.color} card` : "mark injured"}</p>
-      <p role="status">Automatically recording this action in {countdown ?? (game.settings?.assistant_accept_seconds || 5)} seconds. Record or reject before the countdown ends.</p>
+      <CountdownNotice seconds={countdown ?? (game.settings?.assistant_accept_seconds || 5)} action="recording this action" />
       {dialogError && <p role="alert" className="match-assistant-error">{dialogError}</p>}
       <div className="match-assistant-dialog-actions">
         <button className="button primary" type="button" disabled={!actionCurrent()} onClick={acceptMatchAction}>Record action</button>
@@ -454,7 +461,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       <p>{goalProposal.team === "opponent" ? `${game.opponent_name} scored` : `${players.find((player) => player.id === goalProposal.scorer_id)?.name || "Unknown player"} scored`}
         {goalProposal.assister_id ? ` · Assisted by ${players.find((player) => player.id === goalProposal.assister_id)?.name || "Unknown player"}` : ""}</p>
       <p>Score: {summary.team_score}–{summary.opponent_score} → {summary.team_score + (goalProposal.team === "us" ? 1 : 0)}–{summary.opponent_score + (goalProposal.team === "opponent" ? 1 : 0)}</p>
-      <p role="status">Automatically recording this goal in {countdown ?? (game.settings?.assistant_accept_seconds || 5)} seconds. Record or reject before the countdown ends.</p>
+      <CountdownNotice seconds={countdown ?? (game.settings?.assistant_accept_seconds || 5)} action="recording this goal" />
       {(goalProposal.team_score !== summary.team_score || goalProposal.opponent_score !== summary.opponent_score) &&
         <p className="match-assistant-stale">The score changed. Ask again before recording this goal.</p>}
       {goalProposal.team === "us" && (derived.player_states?.[goalProposal.scorer_id]?.status !== "field" ||
@@ -468,7 +475,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     </div></div>}
     {proposals.length > 0 && <div className="match-assistant-dialog-backdrop"><div ref={dialog} className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Suggested substitutions">
       <h3>Suggested substitutions</h3>
-      <p role="status">Automatically accepting {proposals.length === 1 ? "this substitution" : "these substitutions"} in {countdown ?? (game.settings?.assistant_accept_seconds || 5)} seconds. Accept or reject before the countdown ends.</p>
+      <CountdownNotice seconds={countdown ?? (game.settings?.assistant_accept_seconds || 5)} action={proposals.length === 1 ? "accepting this substitution" : "accepting these substitutions"} />
       {answer && <p>{answer}</p>}
       <ol className="match-assistant-proposals">{proposals.map((proposal) => {
         const incoming = players.find((player) => player.id === proposal.incoming_player_id);
