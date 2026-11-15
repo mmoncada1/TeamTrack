@@ -7,6 +7,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
+  const [micStarting, setMicStarting] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [proposals, setProposals] = useState([]);
@@ -16,7 +17,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   const dialog = useRef(null);
   const dismissButton = useRef(null);
   const recording = useRef(null);
-  const startingRecording = useRef(false);
+  const startingRecording = useRef(null);
   const busyRef = useRef(false);
   const voiceRequest = useRef(false);
   const proposalsRef = useRef([]);
@@ -228,12 +229,22 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   }
 
   function stopRecording(cancel = false) {
+    if (startingRecording.current) {
+      startingRecording.current.cancelled = true;
+      startingRecording.current = null;
+    }
     const active = recording.current;
-    if (!active) return;
+    if (!active) {
+      recordingMode.current = null;
+      setMicStarting(false);
+      return;
+    }
     active.cancelled = cancel;
     clearTimeout(active.timer);
+    clearTimeout(active.readyTimer);
     recording.current = null;
     recordingMode.current = null;
+    setMicStarting(false);
     setListening(false);
     if (active.recorder.state !== "inactive") active.recorder.stop();
     else active.stream.getTracks().forEach((track) => track.stop());
@@ -278,20 +289,38 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   async function startRecording(mode = "question") {
     if (!window.MediaRecorder || !navigator.mediaDevices?.getUserMedia || recording.current ||
         startingRecording.current || transcribing || busyRef.current) return;
-    startingRecording.current = true;
+    const pending = { cancelled: false };
+    startingRecording.current = pending;
+    recordingMode.current = mode;
+    setMicStarting(true);
     const report = mode === "confirmation" ? setDialogError : setError;
     report("");
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      if (pending.cancelled || startingRecording.current !== pending) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       const mimeType = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"]
         .find((type) => window.MediaRecorder.isTypeSupported(type));
       if (!mimeType) throw new Error("This browser cannot record a supported audio format.");
       const recorder = new window.MediaRecorder(stream, { mimeType });
-      const active = { recorder, stream, chunks: [], cancelled: false, timer: null, startedAt: 0 };
+      const active = { recorder, stream, chunks: [], cancelled: false, timer: null, readyTimer: null, startedAt: 0, ready: false };
       recording.current = active;
-      recordingMode.current = mode;
-      recorder.ondataavailable = (event) => { if (event.data.size) active.chunks.push(event.data); };
+      const markReady = () => {
+        if (active.ready || active.cancelled || recording.current !== active) return;
+        active.ready = true;
+        clearTimeout(active.readyTimer);
+        setMicStarting(false);
+        setListening(true);
+      };
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) {
+          active.chunks.push(event.data);
+          markReady();
+        }
+      };
       recorder.onerror = () => { active.cancelled = true; report("Could not record audio. Try again."); stopRecording(true); };
       recorder.onstop = async () => {
         stream.getTracks().forEach((track) => track.stop());
@@ -305,20 +334,26 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
         catch (error) { report(error.name === "AbortError" ? "Voice transcription timed out. Try again." : error.message); }
         finally { setTranscribing(false); }
       };
-      recorder.start();
+      recorder.start(250);
       active.startedAt = performance.now();
-      startingRecording.current = false;
-      setListening(true);
+      startingRecording.current = null;
+      // Some browsers delay periodic chunks. Keep the first 900 ms as pre-roll
+      // before showing the red, ready-to-speak indicator.
+      active.readyTimer = setTimeout(markReady, 900);
       active.timer = setTimeout(() => stopRecording(), 8000);
     } catch (error) {
-      startingRecording.current = false;
+      if (startingRecording.current === pending) startingRecording.current = null;
+      if (recording.current?.stream === stream) recording.current = null;
+      recordingMode.current = null;
+      setMicStarting(false);
       stream?.getTracks().forEach((track) => track.stop());
       report(error.name === "NotAllowedError" ? "Allow microphone access to use voice input." : error.message || "Could not start the microphone.");
     }
   }
 
   function toggleMicrophone(mode = "question") {
-    if (recording.current) stopRecording();
+    if (recording.current) stopRecording(micStarting);
+    else if (startingRecording.current) stopRecording(true);
     else startRecording(mode);
   }
 
@@ -334,14 +369,15 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
           onChange={(event) => setQuestion(event.target.value)}
           onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submitPrompt(question); } }}
           placeholder={onAcceptSubstitutions ? "Make 3 best subs" : "Summarize this match"} />
-        {speechSupported && <button className={`match-assistant-mic${listening ? " listening" : ""}`} type="button"
-          aria-label={listening ? "Stop recording" : transcribing ? "Transcribing" : "Record a voice command"} aria-pressed={listening}
-          title={listening ? "Stop recording" : "Record a voice command (up to 8 seconds)"} onClick={() => toggleMicrophone()} disabled={(busy || transcribing) && !listening}>
+        {speechSupported && <button className={`match-assistant-mic${listening ? " listening" : micStarting ? " starting" : ""}`} type="button"
+          aria-label={listening ? "Stop recording" : micStarting ? "Cancel microphone startup" : transcribing ? "Transcribing" : "Record a voice command"} aria-pressed={listening || micStarting}
+          title={listening ? "Stop recording" : micStarting ? "Starting microphone" : "Record a voice command (up to 8 seconds)"} onClick={() => toggleMicrophone()} disabled={(busy || transcribing) && !listening && !micStarting}>
           <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8"/></svg>
         </button>}
       </div>
       <button className="button primary" type="submit" disabled={busy || transcribing || !question.trim()}>{transcribing ? "Transcribing…" : busy ? "Thinking…" : "Ask"}</button>
     </form>
+    {micStarting && <p role="status">Starting microphone… wait until it turns red before speaking.</p>}
     {listening && <p role="status">Recording… speak now, then tap the microphone to stop. The clip stops after 8 seconds.</p>}
     {error && <p role="alert" className="match-assistant-error">{error}</p>}
     {answer && <div className="match-assistant-answer" aria-live="polite">{answer}</div>}
@@ -383,9 +419,9 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     {proposals.length > 0 && <div className="match-assistant-dialog-backdrop"><div ref={dialog} className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Suggested substitutions">
       <h3>Suggested substitutions</h3>
       <p>Is this right? Say “accept all” to record the swaps, or “cancel”.</p>
-      {speechSupported && <button className={`match-assistant-confirm-mic${listening && recordingMode.current === "confirmation" ? " listening" : ""}`} type="button"
-        aria-label={listening && recordingMode.current === "confirmation" ? "Stop recording" : "Record confirmation"}
-        disabled={transcribing} onClick={() => toggleMicrophone("confirmation")}>{listening && recordingMode.current === "confirmation" ? "Recording… tap to stop" : transcribing ? "Transcribing…" : "🎙 Record confirmation"}</button>}
+      {speechSupported && <button className={`match-assistant-confirm-mic${listening && recordingMode.current === "confirmation" ? " listening" : micStarting && recordingMode.current === "confirmation" ? " starting" : ""}`} type="button"
+        aria-label={listening && recordingMode.current === "confirmation" ? "Stop recording" : micStarting ? "Cancel microphone startup" : "Record confirmation"}
+        disabled={transcribing} onClick={() => toggleMicrophone("confirmation")}>{listening && recordingMode.current === "confirmation" ? "Recording… tap to stop" : micStarting ? "Starting microphone…" : transcribing ? "Transcribing…" : "🎙 Record confirmation"}</button>}
       {answer && <p>{answer}</p>}
       <ol className="match-assistant-proposals">{proposals.map((proposal) => {
         const incoming = players.find((player) => player.id === proposal.incoming_player_id);

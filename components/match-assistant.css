@@ -16,6 +16,7 @@
 .match-assistant .match-assistant-mic:hover { background: #475569; }
 .match-assistant .match-assistant-mic:focus-visible { outline: 2px solid #34d399; outline-offset: 2px; }
 .match-assistant .match-assistant-mic.listening { border-color: #f87171; background: #b91c1c; box-shadow: 0 0 0 4px rgb(248 113 113 / 22%); animation: assistant-mic-pulse 1.4s ease-in-out infinite; }
+.match-assistant .match-assistant-mic.starting { border-color: #fbbf24; background: #92400e; }
 .match-assistant .match-assistant-mic:disabled { opacity: .55; cursor: not-allowed; }
 @keyframes assistant-mic-pulse { 50% { box-shadow: 0 0 0 8px rgb(248 113 113 / 10%); } }
 @media (prefers-reduced-motion: reduce) { .match-assistant .match-assistant-mic.listening { animation: none; } }
@@ -29,6 +30,7 @@
 .match-assistant-dialog h3 { margin: 0 0 1rem; color: #f1f5f9; }
 .match-assistant-confirm-mic { margin: 0 0 1rem; padding: .55rem .8rem; border: 1px solid #64748b; border-radius: 999px; background: #334155; color: #f1f5f9; cursor: pointer; }
 .match-assistant-confirm-mic.listening { border-color: #f87171; background: #b91c1c; }
+.match-assistant-confirm-mic.starting { border-color: #fbbf24; background: #92400e; }
 .match-assistant-confirm-mic:focus-visible { outline: 2px solid #34d399; outline-offset: 2px; }
 .match-assistant-dialog-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
 .match-assistant-proposals { display: grid; gap: .75rem; margin: 0 0 1rem; padding-left: 1.5rem; }
