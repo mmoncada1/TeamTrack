@@ -276,7 +276,6 @@ function fromConfirmationLink() {
 
 export function AuthGate({ children }) {
   const [phase, setPhase] = useState("loading");
-  const [teamsToChoose, setTeamsToChoose] = useState([]);
   const [teamName, setTeamName] = useState("");
   const [teamSport, setTeamSport] = useState("soccer");
   const [teamCoed, setTeamCoed] = useState(false);
@@ -304,9 +303,12 @@ export function AuthGate({ children }) {
     });
     const availableTeams = placeholder && !hasTeamData ? [] : teams;
     if (placeholder && !hasTeamData) localStorage.setItem("teamtrack:jac:teams", "[]");
-    setTeamsToChoose(availableTeams);
     syncEnabled = true;
-    setPhase("select-team");
+    if (!availableTeams.length) { setPhase("create-team"); return; }
+    const lastActiveId = localStorage.getItem("teamtrack:jac:active-team-id");
+    const lastActive = availableTeams.find((team) => team.id === lastActiveId)
+      || [...availableTeams].sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))[0];
+    selectTeam(lastActive.id);
   }
 
   function selectTeam(id) {
@@ -416,13 +418,7 @@ export function AuthGate({ children }) {
     h("section", { className: "card form-stack" },
       h("h1", null, "TeamTrack"),
       phase === "loading" ? h("p", null, "Connecting to Supabase…") : null,
-      phase === "select-team" ? teamsToChoose.length
-        ? h(React.Fragment, null,
-          h("h2", null, "Select a team"),
-          h("p", null, "Choose the team you want to manage."),
-          ...teamsToChoose.map((team) => h("button", { key: team.id, type: "button", className: "button secondary", onClick: () => selectTeam(team.id) }, team.name)),
-          h("button", { type: "button", className: "button ghost", onClick: signOut }, "Sign out"))
-        : h("form", { className: "form-stack", onSubmit: createFirstTeam },
+      phase === "create-team" ? h("form", { className: "form-stack", onSubmit: createFirstTeam },
           h("h2", null, "Create your first team"),
           h("label", null, "Team name", h("input", { className: "input", required: true, value: teamName, onChange: (event) => setTeamName(event.target.value) })),
           h("label", null, "Sport", h("select", { className: "input", value: teamSport, onChange: (event) => setTeamSport(event.target.value) },
