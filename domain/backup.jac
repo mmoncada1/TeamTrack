@@ -67,6 +67,9 @@ def:pub validate_backup(candidate: any) -> list[str] {
         if "minimum_playing_time_minutes" in match_settings and (not isinstance(match_settings["minimum_playing_time_minutes"], int) or match_settings["minimum_playing_time_minutes"] < 1) {
             errors.append("A match has an invalid minimum playing time.");
         }
+        if "assistant_accept_seconds" in match_settings and (not isinstance(match_settings["assistant_accept_seconds"], int) or match_settings["assistant_accept_seconds"] < 1) {
+            errors.append("A match has an invalid assistant countdown.");
+        }
         for player_id in game["roster_player_ids"] {
             if player_id in player_team and player_team[player_id] != game["team_id"] { errors.append("A match includes a player from another team."); break; }
         }

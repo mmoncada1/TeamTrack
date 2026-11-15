@@ -35,6 +35,7 @@ def:pub load_matches() -> list[Match] {
     raw = localStorage.getItem(MATCHES_KEY); items = JSON.parse(raw) as list[Match] if raw else [];
     for game in items {
         if not game.settings.minimum_playing_time_minutes { game.settings.minimum_playing_time_minutes = 10; }
+        if not game.settings.assistant_accept_seconds { game.settings.assistant_accept_seconds = 5; }
     }
     return items;
 }

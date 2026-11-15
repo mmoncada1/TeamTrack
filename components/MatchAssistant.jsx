@@ -14,15 +14,13 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   const [goalProposal, setGoalProposal] = useState(null);
   const [matchAction, setMatchAction] = useState(null);
   const [dialogError, setDialogError] = useState("");
+  const [countdown, setCountdown] = useState(null);
   const dialog = useRef(null);
-  const dismissButton = useRef(null);
   const recording = useRef(null);
   const startingRecording = useRef(null);
   const busyRef = useRef(false);
-  const voiceRequest = useRef(false);
-  const proposalsRef = useRef([]);
-  const recordingMode = useRef(null);
-  proposalsRef.current = proposals;
+  const acceptLatest = useRef(null);
+  acceptLatest.current = () => acceptProposals(proposals);
 
   useEffect(() => {
     setSpeechSupported(Boolean(window.MediaRecorder && navigator.mediaDevices?.getUserMedia));
@@ -33,27 +31,14 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   }, []);
 
   useEffect(() => {
-    if (!proposals.length || !voiceRequest.current) return;
-    voiceRequest.current = false;
-    const swaps = proposals.map((proposal) => {
-      const incoming = players.find((player) => player.id === proposal.incoming_player_id)?.name || "unknown player";
-      const outgoing = players.find((player) => player.id === proposal.outgoing_player_id)?.name || "unknown player";
-      return `${incoming} for ${outgoing}`;
-    });
-    const prompt = `I heard ${swaps.join(", ")}. Is that right? Say accept all to record them, or cancel.`;
-    if (window.speechSynthesis && window.SpeechSynthesisUtterance) {
-      const utterance = new window.SpeechSynthesisUtterance(prompt);
-      utterance.onend = () => startRecording("confirmation");
-      utterance.onerror = () => startRecording("confirmation");
-      window.speechSynthesis.speak(utterance);
-      return () => { utterance.onend = null; utterance.onerror = null; window.speechSynthesis.cancel(); };
-    }
-    startRecording("confirmation");
-  }, [proposals]);
-
-  useEffect(() => {
-    if (!proposals.length && recordingMode.current === "confirmation") stopRecording(true);
-  }, [Boolean(proposals.length)]);
+    if (!proposals.length) { setCountdown(null); return; }
+    const seconds = Math.max(1, Math.floor(Number(game.settings?.assistant_accept_seconds) || 5));
+    const deadline = Date.now() + seconds * 1000;
+    setCountdown(seconds);
+    const interval = setInterval(() => setCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000))), 200);
+    const timeout = setTimeout(() => acceptLatest.current?.(), seconds * 1000);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
+  }, [proposals, game.settings?.assistant_accept_seconds]);
 
   useEffect(() => {
     if (!proposals.length) return;
@@ -205,7 +190,6 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
         ? result.substitutions : result.substitution ? [result.substitution] : [];
       if (onAcceptSubstitutions) {
         const next = suggestions.map((item) => ({ ...item, match_id: game.id }));
-        voiceRequest.current = fromVoice && next.length > 0;
         setProposals(next);
         if (/\bqueue\b/i.test(result.interpretedQuestion || prompt) && next.length && onQueueSubstitutions) {
           const result = onQueueSubstitutions(next);
@@ -237,7 +221,6 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     }
     const active = recording.current;
     if (!active) {
-      recordingMode.current = null;
       setMicStarting(false);
       return;
     }
@@ -247,14 +230,13 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     clearInterval(active.silenceTimer);
     active.audioContext?.close().catch(() => {});
     recording.current = null;
-    recordingMode.current = null;
     setMicStarting(false);
     setListening(false);
     if (active.recorder.state !== "inactive") active.recorder.stop();
     else active.stream.getTracks().forEach((track) => track.stop());
   }
 
-  async function transcribeAudio(blob, mode) {
+  async function transcribeAudio(blob) {
     if (!blob.size || blob.size > 1_500_000) throw new Error("Audio clip is too large or empty. Try a shorter command.");
     const bytes = new Uint8Array(await blob.arrayBuffer());
     let binary = "";
@@ -280,14 +262,8 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     if (!response.ok) throw new Error(result.error || "Could not transcribe your voice command.");
     const transcript = result.transcript?.trim();
     if (!transcript) throw new Error("No speech was recognized. Try again.");
-    if (mode === "confirmation") {
-      if (/\b(?:accept|confirm|record|do)\s+all\b/i.test(transcript)) acceptProposals(proposalsRef.current);
-      else if (/\b(?:cancel|reject|dismiss|no)\b/i.test(transcript)) setProposals([]);
-      else setDialogError(`Heard “${transcript}”. Say “accept all” or “cancel”, or use the buttons.`);
-    } else {
-      setQuestion(transcript);
-      submitPrompt(transcript, true);
-    }
+    setQuestion(transcript);
+    submitPrompt(transcript, true);
   }
 
   function watchForEndOfSpeech(active) {
@@ -327,7 +303,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     }
   }
 
-  async function startRecording(mode = "question") {
+  async function startRecording() {
     if (!window.MediaRecorder || !navigator.mediaDevices?.getUserMedia || recording.current ||
         startingRecording.current || transcribing || busyRef.current) return;
     const pending = { cancelled: false };
@@ -339,9 +315,8 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       } catch { pending.audioContext = null; }
     }
     startingRecording.current = pending;
-    recordingMode.current = mode;
     setMicStarting(true);
-    const report = mode === "confirmation" ? setDialogError : setError;
+    const report = setError;
     report("");
     let stream;
     try {
@@ -380,7 +355,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
           return;
         }
         setTranscribing(true);
-        try { await transcribeAudio(new Blob(active.chunks, { type: recorder.mimeType }), mode); }
+        try { await transcribeAudio(new Blob(active.chunks, { type: recorder.mimeType })); }
         catch (error) { report(error.name === "AbortError" ? "Voice transcription timed out. Try again." : error.message); }
         finally { setTranscribing(false); }
       };
@@ -396,17 +371,16 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       if (startingRecording.current === pending) startingRecording.current = null;
       if (recording.current?.stream === stream) recording.current = null;
       pending.audioContext?.close().catch(() => {});
-      recordingMode.current = null;
       setMicStarting(false);
       stream?.getTracks().forEach((track) => track.stop());
       report(error.name === "NotAllowedError" ? "Allow microphone access to use voice input." : error.message || "Could not start the microphone.");
     }
   }
 
-  function toggleMicrophone(mode = "question") {
+  function toggleMicrophone() {
     if (recording.current) stopRecording(micStarting);
     else if (startingRecording.current) stopRecording(true);
-    else startRecording(mode);
+    else startRecording();
   }
 
   return <section className="match-assistant" aria-label="Match assistant">
@@ -470,10 +444,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     </div></div>}
     {proposals.length > 0 && <div className="match-assistant-dialog-backdrop"><div ref={dialog} className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Suggested substitutions">
       <h3>Suggested substitutions</h3>
-      <p>Is this right? Say “accept all” to record the swaps, or “cancel”.</p>
-      {speechSupported && <button className={`match-assistant-confirm-mic${listening && recordingMode.current === "confirmation" ? " listening" : micStarting && recordingMode.current === "confirmation" ? " starting" : ""}`} type="button"
-        aria-label={listening && recordingMode.current === "confirmation" ? "Stop recording" : micStarting ? "Cancel microphone startup" : "Record confirmation"}
-        disabled={transcribing} onClick={() => toggleMicrophone("confirmation")}>{listening && recordingMode.current === "confirmation" ? "Recording… tap to stop" : micStarting ? "Starting microphone…" : transcribing ? "Transcribing…" : "Record confirmation"}</button>}
+      <p role="status">Automatically accepting {proposals.length === 1 ? "this substitution" : "these substitutions"} in {countdown ?? (game.settings?.assistant_accept_seconds || 5)} seconds. Accept or reject before the countdown ends.</p>
       {answer && <p>{answer}</p>}
       <ol className="match-assistant-proposals">{proposals.map((proposal) => {
         const incoming = players.find((player) => player.id === proposal.incoming_player_id);
@@ -489,7 +460,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
           <div className="match-assistant-dialog-actions">
             <button className="button primary" type="button" disabled={!current} onClick={() => acceptProposals([proposal])}>Accept</button>
             {onQueueSubstitutions && <button className="button secondary" type="button" disabled={!proposalCurrent(proposal, false)} onClick={() => queueProposals([proposal])}>Queue for later</button>}
-            <button className="button secondary" type="button" onClick={() => setProposals((items) => items.filter((item) => item !== proposal))}>Skip</button>
+            <button className="button secondary" type="button" onClick={() => setProposals((items) => items.filter((item) => item !== proposal))}>Reject</button>
           </div>
         </li>;
       })}</ol>
@@ -497,7 +468,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       <div className="match-assistant-dialog-actions">
         {proposals.length > 1 && <button className="button primary" type="button" disabled={!proposals.every((item) => proposalCurrent(item))} onClick={() => acceptProposals(proposals)}>Accept all {proposals.length}</button>}
         {proposals.length > 1 && onQueueSubstitutions && <button className="button secondary" type="button" disabled={!proposals.every((item) => proposalCurrent(item, false))} onClick={() => queueProposals(proposals)}>Queue all {proposals.length}</button>}
-        <button ref={dismissButton} className="button secondary" type="button" onClick={() => setProposals([])}>Dismiss</button>
+        <button className="button secondary" type="button" onClick={() => setProposals([])}>Reject all</button>
       </div>
     </div></div>}
   </section>;

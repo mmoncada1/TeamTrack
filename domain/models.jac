@@ -60,6 +60,7 @@ obj MatchSettings {
         number_of_halves: int,
         thresholds: dict[str, ThresholdSetting],
         minimum_playing_time_minutes: int = 10,
+        assistant_accept_seconds: int = 5,
         goalkeeper_rotation_enabled: bool = False,
         alert_sound_enabled: bool = False;
 }
