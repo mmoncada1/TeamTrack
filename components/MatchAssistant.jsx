@@ -20,7 +20,11 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   const startingRecording = useRef(null);
   const busyRef = useRef(false);
   const acceptLatest = useRef(null);
-  acceptLatest.current = () => acceptProposals(proposals);
+  acceptLatest.current = () => {
+    if (proposals.length) acceptProposals(proposals);
+    else if (goalProposal) acceptGoal();
+    else if (matchAction) acceptMatchAction();
+  };
 
   useEffect(() => {
     setSpeechSupported(Boolean(window.MediaRecorder && navigator.mediaDevices?.getUserMedia));
@@ -31,14 +35,14 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   }, []);
 
   useEffect(() => {
-    if (!proposals.length) { setCountdown(null); return; }
+    if (!proposals.length && !goalProposal && !matchAction) { setCountdown(null); return; }
     const seconds = Math.max(1, Math.floor(Number(game.settings?.assistant_accept_seconds) || 5));
     const deadline = Date.now() + seconds * 1000;
     setCountdown(seconds);
     const interval = setInterval(() => setCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000))), 200);
     const timeout = setTimeout(() => acceptLatest.current?.(), seconds * 1000);
     return () => { clearInterval(interval); clearTimeout(timeout); };
-  }, [proposals, game.settings?.assistant_accept_seconds]);
+  }, [proposals, goalProposal, matchAction, game.settings?.assistant_accept_seconds]);
 
   useEffect(() => {
     if (!proposals.length) return;
@@ -95,6 +99,34 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     const result = onQueueSubstitutions(selected);
     if (result) setDialogError(result);
     else { setProposals((current) => current.filter((item) => !selected.includes(item))); setDialogError(""); setAnswer(`${selected.length} substitution${selected.length === 1 ? "" : "s"} queued. Apply them when they happen.`); }
+  }
+
+  function goalCurrent() {
+    return goalProposal?.match_id === game.id && derived.status !== "ended" &&
+      goalProposal.team_score === summary.team_score && goalProposal.opponent_score === summary.opponent_score &&
+      (goalProposal.team !== "us" || (derived.player_states?.[goalProposal.scorer_id]?.status === "field" &&
+        (!goalProposal.assister_id || derived.player_states?.[goalProposal.assister_id]?.status === "field")));
+  }
+
+  function acceptGoal() {
+    if (!goalCurrent() || !onAcceptGoal) { setDialogError("The score or lineup changed. Ask again before recording this goal."); return; }
+    try {
+      const result = onAcceptGoal(goalProposal);
+      if (result) setDialogError(result); else { setGoalProposal(null); setDialogError(""); }
+    } catch (error) { setDialogError(error.message || "Could not record the goal."); }
+  }
+
+  function actionCurrent() {
+    return matchAction?.match_id === game.id && derived.status !== "ended" &&
+      derived.player_states?.[matchAction.player_id]?.status !== "unavailable";
+  }
+
+  function acceptMatchAction() {
+    if (!actionCurrent() || !onAcceptMatchAction) { setDialogError("The match or player status changed. Ask again before recording this action."); return; }
+    try {
+      const result = onAcceptMatchAction(matchAction);
+      if (result) setDialogError(result); else { setMatchAction(null); setDialogError(""); }
+    } catch (error) { setDialogError(error.message || "Could not record the action."); }
   }
 
   async function submitPrompt(value, fromVoice = false) {
@@ -410,14 +442,11 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     {matchAction && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review match action">
       <h3>Review match action</h3>
       <p>{players.find((player) => player.id === matchAction.player_id)?.name || "Unknown player"}: {matchAction.type === "card" ? `${matchAction.color} card` : "mark injured"}</p>
+      <p role="status">Automatically recording this action in {countdown ?? (game.settings?.assistant_accept_seconds || 5)} seconds. Record or reject before the countdown ends.</p>
       {dialogError && <p role="alert" className="match-assistant-error">{dialogError}</p>}
       <div className="match-assistant-dialog-actions">
-        <button className="button primary" type="button" disabled={matchAction.match_id !== game.id || derived.status === "ended" ||
-          derived.player_states?.[matchAction.player_id]?.status === "unavailable"} onClick={() => {
-          const result = onAcceptMatchAction(matchAction);
-          if (result) setDialogError(result); else { setMatchAction(null); setDialogError(""); }
-        }}>Record action</button>
-        <button className="button secondary" type="button" onClick={() => { setMatchAction(null); setDialogError(""); }}>Cancel</button>
+        <button className="button primary" type="button" disabled={!actionCurrent()} onClick={acceptMatchAction}>Record action</button>
+        <button className="button secondary" type="button" onClick={() => { setMatchAction(null); setDialogError(""); }}>Reject</button>
       </div>
     </div></div>}
     {goalProposal && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review proposed goal">
@@ -425,6 +454,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       <p>{goalProposal.team === "opponent" ? `${game.opponent_name} scored` : `${players.find((player) => player.id === goalProposal.scorer_id)?.name || "Unknown player"} scored`}
         {goalProposal.assister_id ? ` · Assisted by ${players.find((player) => player.id === goalProposal.assister_id)?.name || "Unknown player"}` : ""}</p>
       <p>Score: {summary.team_score}–{summary.opponent_score} → {summary.team_score + (goalProposal.team === "us" ? 1 : 0)}–{summary.opponent_score + (goalProposal.team === "opponent" ? 1 : 0)}</p>
+      <p role="status">Automatically recording this goal in {countdown ?? (game.settings?.assistant_accept_seconds || 5)} seconds. Record or reject before the countdown ends.</p>
       {(goalProposal.team_score !== summary.team_score || goalProposal.opponent_score !== summary.opponent_score) &&
         <p className="match-assistant-stale">The score changed. Ask again before recording this goal.</p>}
       {goalProposal.team === "us" && (derived.player_states?.[goalProposal.scorer_id]?.status !== "field" ||
@@ -432,14 +462,8 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
         <p className="match-assistant-stale">The lineup changed. Ask again before recording this goal.</p>}
       {dialogError && <p role="alert" className="match-assistant-error">{dialogError}</p>}
       <div className="match-assistant-dialog-actions">
-        <button className="button primary" type="button" disabled={goalProposal.match_id !== game.id || derived.status === "ended" ||
-          goalProposal.team_score !== summary.team_score || goalProposal.opponent_score !== summary.opponent_score ||
-          (goalProposal.team === "us" && (derived.player_states?.[goalProposal.scorer_id]?.status !== "field" ||
-            (goalProposal.assister_id && derived.player_states?.[goalProposal.assister_id]?.status !== "field")))} onClick={() => {
-          const result = onAcceptGoal(goalProposal);
-          if (result) setDialogError(result); else { setGoalProposal(null); setDialogError(""); }
-        }}>Record goal</button>
-        <button className="button secondary" type="button" onClick={() => { setGoalProposal(null); setDialogError(""); }}>Cancel</button>
+        <button className="button primary" type="button" disabled={!goalCurrent()} onClick={acceptGoal}>Record goal</button>
+        <button className="button secondary" type="button" onClick={() => { setGoalProposal(null); setDialogError(""); }}>Reject</button>
       </div>
     </div></div>}
     {proposals.length > 0 && <div className="match-assistant-dialog-backdrop"><div ref={dialog} className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Suggested substitutions">
