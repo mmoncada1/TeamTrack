@@ -8,7 +8,7 @@ function CountdownNotice({ seconds, action }) {
   </div>;
 }
 
-export function MatchAssistant({ game, players, summary, derived, team, queuedSubs = [], onQueueSubstitutions, onApplyQueuedSubstitutions, onAcceptSubstitutions, onAcceptGoal, onAcceptMatchAction, onUndoEvent, onMoveRecordedSubsToQueue, fieldLocked = false }) {
+export function MatchAssistant({ game, players, summary, derived, team, queuedSubs = [], onQueueSubstitutions, onApplyQueuedSubstitutions, onAcceptSubstitutions, onAcceptGoal, onAcceptMatchAction, onAcceptClockAction, onUndoEvent, onMoveRecordedSubsToQueue, fieldLocked = false }) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
@@ -21,6 +21,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   const [queueRequested, setQueueRequested] = useState(false);
   const [goalProposal, setGoalProposal] = useState(null);
   const [matchAction, setMatchAction] = useState(null);
+  const [clockAction, setClockAction] = useState(null);
   const [undoProposal, setUndoProposal] = useState(null);
   const [dialogError, setDialogError] = useState("");
   const [countdown, setCountdown] = useState(null);
@@ -188,11 +189,12 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
         match: {
           id: game.id, team_id: game.team_id, team_name: game.team_name,
           opponent_name: game.opponent_name, date: game.date,
-          status: derived.status, clock_ms: derived.display_clock_ms,
+          status: derived.status, current_half: derived.current_half, clock_ms: derived.display_clock_ms,
           remaining_ms: Math.max(0, (game.settings?.half_length_minutes || 0) * (game.settings?.number_of_halves || 0) * 60000 - derived.match_clock_ms),
           team_score: summary.team_score, opponent_score: summary.opponent_score,
         },
-        settings: { thresholds: game.settings?.thresholds, goalkeeper_rotation_enabled: game.settings?.goalkeeper_rotation_enabled },
+        settings: { thresholds: game.settings?.thresholds, goalkeeper_rotation_enabled: game.settings?.goalkeeper_rotation_enabled,
+          number_of_halves: game.settings?.number_of_halves },
         players: players.filter((player) => player.team_id === game.team_id && playerIds.has(player.id)).map((player) => ({
           id: player.id, name: player.name, jersey_number: player.jersey_number,
           preferred_groups: player.preferred_groups, availability: player.availability, gender: player.gender,
@@ -261,6 +263,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       if (onAcceptGoal && result.goal) setGoalProposal({ ...result.goal, match_id: game.id,
         team_score: summary.team_score, opponent_score: summary.opponent_score });
       if (onAcceptMatchAction && result.matchAction) setMatchAction({ ...result.matchAction, match_id: game.id });
+      if (onAcceptClockAction && result.clockAction) setClockAction({ ...result.clockAction, match_id: game.id });
       if (result.undo) {
         if (!onUndoEvent) setAnswer("Open the live match page to undo a recorded event.");
         else {
@@ -519,6 +522,18 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       <div className="match-assistant-dialog-actions">
         <button className="button primary" type="button" disabled={!actionCurrent()} onClick={acceptMatchAction}>Record action</button>
         <button className="button secondary" type="button" onClick={() => { setMatchAction(null); setDialogError(""); }}>Reject</button>
+      </div>
+    </div></div>}
+    {clockAction && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review match clock change">
+      <h3>{clockAction.type === "pause" ? "Pause match?" : clockAction.type === "half_time" ? "Go to halftime?" : "End match?"}</h3>
+      <p>{clockAction.type === "pause" ? "The match clock will pause." : clockAction.type === "half_time" ? "The first half will end." : "The match will end and its summary will open."}</p>
+      {dialogError && <p role="alert" className="match-assistant-error">{dialogError}</p>}
+      <div className="match-assistant-dialog-actions">
+        <button className="button primary" type="button" disabled={clockAction.match_id !== game.id || derived.status !== clockAction.expected_status} onClick={() => {
+          const error = onAcceptClockAction?.(clockAction);
+          if (error) setDialogError(error); else { setClockAction(null); setDialogError(""); }
+        }}>{clockAction.type === "pause" ? "Pause" : clockAction.type === "half_time" ? "Go to halftime" : "End match"}</button>
+        <button className="button secondary" type="button" onClick={() => { setClockAction(null); setDialogError(""); }}>Cancel</button>
       </div>
     </div></div>}
     {goalProposal && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review proposed goal">

@@ -267,6 +267,15 @@ test("plans all named swaps in a spoken batch, in order", async () => {
   ]);
   const duplicate = await ask({ answer: "Review." }, "Katie in for Matteo and Katie in for Lauren", batch);
   assert.deepEqual(duplicate.res.body.substitutions, []);
+  for (const phrase of ["Sub Katie for Matteo and Audrey for Lauren", "Queue sub Katie for Matteo, sub Audrey for Lauren"]) {
+    const spoken = await ask({ answer: "Review." }, phrase, batch, {
+      fromVoice: true, interpretation: { normalized_command: phrase, confident: true },
+    });
+    assert.deepEqual(spoken.res.body.substitutions, [
+      { incoming_player_id: "katie", outgoing_player_id: "matteo", position_id: "mid" },
+      { incoming_player_id: "audrey", outgoing_player_id: "lauren", position_id: "def" },
+    ], phrase);
+  }
 });
 
 test("does not offer an invalid model suggestion", async () => {
@@ -549,4 +558,17 @@ test("proposes cards and injuries without recording them", async () => {
   }
   const question = await ask({ answer: "No." }, "Did Katie get a yellow card?", actions);
   assert.equal(question.res.body.matchAction, null);
+});
+
+test("proposes match clock changes only from valid states", async () => {
+  for (const [question, status, expected] of [
+    ["Pause the match", "in_progress", "pause"],
+    ["Go to halftime", "in_progress", "half_time"],
+    ["End the match", "paused", "end"],
+  ]) {
+    const { res } = await ask({}, question, { ...context, match: { ...context.match, status, current_half: 1 }, settings: { number_of_halves: 2 } });
+    assert.deepEqual(res.body.clockAction, { type: expected, expected_status: status });
+  }
+  const { res } = await ask({ answer: "The match is paused." }, "Pause the match", { ...context, match: { ...context.match, status: "paused" } });
+  assert.equal(res.body.clockAction, undefined);
 });

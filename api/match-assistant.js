@@ -30,6 +30,28 @@ function namedSubstitution(question, context) {
   const clean = question.trim().replace(/[.!?]+$/, "")
     .replace(/^(?:(?:can|could|would) you\s+)?(?:please\s+)?/i, "")
     .replace(/^(?:queue|q)\s+/i, "");
+  const clauses = clean.split(/\s*(?:,|;|\band\b|\bthen\b)\s*/i).filter(Boolean);
+  if (clauses.length > 1 && clauses.every((clause) => (clause.match(/\bfor\b/gi) || []).length === 1)) {
+    if (clauses.length > 5) return [];
+    const projected = { ...context, player_states: (context.player_states || []).map((state) => ({ ...state })) };
+    const suggestions = [];
+    const used = new Set();
+    for (const clause of clauses) {
+      const proposal = namedSubstitution(/\b(?:sub|substitute|swap|replace|in for)\b/i.test(clause)
+        ? clause : `sub ${clause}`, projected);
+      if (proposal?.length !== 1) return [];
+      const swap = proposal[0];
+      if (used.has(swap.incoming_player_id) || used.has(swap.outgoing_player_id)) return [];
+      const incoming = projected.player_states.find((state) => state.player_id === swap.incoming_player_id);
+      const outgoing = projected.player_states.find((state) => state.player_id === swap.outgoing_player_id);
+      if (!incoming || !outgoing) return [];
+      suggestions.push(swap);
+      used.add(swap.incoming_player_id); used.add(swap.outgoing_player_id);
+      incoming.status = "field"; incoming.position_id = outgoing.position_id; incoming.position_group = outgoing.position_group;
+      outgoing.status = "bench"; outgoing.position_id = null; outgoing.position_group = null;
+    }
+    return suggestions;
+  }
   const normalized = clean.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
     .replace(/^(?:sub|substitute) in (.+?) for (.+)$/, "$1 in for $2");
   const markers = [...normalized.matchAll(/\bin for\b/g)];
@@ -312,6 +334,20 @@ function proposedMatchAction(question, context) {
     { type: "injury", player_id: player.id };
 }
 
+function proposedClockAction(question, context) {
+  if (question.includes("?") || /^\s*(?:how|when|why|what|can|could|should|would|is|has)\b/i.test(question)) return null;
+  const status = context.match.status;
+  const text = question.trim().toLowerCase();
+  if (/\b(?:end|finish|stop|complete)\s+(?:the\s+)?(?:match|game)\b/.test(text))
+    return ["in_progress", "paused", "half_time"].includes(status) ? { type: "end", expected_status: status } : null;
+  if (/\b(?:go to|start|begin|enter|call)\s+half[ -]?time\b|\bhalf[ -]?time\s+(?:now|please)\b/.test(text))
+    return status === "in_progress" && context.settings?.number_of_halves !== 1 && context.match.current_half !== 2
+      ? { type: "half_time", expected_status: status } : null;
+  if (/\b(?:pause|freeze)\s+(?:the\s+)?(?:match|game|clock|timer)\b/.test(text))
+    return status === "in_progress" ? { type: "pause", expected_status: status } : null;
+  return null;
+}
+
 function undoEventType(question) {
   if (!/\b(?:undo|revert|remove|delete|erase|cancel)\b|\b(?:take back|get rid of)\b/i.test(question)) return null;
   const types = [
@@ -426,6 +462,9 @@ export default async function handler(req, res) {
     const undoType = undoEventType(question);
     if (undoType) return send(res, 200, { answer: "Review the last matching match event before undoing it.",
       substitutions: [], goal: null, matchAction: null, undo: { event_type: undoType } });
+    const clockAction = proposedClockAction(question, context);
+    if (clockAction) return send(res, 200, { answer: "Review the match clock change before applying it.",
+      substitutions: [], goal: null, matchAction: null, clockAction });
     if (!process.env.GEMINI_API_KEY) return send(res, 503, { error: "Match assistant is not configured yet." });
     if (/\bwho\s+(?:has\s+)?scored\b|\bwho\s+(?:has\s+)?scored?\s+(?:the\s+)?goals?\b/i.test(question)) {
       return send(res, 200, { answer: recordedScorers(context), substitutions: [], goal: null, matchAction: null });
