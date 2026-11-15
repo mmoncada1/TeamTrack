@@ -26,15 +26,20 @@ test("loads the function and answers an unsupported method with JSON", async () 
   assert.deepEqual(res.body, { error: "Method not allowed." });
 });
 
-async function ask(modelAnswer, question = "Who should I sub in?", matchContext = context) {
+async function ask(modelAnswer, question = "Who should I sub in?", matchContext = context, options = {}) {
   const oldFetch = globalThis.fetch;
   const oldKey = process.env.GEMINI_API_KEY;
   let request;
+  const requests = [];
   globalThis.fetch = async (url, options) => {
     if (url.includes("supabase.co")) return mockResponse([{ id: context.match.team_id }]);
     request = JSON.parse(options.body);
-    return mockResponse({ steps: [{ type: "model_output", content: [{ type: "text", text: JSON.stringify(modelAnswer) }] }] });
+    requests.push(request);
+    const output = request.response_format.schema.properties.normalized_command
+      ? optionsForInterpretation : modelAnswer;
+    return mockResponse({ steps: [{ type: "model_output", content: [{ type: "text", text: JSON.stringify(output) }] }] });
   };
+  const optionsForInterpretation = options.interpretation || { normalized_command: question, confident: false };
   process.env.GEMINI_API_KEY = "test-key";
   const res = {
     statusCode: 0,
@@ -43,8 +48,9 @@ async function ask(modelAnswer, question = "Who should I sub in?", matchContext 
     json(body) { this.body = body; return this; },
   };
   try {
-    await handler({ method: "POST", headers: { authorization: "Bearer test-token" }, body: { question, context: matchContext } }, res);
-    return { res, request };
+    await handler({ method: "POST", headers: { authorization: "Bearer test-token" },
+      body: { question, context: matchContext, fromVoice: options.fromVoice === true } }, res);
+    return { res, request, requests };
   } finally {
     globalThis.fetch = oldFetch;
     if (oldKey === undefined) delete process.env.GEMINI_API_KEY;
@@ -99,6 +105,85 @@ test("respects a spoken sub-out command", async () => {
 test("tolerates a small speech recognition error in a player name", async () => {
   const { res } = await ask({ answer: "Review the substitution." }, "Samm in for Alex");
   assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
+});
+
+test("interprets misheard roster names and substitution words for voice commands", async () => {
+  const roster = { ...context,
+    players: [{ id: "kaleigh", name: "Kaleigh" }, { id: "alexis", name: "Alexis" }],
+    player_states: [
+      { player_id: "kaleigh", status: "bench", position_id: null },
+      { player_id: "alexis", status: "field", position_id: "mid" },
+    ],
+  };
+  for (const transcript of ["Sub in Kaylee for Alexis", "Tub in Kaylee for Alexis", "Can you tub in Kaylee for Alexis?"]) {
+    const { res, requests } = await ask({ answer: "Review the swap." }, transcript, roster, {
+      fromVoice: true, interpretation: { normalized_command: "Sub Kaleigh in for Alexis", confident: true },
+    });
+    assert.deepEqual(res.body.substitutions,
+      [{ incoming_player_id: "kaleigh", outgoing_player_id: "alexis", position_id: "mid" }], transcript);
+    assert.equal(res.body.interpretedQuestion, "Sub Kaleigh in for Alexis");
+    assert.equal(requests.length, 1);
+    assert.match(requests[0].input, /Kaleigh.*bench/);
+    assert.match(requests[0].input, /Alexis.*field/);
+  }
+  const typed = await ask({ answer: "No swap." }, "Tub in Kaylee for Alexis", roster);
+  assert.equal(typed.requests.length, 1);
+  assert.deepEqual(typed.res.body.substitutions, []);
+  const uncertain = await ask({ answer: "Review." }, "Tub in Kaylee for Alexis", roster, {
+    fromVoice: true, interpretation: { normalized_command: "", confident: false },
+  });
+  assert.deepEqual(uncertain.res.body.substitutions, []);
+  assert.match(uncertain.res.body.answer, /couldn't confidently match/);
+  const advice = await ask({ answer: "Review." }, "Who should I sub in?", roster, { fromVoice: true });
+  assert.equal(advice.requests.length, 1);
+});
+
+test("interprets a misheard scorer but still requires the scorer on the field", async () => {
+  const roster = { ...context,
+    players: [{ id: "kaleigh", name: "Kaleigh" }, { id: "alexis", name: "Alexis" }],
+    player_states: [
+      { player_id: "kaleigh", status: "field", position_id: "mid" },
+      { player_id: "alexis", status: "field", position_id: "def" },
+    ],
+  };
+  const { res } = await ask({ answer: "Review." }, "Kaylee scored by Alexis", roster, {
+    fromVoice: true, interpretation: { normalized_command: "Kaleigh scored by Alexis", confident: true },
+  });
+  assert.deepEqual(res.body.goal, { team: "us", scorer_id: "kaleigh", assister_id: "alexis" });
+  const benched = await ask({ answer: "Review." }, "Kaylee scored by Alexis", {
+    ...roster, player_states: [{ player_id: "kaleigh", status: "bench" }, roster.player_states[1]],
+  }, { fromVoice: true, interpretation: { normalized_command: "Kaleigh scored by Alexis", confident: true } });
+  assert.equal(benched.res.body.goal, null);
+});
+
+test("uses roster spelling for a spoken card command", async () => {
+  const roster = { ...context,
+    players: [{ id: "kaleigh", name: "Kaleigh" }],
+    player_states: [{ player_id: "kaleigh", status: "field", position_id: "mid" }],
+  };
+  const { res } = await ask({ answer: "Review." }, "Kaylee got a yellow card", roster, {
+    fromVoice: true, interpretation: { normalized_command: "Kaleigh got a yellow card", confident: true },
+  });
+  assert.deepEqual(res.body.matchAction, { type: "card", player_id: "kaleigh", color: "yellow" });
+});
+
+test("does not propose an AI-interpreted swap with reversed field and bench roles", async () => {
+  const roster = { ...context,
+    players: [{ id: "kaleigh", name: "Kaleigh" }, { id: "alexis", name: "Alexis" }],
+    player_states: [
+      { player_id: "kaleigh", status: "bench", position_id: null },
+      { player_id: "alexis", status: "field", position_id: "mid" },
+    ],
+  };
+  const { res } = await ask({ answer: "Review." }, "Tub in Alexis for Kaylee", roster, {
+    fromVoice: true, interpretation: { normalized_command: "Sub Alexis in for Kaleigh", confident: true },
+  });
+  assert.deepEqual(res.body.substitutions, []);
+  const exactNames = await ask({ answer: "Review." }, "Sub Alexis for Kaleigh", roster, {
+    fromVoice: true, interpretation: { normalized_command: "Sub Kaleigh in for Alexis", confident: true },
+  });
+  assert.deepEqual(exactNames.res.body.substitutions, []);
+  assert.equal(exactNames.requests.length, 1);
 });
 
 test("plans all named swaps in a spoken batch, in order", async () => {

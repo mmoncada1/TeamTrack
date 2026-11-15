@@ -181,7 +181,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
         response = await fetch("/api/match-assistant", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ question: prompt, context }), signal: controller.signal,
+          body: JSON.stringify({ question: prompt, context, fromVoice }), signal: controller.signal,
         });
       } finally {
         clearTimeout(timer);
@@ -199,6 +199,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
         throw new Error("This server does not serve the match assistant API. Run `npx vercel dev` and open the URL it prints.");
       }
       if (!response.ok) throw new Error(result.error || `The match assistant returned HTTP ${response.status}.`);
+      if (fromVoice && result.interpretedQuestion) setQuestion(result.interpretedQuestion);
       setAnswer(result.answer);
       const suggestions = Array.isArray(result.substitutions)
         ? result.substitutions : result.substitution ? [result.substitution] : [];
@@ -206,7 +207,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
         const next = suggestions.map((item) => ({ ...item, match_id: game.id }));
         voiceRequest.current = fromVoice && next.length > 0;
         setProposals(next);
-        if (/\bqueue\b/i.test(prompt) && next.length && onQueueSubstitutions) {
+        if (/\bqueue\b/i.test(result.interpretedQuestion || prompt) && next.length && onQueueSubstitutions) {
           const result = onQueueSubstitutions(next);
           if (result) setDialogError(result);
           else { setProposals([]); setAnswer(`${next.length} substitution${next.length === 1 ? "" : "s"} queued. Apply them when they happen.`); }
