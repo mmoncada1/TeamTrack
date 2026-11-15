@@ -268,7 +268,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
           if (!event) setAnswer("No matching recorded event was found to undo.");
           else {
             const name = (id) => players.find((player) => player.id === id)?.name || "Unknown player";
-            const description = event.type === "GOAL" ? `Goal by ${event.data?.scorer_id ? name(event.data.scorer_id) : event.data?.team === "opponent" ? game.opponent_name : game.team_name}` :
+            const description = event.type === "GOAL" ? event.data?.is_own_goal ? `Own goal by ${name(event.data.scorer_id)}` : `Goal by ${event.data?.scorer_id ? name(event.data.scorer_id) : event.data?.team === "opponent" ? game.opponent_name : game.team_name}` :
               event.type === "SUBSTITUTION" ? `Substitution: ${name(event.data?.player_in_id)} for ${name(event.data?.player_out_id)}` :
               event.type === "CARD" ? `${event.data?.color || ""} card for ${name(event.data?.player_id)}` :
               `Injury for ${name(event.data?.player_id)}`;
@@ -523,9 +523,9 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     </div></div>}
     {goalProposal && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review proposed goal">
       <h3>Review goal</h3>
-      <p>{goalProposal.team === "opponent" ? `${game.opponent_name} scored` : `${players.find((player) => player.id === goalProposal.scorer_id)?.name || "Unknown player"} scored`}
+      <p>{goalProposal.is_own_goal ? `${players.find((player) => player.id === goalProposal.scorer_id)?.name || "Unknown player"} scored an own goal for ${game.opponent_name}` : goalProposal.team === "opponent" ? `${game.opponent_name} scored` : `${players.find((player) => player.id === goalProposal.scorer_id)?.name || "Unknown player"} scored`}
         {goalProposal.assister_id ? ` · Assisted by ${players.find((player) => player.id === goalProposal.assister_id)?.name || "Unknown player"}` : ""}</p>
-      <p>Score: {summary.team_score}–{summary.opponent_score} → {summary.team_score + (goalProposal.team === "us" ? 1 : 0)}–{summary.opponent_score + (goalProposal.team === "opponent" ? 1 : 0)}</p>
+      <p>Score: {summary.team_score}–{summary.opponent_score} → {summary.team_score + (goalProposal.team === "us" && !goalProposal.is_own_goal ? 1 : 0)}–{summary.opponent_score + (goalProposal.team === "opponent" || goalProposal.is_own_goal ? 1 : 0)}</p>
       <CountdownNotice seconds={countdown ?? (game.settings?.assistant_accept_seconds || 5)} action="recording this goal" />
       {(goalProposal.team_score !== summary.team_score || goalProposal.opponent_score !== summary.opponent_score) &&
         <p className="match-assistant-stale">The score changed. Ask again before recording this goal.</p>}

@@ -51,7 +51,10 @@ def event_label(event: any, players: list[any]) -> str {
     if event.type == "HALF_TIME" { return "Half time"; }
     if event.type == "SECOND_HALF_STARTED" { return "Second half started"; }
     if event.type == "MATCH_ENDED" { return "Match ended"; }
-    if event.type == "GOAL" { return ("Goal — " + player_name(players, event.data["scorer_id"])) if "scorer_id" in event.data and event.data["scorer_id"] else "Goal — " + ("TeamTrack" if event.data["team"] == "us" else "Opponent"); }
+    if event.type == "GOAL" {
+        if event.data.get("is_own_goal") { return "Own goal — " + player_name(players, event.data.get("scorer_id")); }
+        return ("Goal — " + player_name(players, event.data["scorer_id"])) if "scorer_id" in event.data and event.data["scorer_id"] else "Goal — " + ("TeamTrack" if event.data["team"] == "us" else "Opponent");
+    }
     if event.type == "CARD" { return event.data["color"].capitalize() + " card — " + player_name(players, event.data["player_id"]); }
     if event.type == "SUBSTITUTION" { return "Substitution — " + player_name(players, event.data["player_in_id"]) + " for " + player_name(players, event.data["player_out_id"]); }
     if event.type == "PLAYER_MOVED" { return "Moved " + player_name(players, event.data["player_id"]); }
@@ -284,7 +287,7 @@ def:pub LiveMatchPage() -> JsxPage {
         if assister and (assister not in derived.player_states or derived.player_states[assister].status != "field") {
             return "The assister is no longer on the field. Ask TeamTrack again.";
         }
-        try { return "" if apply(record_goal_action(game, team_value, False, scorer, assister, None, int(Date.now()))) else action_error; }
+        try { return "" if apply(record_goal_action(game, team_value, bool(proposal.get("is_own_goal")), scorer, assister, None, int(Date.now()))) else action_error; }
         except Exception { return "Could not record this goal. Please use the goal form."; }
     }
     def accept_ai_match_action(proposal: any) -> str {

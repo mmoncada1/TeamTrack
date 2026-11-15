@@ -75,6 +75,16 @@ test "records edits deletes and undoes goals deterministically" {
     assert derive_match_state(game, 150_000).opponent_score == 0;
 }
 
+test "an own goal credits the opponent without a player goal" {
+    game = start_match(sample_game(), 0);
+    game = record_goal(game, "us", True, "fwd", None, None, 60_000);
+    state = derive_match_state(game, 90_000);
+    assert state.team_score == 0 and state.opponent_score == 1;
+    assert state.player_states["fwd"].goals == 0;
+    assert game.events[-1].data["is_own_goal"];
+    assert game.events[-1].data["scorer_id"] == "fwd";
+}
+
 test "assistant undo replays the latest goal without losing later substitutions" {
     game = start_match(sample_game(), 0);
     game = record_goal(game, "us", False, "fwd", None, None, 60_000);

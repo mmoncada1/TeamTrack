@@ -463,6 +463,11 @@ test("proposes scorer and optional assist from common goal wording", async () =>
   }
   const { res } = await ask({ answer: "Goal." }, "Katie scored", goalContext);
   assert.deepEqual(res.body.goal, { team: "us", scorer_id: "katie", assister_id: null });
+  for (const phrase of ["Matteo scored an own goal", "Own goal by Matteo"]) {
+    const own = await ask({ answer: "Goal." }, phrase, goalContext, { fromVoice: true });
+    assert.deepEqual(own.res.body.goal,
+      { team: "us", is_own_goal: true, scorer_id: "matteo", assister_id: null }, phrase);
+  }
   const opponent = await ask({ answer: "Goal." }, "Opponent scored", goalContext);
   assert.deepEqual(opponent.res.body.goal, { team: "opponent", scorer_id: null, assister_id: null });
   const againstOpponent = await ask({ answer: "Goal." }, "Katie scored against the opponent", goalContext);

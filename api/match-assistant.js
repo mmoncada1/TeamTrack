@@ -233,6 +233,7 @@ function proposedGoal(question, context) {
     return { team: "opponent", scorer_id: null, assister_id: null };
   }
   const players = Array.isArray(context.players) ? context.players : [];
+  const ownGoal = /\bown\s+goal\b/i.test(question);
   const fieldIds = new Set((context.player_states || []).filter((state) => state.status === "field")
     .map((state) => state.player_id));
   const normalize = (value) => value.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
@@ -275,12 +276,14 @@ function proposedGoal(question, context) {
   const goalBy = /\bgoal\s+(?:by|from)\s+/.exec(text);
   const scorerPart = score ? (text.slice(0, score.index).trim() ||
     text.slice(score.index + score[0].length).replace(/^\s*by\s+/, "").split(/\b(?:assisted?|passed?|pass|set up)\b/)[0]) :
-    goalBy ? text.slice(goalBy.index + goalBy[0].length).split(/\b(?:assisted?|passed?|pass|set up)\b/)[0] : "";
+    goalBy ? text.slice(goalBy.index + goalBy[0].length).split(/\b(?:assisted?|passed?|pass|set up)\b/)[0] :
+    ownGoal ? text.split(/\bown\s+goal\b/)[0].trim() : "";
   const scorerId = resolve(scorerPart);
   if (!scorerId) return null;
   const onField = (id) => (context.player_states || []).some((state) =>
     state.player_id === id && state.status === "field");
   if (!onField(scorerId)) return null;
+  if (ownGoal) return { team: "us", is_own_goal: true, scorer_id: scorerId, assister_id: null };
   const afterScore = score ? text.slice(score.index + score[0].length) :
     goalBy ? text.slice(goalBy.index + goalBy[0].length) : "";
   const assistMatch = /\b(?:assisted?\s+by|assist\s+from|passed?\s+by|pass\s+from|set\s+up\s+by|by)\s+/.exec(afterScore);
