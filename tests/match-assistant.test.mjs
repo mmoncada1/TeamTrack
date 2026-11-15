@@ -255,8 +255,10 @@ test("an open ended question proposes every player past the configured stint lim
   const early = { ...timed, player_states: timed.player_states.map((state) =>
     state.status === "field" ? { ...state, current_stint_ms: 300000 } : state) };
   const { res } = await ask({ answer: "Consider rotating players." }, "How many subs should I make?", early);
-  assert.deepEqual(res.body.substitutions, []);
-  assert.match(res.body.answer, /No player has reached/);
+  assert.equal(res.body.substitutions.length, 1);
+  assert.match(res.body.answer, /1 valid substitution/);
+  const direct = await ask({ answer: "Consider rotating players." }, "Who should I sub in?", early);
+  assert.equal(direct.res.body.substitutions.length, 1);
 });
 
 test("stops a batch before a combined coed violation", async () => {

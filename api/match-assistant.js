@@ -173,7 +173,6 @@ function suggestSubstitutions(context, limit, eligibleIds = null) {
 }
 
 function substitutionAnswer(substitutions, context, requested) {
-  if (requested === 0) return "No player has reached an enabled substitution time limit yet.";
   if (!substitutions.length) return "I couldn't find a valid field-to-bench substitution in the current lineup.";
   const names = substitutions.map((suggestion) => {
     const incoming = context.players.find((player) => player.id === suggestion.incoming_player_id)?.name || "bench player";
@@ -301,7 +300,7 @@ export default async function handler(req, res) {
     const dueIds = substitutionQuestion && explicitCount === null ? duePlayerIds(context) : null;
     const hasThresholds = context.settings?.thresholds && Object.keys(context.settings.thresholds).length > 0;
     const named = substitutionQuestion ? namedSubstitution(question, context) : null;
-    const requestedCount = substitutionQuestion ? (named ? 1 : explicitCount ?? (hasThresholds ? Math.min(5, dueIds.size) : 1)) : 0;
+    const requestedCount = substitutionQuestion ? (named ? 1 : explicitCount ?? (hasThresholds ? Math.max(1, Math.min(5, dueIds.size)) : 1)) : 0;
     const substitutions = named ?? (substitutionQuestion && requestedCount ? suggestSubstitutions(context, requestedCount, dueIds?.size ? dueIds : null) : []);
     const goal = !substitutionQuestion ? proposedGoal(question, context) : null;
     const matchAction = !substitutionQuestion && !goal ? proposedMatchAction(question, context) : null;
