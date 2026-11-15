@@ -94,6 +94,33 @@ test("sub in names the requested outgoing player even when another player has wa
   assert.match(res.body.answer, /Jude for Audrey/);
 });
 
+test("queue and Q sub commands propose only the named swap", async () => {
+  const named = { ...context,
+    settings: { thresholds: { MID: { enabled: true, minutes: 1 }, DEF: { enabled: true, minutes: 1 } } },
+    players: [
+      { id: "jude", name: "Jude" }, { id: "lauren", name: "Lauren" },
+      { id: "spencer", name: "Spencer" }, { id: "kaleigh", name: "Kaleigh" },
+    ],
+    player_states: [
+      { player_id: "jude", status: "bench" },
+      { player_id: "lauren", status: "field", position_id: "mid", position_group: "MID", current_stint_ms: 600000 },
+      { player_id: "spencer", status: "bench" },
+      { player_id: "kaleigh", status: "field", position_id: "def", position_group: "DEF", current_stint_ms: 600000 },
+    ],
+  };
+  const expected = [{ incoming_player_id: "jude", outgoing_player_id: "lauren", position_id: "mid" }];
+  for (const phrase of ["Queue sub Jude for Lauren", "Q sub Jude for Lauren"]) {
+    const { res } = await ask({ answer: "Review the swap." }, phrase, named, { fromVoice: true });
+    assert.deepEqual(res.body.substitutions, expected, phrase);
+  }
+  const unclear = await ask({ answer: "Review the swap." }, "Queue sub Jude for Laura", named);
+  assert.deepEqual(unclear.res.body.substitutions, []);
+  assert.match(unclear.res.body.answer, /couldn't match both named players/i);
+  const missingFor = await ask({ answer: "Review the swap." }, "Q sub Jude Lauren", named);
+  assert.deepEqual(missingFor.res.body.substitutions, []);
+  assert.match(missingFor.res.body.answer, /couldn't match both named players/i);
+});
+
 test("respects a spoken sub-out command", async () => {
   const { res } = await ask({ answer: "Review the substitution." }, "Sub out Alex");
   assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);

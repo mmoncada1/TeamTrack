@@ -28,7 +28,8 @@ function isSubstitutionQuestion(question) {
 
 function namedSubstitution(question, context) {
   const clean = question.trim().replace(/[.!?]+$/, "")
-    .replace(/^(?:(?:can|could|would) you\s+)?(?:please\s+)?/i, "");
+    .replace(/^(?:(?:can|could|would) you\s+)?(?:please\s+)?/i, "")
+    .replace(/^(?:queue|q)\s+/i, "");
   const normalized = clean.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
     .replace(/^(?:sub|substitute) in (.+?) for (.+)$/, "$1 in for $2");
   const markers = [...normalized.matchAll(/\bin for\b/g)];
@@ -421,17 +422,21 @@ export default async function handler(req, res) {
     }
     const substitutionQuestion = isSubstitutionQuestion(command);
     const explicitCount = requestedSubstitutionCount(command);
-    const dueIds = substitutionQuestion && explicitCount === null ? duePlayerIds(context) : null;
-    const hasThresholds = context.settings?.thresholds && Object.keys(context.settings.thresholds).length > 0;
     const named = substitutionQuestion ? namedSubstitution(command, context) : null;
-    const requestedCount = substitutionQuestion ? (named ? 1 : explicitCount ?? (hasThresholds ? Math.max(1, Math.min(5, dueIds.size)) : 1)) : 0;
-    const substitutions = named ?? (substitutionQuestion && requestedCount ? suggestSubstitutions(context, requestedCount, dueIds?.size ? dueIds : null) : []);
+    const namedRequest = substitutionQuestion && explicitCount === null &&
+      (/\bfor\b/i.test(command) || (!named && exactRosterNameCount(command, context) > 0));
+    const batchRequest = /\b(?:subs|substitutions|swaps)\b/i.test(command) &&
+      /\b(?:best|what|which|how many|all|queue|make)\b/i.test(command);
+    const dueIds = substitutionQuestion && explicitCount === null && !namedRequest && batchRequest ? duePlayerIds(context) : null;
+    const hasThresholds = context.settings?.thresholds && Object.keys(context.settings.thresholds).length > 0;
+    const requestedCount = substitutionQuestion ? (named || namedRequest ? 1 : explicitCount ?? (hasThresholds && batchRequest ? Math.max(1, Math.min(5, dueIds.size)) : 1)) : 0;
+    const substitutions = named ?? (namedRequest ? [] : substitutionQuestion && requestedCount ? suggestSubstitutions(context, requestedCount, dueIds?.size ? dueIds : null) : []);
     const goal = !substitutionQuestion ? proposedGoal(command, context) : null;
     const matchAction = !substitutionQuestion && !goal ? proposedMatchAction(command, context) : null;
     if (interpretationAttempted && (substitutionQuestion || goal || matchAction)) {
       const answer = matchAction ? "Review the proposed match action before it is recorded." :
         goal ? "Review the proposed goal before it changes the score." :
-        named && !named.length ? "I couldn't match both named players to the current bench and field. Check the lineup and try again." :
+        namedRequest && !substitutions.length ? "I couldn't match both named players to the current bench and field. Check the lineup and try again." :
         substitutionAnswer(substitutions, context, requestedCount);
       return send(res, 200, { answer, substitutions, goal, matchAction, interpretedQuestion: command });
     }
@@ -489,7 +494,7 @@ export default async function handler(req, res) {
     const message = matchAction ? "Review the proposed match action before it is recorded." :
       goal ? `Review the proposed goal before it changes the score.` :
       goalStatement && !substitutionQuestion ? "I couldn't identify the scorer and assist with confidence. Please use the goal form or rephrase with player names." : substitutionQuestion
-      ? substitutionAnswer(substitutions, context, requestedCount)
+      ? namedRequest && !substitutions.length ? "I couldn't match both named players to the current bench and field. Check the lineup and try again." : substitutionAnswer(substitutions, context, requestedCount)
       : typeof parsed.answer === "string" ? parsed.answer.trim() : "";
     const shortAnswer = message.length > 500 ? `${message.slice(0, 497).trimEnd()}…` : message;
     return send(res, 200, { answer: shortAnswer || "I could not answer from the available match data.", substitutions, goal, matchAction,

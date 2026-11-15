@@ -18,6 +18,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   const [transcribing, setTranscribing] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [proposals, setProposals] = useState([]);
+  const [queueRequested, setQueueRequested] = useState(false);
   const [goalProposal, setGoalProposal] = useState(null);
   const [matchAction, setMatchAction] = useState(null);
   const [dialogError, setDialogError] = useState("");
@@ -28,7 +29,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   const busyRef = useRef(false);
   const acceptLatest = useRef(null);
   acceptLatest.current = () => {
-    if (proposals.length) acceptProposals(proposals);
+    if (proposals.length) { if (queueRequested) queueProposals(proposals); else acceptProposals(proposals); }
     else if (goalProposal) acceptGoal();
     else if (matchAction) acceptMatchAction();
   };
@@ -144,6 +145,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     setError("");
     setAnswer("");
     setProposals([]);
+    setQueueRequested(false);
     setGoalProposal(null);
     setMatchAction(null);
     setDialogError("");
@@ -229,12 +231,9 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
         ? result.substitutions : result.substitution ? [result.substitution] : [];
       if (onAcceptSubstitutions) {
         const next = suggestions.map((item) => ({ ...item, match_id: game.id }));
+        setQueueRequested(Boolean(next.length && onQueueSubstitutions &&
+          /^\s*(?:please\s+)?(?:q|queue)\b/i.test(`${prompt} ${result.interpretedQuestion || ""}`)));
         setProposals(next);
-        if (/\bqueue\b/i.test(result.interpretedQuestion || prompt) && next.length && onQueueSubstitutions) {
-          const result = onQueueSubstitutions(next);
-          if (result) setDialogError(result);
-          else { setProposals([]); setAnswer(`${next.length} substitution${next.length === 1 ? "" : "s"} queued. Apply them when they happen.`); }
-        }
       }
       if (onAcceptGoal && result.goal) setGoalProposal({ ...result.goal, match_id: game.id,
         team_score: summary.team_score, opponent_score: summary.opponent_score });
@@ -475,7 +474,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     </div></div>}
     {proposals.length > 0 && <div className="match-assistant-dialog-backdrop"><div ref={dialog} className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Suggested substitutions">
       <h3>Suggested substitutions</h3>
-      <CountdownNotice seconds={countdown ?? (game.settings?.assistant_accept_seconds || 5)} action={proposals.length === 1 ? "accepting this substitution" : "accepting these substitutions"} />
+      <CountdownNotice seconds={countdown ?? (game.settings?.assistant_accept_seconds || 5)} action={queueRequested ? `queueing ${proposals.length === 1 ? "this substitution" : "these substitutions"}` : `recording ${proposals.length === 1 ? "this substitution" : "these substitutions"}`} />
       {answer && <p>{answer}</p>}
       <ol className="match-assistant-proposals">{proposals.map((proposal) => {
         const incoming = players.find((player) => player.id === proposal.incoming_player_id);
@@ -489,16 +488,16 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
           <span className="match-assistant-stint">{outgoing?.name || "Outgoing player"} on field: {minutes(fieldMs)} · {incoming?.name || "Incoming player"} on bench: {minutes(benchMs)}</span>
           {!current && <span className="match-assistant-stale">Lineup changed or field locked. Ask again for this swap.</span>}
           <div className="match-assistant-dialog-actions">
-            <button className="button primary" type="button" disabled={!current} onClick={() => acceptProposals([proposal])}>Accept</button>
-            {onQueueSubstitutions && <button className="button secondary" type="button" disabled={!proposalCurrent(proposal, false)} onClick={() => queueProposals([proposal])}>Queue for later</button>}
+            <button className="button primary" type="button" disabled={queueRequested ? !proposalCurrent(proposal, false) : !current} onClick={() => queueRequested ? queueProposals([proposal]) : acceptProposals([proposal])}>{queueRequested ? "Accept and queue" : "Accept"}</button>
+            {!queueRequested && onQueueSubstitutions && <button className="button secondary" type="button" disabled={!proposalCurrent(proposal, false)} onClick={() => queueProposals([proposal])}>Queue for later</button>}
             <button className="button secondary" type="button" onClick={() => setProposals((items) => items.filter((item) => item !== proposal))}>Reject</button>
           </div>
         </li>;
       })}</ol>
       {dialogError && <p role="alert" className="match-assistant-error">{dialogError}</p>}
       <div className="match-assistant-dialog-actions">
-        {proposals.length > 1 && <button className="button primary" type="button" disabled={!proposals.every((item) => proposalCurrent(item))} onClick={() => acceptProposals(proposals)}>Accept all {proposals.length}</button>}
-        {proposals.length > 1 && onQueueSubstitutions && <button className="button secondary" type="button" disabled={!proposals.every((item) => proposalCurrent(item, false))} onClick={() => queueProposals(proposals)}>Queue all {proposals.length}</button>}
+        {proposals.length > 1 && <button className="button primary" type="button" disabled={!proposals.every((item) => proposalCurrent(item, !queueRequested))} onClick={() => queueRequested ? queueProposals(proposals) : acceptProposals(proposals)}>{queueRequested ? "Accept and queue all" : "Accept all"} {proposals.length}</button>}
+        {proposals.length > 1 && !queueRequested && onQueueSubstitutions && <button className="button secondary" type="button" disabled={!proposals.every((item) => proposalCurrent(item, false))} onClick={() => queueProposals(proposals)}>Queue all {proposals.length}</button>}
         <button className="button secondary" type="button" onClick={() => setProposals([])}>Reject all</button>
       </div>
     </div></div>}
