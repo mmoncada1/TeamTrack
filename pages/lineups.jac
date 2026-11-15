@@ -103,7 +103,7 @@ def:pub LineupsPage() -> JsxPage {
         </section>;
     }
 
-    <section className="page lineups-page"><div className="title-row"><div><h1>Lineups</h1><p className="muted">Build starting lineups ahead of time, then pick one when creating a match.</p></div><button className="button primary" onClick={start_new} disabled={not bool(active)}>+ New lineup</button></div>
+    <section className="page lineups-page"><div className="title-row"><div><h1>Lineups</h1><p className="muted">Build starting lineups ahead of time, then pick one when creating a match.</p></div><button className="button primary" onClick={start_new} disabled={not bool(active)}>New lineup</button></div>
         {<p className="empty-card">No saved lineups yet. Create one and it will be available when you set up a match.</p> if not team_lineups else None}
         <ul className="saved-lineups">{[<li key={lineup.id}><div><strong>{lineup.name}</strong><p>{lineup.format} · {formation_shape(lineup.formation_id)} · {len(lineup.assignments)} players</p><small>{", ".join([player_name(id) for id in lineup.assignments.values()])}</small></div><div><button className="button secondary small" onClick={lambda { start_edit(lineup); }}>Edit</button><button className="button ghost small" onClick={lambda { remove(lineup); }}>Delete</button></div></li> for lineup in team_lineups]}</ul>
     </section>
