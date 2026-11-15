@@ -450,6 +450,50 @@ def:pub delete_event(game: Match, event_id: str, now_ms: int) -> Match {
     return clone_match(game, [event for event in game.events if event.id != event_id], now_ms);
 }
 
+def:pub undo_recorded_event(game: Match, event_id: str, event_type: str, now_ms: int) -> Match {
+    if event_type not in ["GOAL", "SUBSTITUTION", "CARD", "PLAYER_UNAVAILABLE"] {
+        raise ValueError("This event cannot be undone by the assistant.");
+    }
+    latest_id = ""; target_index = -1;
+    for index in range(len(game.events)) {
+        event = game.events[index];
+        if event.type == event_type { latest_id = event.id; target_index = index; }
+    }
+    if not latest_id or latest_id != event_id { raise ValueError("The match history changed. Ask TeamTrack again."); }
+    if event_type != "GOAL" {
+        dependent = ["SUBSTITUTION", "PLAYER_MOVED", "PLAYERS_SWAPPED", "FORMATION_CHANGED",
+            "PLAYER_JOINED", "PLAYER_UNAVAILABLE", "PLAYER_AVAILABLE", "PLAYER_REMOVED", "CARD"];
+        for event in game.events[target_index + 1:] {
+            if event.type in dependent { raise ValueError("A later lineup change depends on this event. Undo that change first."); }
+        }
+    }
+    return clone_match(game, [event for event in game.events if event.id != event_id], now_ms);
+}
+
+def:pub unrecord_substitution_batch(game: Match, event_ids: list[str], now_ms: int) -> Match {
+    if not event_ids or len(event_ids) > 5 { raise ValueError("Select one to five recorded substitutions."); }
+    selected = [event for event in game.events if event.id in event_ids];
+    if len(selected) != len(event_ids) or any([event.type != "SUBSTITUTION" for event in selected]) or
+        [event.id for event in selected] != event_ids {
+        raise ValueError("The substitution history changed. Ask TeamTrack again.");
+    }
+    latest = [event for event in game.events if event.type == "SUBSTITUTION"];
+    if [event.id for event in latest[-len(event_ids):]] != event_ids or
+        any([event.timestamp != selected[0].timestamp for event in selected]) {
+        raise ValueError("Those substitutions are not the latest recorded batch.");
+    }
+    first_index = -1;
+    for index in range(len(game.events)) { if game.events[index].id == event_ids[0] { first_index = index; break; } }
+    dependent = ["SUBSTITUTION", "PLAYER_MOVED", "PLAYERS_SWAPPED", "FORMATION_CHANGED",
+        "PLAYER_JOINED", "PLAYER_UNAVAILABLE", "PLAYER_AVAILABLE", "PLAYER_REMOVED", "CARD"];
+    for event in game.events[first_index + 1:] {
+        if event.type in dependent and event.id not in event_ids {
+            raise ValueError("A later lineup change depends on these substitutions. Undo it first.");
+        }
+    }
+    return clone_match(game, [event for event in game.events if event.id not in event_ids], now_ms);
+}
+
 def:pub can_undo(game: Match) -> bool {
     reversible = ["PLAYER_MOVED", "PLAYERS_SWAPPED", "SUBSTITUTION", "PLAYER_JOINED",
         "PLAYER_UNAVAILABLE", "PLAYER_AVAILABLE", "PLAYER_REMOVED", "GOAL", "CARD", "FORMATION_CHANGED"];

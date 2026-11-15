@@ -8,7 +8,7 @@ function CountdownNotice({ seconds, action }) {
   </div>;
 }
 
-export function MatchAssistant({ game, players, summary, derived, team, queuedSubs = [], onQueueSubstitutions, onApplyQueuedSubstitutions, onAcceptSubstitutions, onAcceptGoal, onAcceptMatchAction, fieldLocked = false }) {
+export function MatchAssistant({ game, players, summary, derived, team, queuedSubs = [], onQueueSubstitutions, onApplyQueuedSubstitutions, onAcceptSubstitutions, onAcceptGoal, onAcceptMatchAction, onUndoEvent, onMoveRecordedSubsToQueue, fieldLocked = false }) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
@@ -21,6 +21,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   const [queueRequested, setQueueRequested] = useState(false);
   const [goalProposal, setGoalProposal] = useState(null);
   const [matchAction, setMatchAction] = useState(null);
+  const [undoProposal, setUndoProposal] = useState(null);
   const [dialogError, setDialogError] = useState("");
   const [countdown, setCountdown] = useState(null);
   const dialog = useRef(null);
@@ -32,6 +33,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     if (proposals.length) { if (queueRequested) queueProposals(proposals, true); else acceptProposals(proposals, true); }
     else if (goalProposal) acceptGoal(true);
     else if (matchAction) acceptMatchAction(true);
+    else if (undoProposal) acceptUndo(true);
   };
 
   useEffect(() => {
@@ -43,14 +45,14 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   }, []);
 
   useEffect(() => {
-    if (!proposals.length && !goalProposal && !matchAction) { setCountdown(null); return; }
+    if (!proposals.length && !goalProposal && !matchAction && !undoProposal) { setCountdown(null); return; }
     const seconds = Math.max(1, Math.floor(Number(game.settings?.assistant_accept_seconds) || 5));
     const deadline = Date.now() + seconds * 1000;
     setCountdown(seconds);
     const interval = setInterval(() => setCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000))), 200);
     const timeout = setTimeout(() => acceptLatest.current?.(), seconds * 1000);
     return () => { clearInterval(interval); clearTimeout(timeout); };
-  }, [proposals, goalProposal, matchAction, game.settings?.assistant_accept_seconds]);
+  }, [proposals, goalProposal, matchAction, undoProposal, game.settings?.assistant_accept_seconds]);
 
   useEffect(() => {
     if (!proposals.length) return;
@@ -138,6 +140,25 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     } catch (error) { setDialogError(error.message || "Could not record the action."); }
   }
 
+  function acceptUndo(fromTimer = false) {
+    const latest = game.events?.filter((event) => event.type === undoProposal?.event_type).at(-1);
+    const action = undoProposal?.mode === "queue" ? onMoveRecordedSubsToQueue : onUndoEvent;
+    if (!action || !latest || latest.id !== undoProposal?.event_id) {
+      setDialogError("The match history changed. Ask TeamTrack again.");
+      return;
+    }
+    try {
+      const result = action(undoProposal);
+      if (result) setDialogError(result);
+      else {
+        setUndoProposal(null);
+        setDialogError("");
+        setAnswer(undoProposal.mode === "queue" ? `${undoProposal.event_ids.length} recorded substitution${undoProposal.event_ids.length === 1 ? "" : "s"} moved to the queue.` : `${undoProposal.description} undone.`);
+        if (fromTimer === true) setQuestion("");
+      }
+    } catch (error) { setDialogError(error.message || "Could not undo that match event."); }
+  }
+
   async function submitPrompt(value, fromVoice = false) {
     const prompt = value.trim();
     if (!prompt || busyRef.current) return;
@@ -149,6 +170,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     setQueueRequested(false);
     setGoalProposal(null);
     setMatchAction(null);
+    setUndoProposal(null);
     setDialogError("");
     try {
       if (/\b(?:push|apply|record|make)\s+(?:this\s+|the\s+|next\s+|queued\s+|all\s+)*(?:subs?|substitutions?|swaps?)\b/i.test(prompt) && onApplyQueuedSubstitutions) {
@@ -239,6 +261,39 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       if (onAcceptGoal && result.goal) setGoalProposal({ ...result.goal, match_id: game.id,
         team_score: summary.team_score, opponent_score: summary.opponent_score });
       if (onAcceptMatchAction && result.matchAction) setMatchAction({ ...result.matchAction, match_id: game.id });
+      if (result.undo) {
+        if (!onUndoEvent) setAnswer("Open the live match page to undo a recorded event.");
+        else {
+          const event = game.events?.filter((item) => item.type === result.undo.event_type).at(-1);
+          if (!event) setAnswer("No matching recorded event was found to undo.");
+          else {
+            const name = (id) => players.find((player) => player.id === id)?.name || "Unknown player";
+            const description = event.type === "GOAL" ? `Goal by ${event.data?.scorer_id ? name(event.data.scorer_id) : event.data?.team === "opponent" ? game.opponent_name : game.team_name}` :
+              event.type === "SUBSTITUTION" ? `Substitution: ${name(event.data?.player_in_id)} for ${name(event.data?.player_out_id)}` :
+              event.type === "CARD" ? `${event.data?.color || ""} card for ${name(event.data?.player_id)}` :
+              `Injury for ${name(event.data?.player_id)}`;
+            setUndoProposal({ match_id: game.id, event_id: event.id, event_type: event.type, description });
+          }
+        }
+      }
+      if (result.moveToQueue) {
+        if (!onMoveRecordedSubsToQueue) setAnswer("Open the live match page to move recorded substitutions to the queue.");
+        else {
+          const subs = game.events?.filter((item) => item.type === "SUBSTITUTION") || [];
+          const latest = subs.at(-1);
+          const batch = latest ? subs.filter((item) => item.timestamp === latest.timestamp) : [];
+          const count = result.moveToQueue.count || batch.length;
+          if (!latest) setAnswer("There are no recorded substitutions to move to the queue.");
+          else if (count > batch.length) setAnswer(`The latest recorded batch contains only ${batch.length} substitution${batch.length === 1 ? "" : "s"}.`);
+          else {
+            const selected = batch.slice(-count);
+            const name = (id) => players.find((player) => player.id === id)?.name || "Unknown player";
+            const description = selected.map((item) => `${name(item.data?.player_in_id)} for ${name(item.data?.player_out_id)}`).join(", ");
+            setUndoProposal({ mode: "queue", match_id: game.id, event_id: latest.id, event_type: "SUBSTITUTION",
+              event_ids: selected.map((item) => item.id), description });
+          }
+        }
+      }
     } catch (err) {
       setError(err.name === "AbortError" ? "The assistant took too long. Please try again." : (err.message || "The assistant could not answer."));
     } finally {
@@ -446,6 +501,16 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     {listening && <p role="status">Recording… speak now. It stops after you finish, or tap the microphone to stop.</p>}
     {error && <p role="alert" className="match-assistant-error">{error}</p>}
     {answer && <div className="match-assistant-answer" aria-live="polite">{answer}</div>}
+    {undoProposal && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review undo">
+      <h3>{undoProposal.mode === "queue" ? "Move recorded substitutions to queue?" : "Undo recorded change?"}</h3>
+      <p>{undoProposal.description}</p>
+      <CountdownNotice seconds={countdown ?? (game.settings?.assistant_accept_seconds || 5)} action={undoProposal.mode === "queue" ? "moving these substitutions to the queue" : "undoing this change"} />
+      {dialogError && <p role="alert" className="match-assistant-error">{dialogError}</p>}
+      <div className="match-assistant-dialog-actions">
+        <button className="button primary" type="button" onClick={() => acceptUndo()}>{undoProposal.mode === "queue" ? "Move to queue" : "Undo change"}</button>
+        <button className="button secondary" type="button" onClick={() => { setUndoProposal(null); setDialogError(""); }}>Keep change</button>
+      </div>
+    </div></div>}
     {matchAction && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review match action">
       <h3>Review match action</h3>
       <p>{players.find((player) => player.id === matchAction.player_id)?.name || "Unknown player"}: {matchAction.type === "card" ? `${matchAction.color} card` : "mark injured"}</p>

@@ -309,6 +309,28 @@ function proposedMatchAction(question, context) {
     { type: "injury", player_id: player.id };
 }
 
+function undoEventType(question) {
+  if (!/\b(?:undo|revert|remove|delete|erase|cancel)\b|\b(?:take back|get rid of)\b/i.test(question)) return null;
+  const types = [
+    [/\b(?:goals?|scores?)\b/i, "GOAL"],
+    [/\b(?:subs?|substitutions?|swaps?)\b/i, "SUBSTITUTION"],
+    [/\b(?:cards?)\b/i, "CARD"],
+    [/\b(?:injur(?:y|ies)|injured)\b/i, "PLAYER_UNAVAILABLE"],
+  ].filter(([pattern]) => pattern.test(question));
+  return types.length === 1 ? types[0][1] : null;
+}
+
+function moveRecordedSubsToQueue(question) {
+  if (!/\b(?:queue|queued)\b/i.test(question) ||
+      !(/\b(?:subs?|substitutions?|swaps?)\b/i.test(question) ||
+        /\b(?:those|them|that)\b/i.test(question) && /\b(?:instead|meant|last)\b/i.test(question))) return null;
+  if (!/\b(?:last|those|them|that|instead|meant|recorded|accepted)\b/i.test(question)) return null;
+  const countMatch = /\b([1-5]|one|two|three|four|five)\s+(?:last\s+)?(?:subs?|substitutions?|swaps?)\b/i.exec(question) ||
+    /\blast\s+([1-5]|one|two|three|four|five)\s+(?:subs?|substitutions?|swaps?)\b/i.exec(question);
+  const count = countMatch ? ({ one: 1, two: 2, three: 3, four: 4, five: 5 }[countMatch[1].toLowerCase()] || Number(countMatch[1])) : null;
+  return { count: count || ( /\b(?:sub|substitution|swap)\b/i.test(question) ? 1 : null) };
+}
+
 const SUPABASE_URL = "https://agtdyrerqbuwfwimbttj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_7Hc6x5-_JGvimNXl2iMcig_shCj4LMq";
 
@@ -395,6 +417,12 @@ export default async function handler(req, res) {
     const signal = AbortSignal.timeout(25000);
     const teams = await supabase(`/rest/v1/teams?select=id&id=eq.${encodeURIComponent(teamId)}`, token, signal);
     if (!Array.isArray(teams) || teams.length !== 1) return send(res, 403, { error: "This team is unavailable." });
+    const moveToQueue = moveRecordedSubsToQueue(question);
+    if (moveToQueue) return send(res, 200, { answer: "Review the recorded substitutions before moving them to the queue.",
+      substitutions: [], goal: null, matchAction: null, moveToQueue });
+    const undoType = undoEventType(question);
+    if (undoType) return send(res, 200, { answer: "Review the last matching match event before undoing it.",
+      substitutions: [], goal: null, matchAction: null, undo: { event_type: undoType } });
     if (!process.env.GEMINI_API_KEY) return send(res, 503, { error: "Match assistant is not configured yet." });
     if (/\bwho\s+(?:has\s+)?scored\b|\bwho\s+(?:has\s+)?scored?\s+(?:the\s+)?goals?\b/i.test(question)) {
       return send(res, 200, { answer: recordedScorers(context), substitutions: [], goal: null, matchAction: null });

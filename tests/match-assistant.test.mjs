@@ -67,6 +67,36 @@ test("returns a validated suggestion for coach approval", async () => {
   assert.equal(request.response_format.mime_type, "application/json");
 });
 
+test("recognizes spoken undo commands without proposing a new match action", async () => {
+  for (const [question, type] of [
+    ["get rid of that last goal", "GOAL"],
+    ["undo that last sub", "SUBSTITUTION"],
+    ["revert the last card", "CARD"],
+    ["undo the last injury", "PLAYER_UNAVAILABLE"],
+  ]) {
+    const { res, requests } = await ask({ answer: "unused" }, question, context, { fromVoice: true });
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body.undo, { event_type: type });
+    assert.deepEqual(res.body.substitutions, []);
+    assert.equal(requests.length, 0);
+  }
+});
+
+test("recognizes moving the latest recorded substitution batch to the queue", async () => {
+  for (const [question, count] of [
+    ["queue those last 4 subs instead", 4],
+    ["I meant to queue those subs", null],
+    ["move the last sub to the queue", 1],
+  ]) {
+    const { res, requests } = await ask({ answer: "unused" }, question, context, { fromVoice: true });
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body.moveToQueue, { count });
+    assert.equal(requests.length, 0);
+  }
+  const newQueue = await ask({ answer: "Review the swap." }, "Queue sub Sam for Alex", context);
+  assert.equal(newQueue.res.body.moveToQueue, undefined);
+});
+
 test("respects a spoken substitution with named incoming and outgoing players", async () => {
   const { res } = await ask({ answer: "Review the substitution." }, "Sam in for Alex");
   assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
