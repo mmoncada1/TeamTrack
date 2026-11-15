@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import handler from "../api/match-assistant.js";
+import { validateAssistantAction } from "../api/assistant-actions.js";
 
 const context = {
   match: { id: "match-1", team_id: "11111111-1111-4111-8111-111111111111", status: "in_progress" },
@@ -10,6 +11,59 @@ const context = {
     { player_id: "in", status: "bench", position_id: null },
   ],
 };
+
+test("proposes a minimum playing time change without applying it", async () => {
+  const matchContext = { ...context, settings: { minimum_playing_time_minutes: 10 } };
+  const { res, requests } = await ask({}, "Set minimum playing time threshold to 20 minutes", matchContext);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.appAction, { type: "match_setting", field: "minimum_playing_time_minutes", value: 20, previous: 10 });
+  assert.equal(requests.length, 0);
+});
+
+test("rejects unsupported or invalid app edits", () => {
+  const matchContext = { ...context, settings: { minimum_playing_time_minutes: 10 } };
+  assert.equal(validateAssistantAction({ type: "match_setting", field: "minimum_playing_time_minutes", value: 0 }, matchContext), null);
+  assert.equal(validateAssistantAction({ type: "match_setting", field: "events", value: [] }, matchContext), null);
+  assert.equal(validateAssistantAction({ type: "player_update", player_id: "other-team", field: "name", value: "Lee" }, matchContext), null);
+});
+
+test("validates threshold and lineup proposals against current match data", () => {
+  const matchContext = { ...context,
+    settings: { format: "7v7", thresholds: { MID: { enabled: true, minutes: 10 } } },
+    team_players: [{ id: "in", team_id: context.match.team_id, name: "Sam" }],
+    positions: [{ id: "mid", label: "Midfield" }], assignments: { mid: "out" },
+  };
+  assert.deepEqual(validateAssistantAction({ type: "threshold", group: "MID", enabled: true, minutes: 20 }, matchContext),
+    { type: "threshold", group: "MID", enabled: true, minutes: 20, previous: { enabled: true, minutes: 10 } });
+  assert.deepEqual(validateAssistantAction({ type: "lineup_assignment", player_id: "in", position_id: "mid" }, matchContext),
+    { type: "lineup_assignment", player_id: "in", position_id: "mid", previous: "out" });
+  assert.deepEqual(validateAssistantAction({ type: "lineup_bench", player_id: "out" }, {
+    ...matchContext, team_players: [...matchContext.team_players, { id: "out", team_id: context.match.team_id, name: "Alex" }],
+  }), { type: "lineup_bench", player_id: "out", position_id: "mid", previous: "out" });
+  assert.equal(validateAssistantAction({ type: "lineup_assignment", player_id: "in", position_id: "unknown" }, matchContext), null);
+  assert.deepEqual(validateAssistantAction({ type: "app_setting", field: "reduced_motion", value: true }, {
+    ...matchContext, app_settings: { reduced_motion: false },
+  }), { type: "app_setting", field: "reduced_motion", value: true, previous: false });
+  assert.deepEqual(validateAssistantAction({ type: "player_create", name: "Maya", preferred_groups: ["MID"], jersey_number: 13 }, matchContext),
+    { type: "player_create", name: "Maya", preferred_groups: ["MID"], jersey_number: 13,
+      gender: null, availability: "active", notes: "", previous: null });
+  assert.deepEqual(validateAssistantAction({ type: "saved_lineup_create", name: "Press" }, {
+    ...matchContext, current_formation_id: "seven", settings: { ...matchContext.settings, format: "7v7" },
+  }), { type: "saved_lineup_create", name: "Press", previous: { formation_id: "seven", assignments: { mid: "out" } } });
+});
+
+test("plans a team-scoped roster update for confirmation", async () => {
+  const matchContext = { ...context, team_players: [
+    { id: "in", team_id: context.match.team_id, name: "Sam", jersey_number: 8 },
+    { id: "other", team_id: "another-team", name: "Alex", jersey_number: 10 },
+  ] };
+  const { res } = await ask({ action_json: JSON.stringify({ type: "player_update", player_id: "in", field: "jersey_number", value: 12 }) },
+    "Change Sam's jersey number to 12", matchContext);
+  assert.deepEqual(res.body.appAction, { type: "player_update", player_id: "in", field: "jersey_number", value: 12, previous: 8 });
+  const rejected = await ask({ action_json: JSON.stringify({ type: "player_update", player_id: "other", field: "jersey_number", value: 12 }) },
+    "Change Alex's jersey number to 12", matchContext);
+  assert.equal(rejected.res.body.appAction, undefined);
+});
 
 function mockResponse(body) {
   return { ok: true, status: 200, json: async () => body };
