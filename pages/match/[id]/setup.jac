@@ -51,7 +51,7 @@ def:pub MatchSetupPage() -> JsxPage {
     has kickoff: str = ""; has title: str = ""; has format: str = "7v7"; has formation_id: str = "7v7-2-3-1";
     has half_length: str = "25"; has halves: str = "2"; has thresholds: dict[str, ThresholdSetting] = standard_thresholds(); has minimum_playing_time: str = "10"; has assistant_accept_seconds: str = "5";
     has goalkeeper_rotation: bool = False; has alert_sound: bool = False; has roster_ids: list[str] = [];
-    has unavailable_ids: list[str] = []; has assignments: dict[str, str] = {}; has notice: str = ""; has saved: bool = False;
+    has unavailable_ids: list[str] = []; has assignments: dict[str, str] = {}; has notice: str = ""; has saved: bool = False; has attempted: bool = False; has notice_error: bool = False;
     match_id = game.id if game else "";
     can with [match_id] entry {
         if game {
@@ -61,7 +61,7 @@ def:pub MatchSetupPage() -> JsxPage {
             halves = str(game.settings.number_of_halves); thresholds = game.settings.thresholds; minimum_playing_time = str(game.settings.minimum_playing_time_minutes); assistant_accept_seconds = str(game.settings.assistant_accept_seconds or 5);
             goalkeeper_rotation = game.settings.goalkeeper_rotation_enabled; alert_sound = game.settings.alert_sound_enabled;
             roster_ids = game.roster_player_ids; unavailable_ids = game.unavailable_player_ids;
-            assignments = game.pending_assignments; notice = ""; saved = False;
+            assignments = game.pending_assignments; notice = ""; saved = False; attempted = False;
         }
     }
     formation = formation_by_id(formation_id);
@@ -71,10 +71,11 @@ def:pub MatchSetupPage() -> JsxPage {
         positive_minutes(half_length), positive_minutes(halves), roster_ids, assignments, formation);
 
     def change_format(next_format: str) {
+        notice_error = False;
         initial = default_formation_for_format(next_format); format = next_format; formation_id = initial.id;
         assignments = {}; notice = "Formation reset for the new format."; saved = False;
     }
-    def change_formation(next_id: str) { formation_id = next_id; assignments = {}; notice = "Positions cleared for the new formation."; saved = False; }
+    def change_formation(next_id: str) { notice_error = False; formation_id = next_id; assignments = {}; notice = "Positions cleared for the new formation."; saved = False; }
     def toggle_roster(player_id: str, checked: bool) {
         if checked and player_id not in roster_ids { roster_ids = roster_ids + [player_id]; }
         elif not checked { roster_ids = [item for item in roster_ids if item != player_id]; unavailable_ids = [item for item in unavailable_ids if item != player_id]; assignments = {slot: assigned for (slot, assigned) in assignments.items() if assigned != player_id}; }
@@ -89,11 +90,13 @@ def:pub MatchSetupPage() -> JsxPage {
         thresholds = {**thresholds, group: ThresholdSetting(enabled=enabled, minutes=minutes)}; saved = False;
     }
     def auto_fill {
+        notice_error = False;
         if not formation or not active { return; }
         minimum: int | None = clamp_min_girls(active.min_girls_on_field) if active.coed else None;
         result = fill_formation(formation, selected_players, minimum); assignments = result.assignments; notice = result.summary; saved = False;
     }
     def apply_lineup(lineup_id: str) {
+        notice_error = False;
         for lineup in team_lineups {
             if lineup.id == lineup_id {
                 formation_id = lineup.formation_id; assignments = lineup.assignments.copy();
@@ -103,6 +106,7 @@ def:pub MatchSetupPage() -> JsxPage {
         }
     }
     def assign(slot: str, player_id: str) {
+        notice_error = False;
         next_assignments = clear_slot(assignments, slot) if not player_id else move_assignment(assignments, player_id, slot);
         if active and active.coed and move_breaks_coed_rule(selected_players, assignments, next_assignments, clamp_min_girls(active.min_girls_on_field)) {
             notice = "Too many guys on the field. Place the required girls first."; return;
@@ -118,45 +122,59 @@ def:pub MatchSetupPage() -> JsxPage {
         for (slot, assigned_id) in assignments.items() { if assigned_id == player_id { assign(slot, ""); return; } }
     }
     def persist {
+        attempted = True;
         result = state["saveMatchSetup"].call(None, id, team_name, opponent, date, kickoff, title, format, formation_id,
             positive_minutes(half_length), positive_minutes(halves), thresholds, goalkeeper_rotation,
             alert_sound, roster_ids, unavailable_ids, assignments, positive_minutes(minimum_playing_time), False, positive_minutes(assistant_accept_seconds));
-        notice = result; saved = not bool(result);
+        notice = result; notice_error = bool(result); saved = not bool(result);
     }
 
     def start_match {
+        attempted = True;
         if bool(validation["errors"]) { notice = validation["errors"][0]; return; }
         try {
             result = state["saveMatchSetup"].call(None, id, team_name, opponent, date, kickoff, title, format, formation_id,
                 positive_minutes(half_length), positive_minutes(halves), thresholds, goalkeeper_rotation,
                 alert_sound, roster_ids, unavailable_ids, assignments, positive_minutes(minimum_playing_time), True, positive_minutes(assistant_accept_seconds));
-        } except Exception as error { notice = "Could not start match: " + str(error); return; }
-        notice = result;
+        } except Exception as error { notice = "Could not start match: " + str(error); notice_error = True; return; }
+        notice = result; notice_error = bool(result);
         if not result { navigate("/match/" + id + "/live"); }
     }
     if not game { return <section className="page narrow-page"><h1>Match not found</h1><Link to="/matches">Back to matches</Link></section>; }
-    <section className="page match-setup"><div className="title-row"><h1>New match setup</h1><Link className="button ghost" to="/matches">Back to matches</Link></div>
-        <div className="setup-grid"><label>Team name<input className="input" value={team_name} onChange={lambda (e: ChangeEvent) { team_name = e.target.value; saved = False; }} /></label>
-            <label>Opponent name<input className="input" required value={opponent} onChange={lambda (e: ChangeEvent) { opponent = e.target.value; saved = False; }} /></label>
-            <label>Match date<input className="input" type="date" value={date} onChange={lambda (e: ChangeEvent) { date = e.target.value; saved = False; }} /></label>
-            <label>Kickoff time (optional)<input className="input" type="time" value={kickoff} onChange={lambda (e: ChangeEvent) { kickoff = e.target.value; saved = False; }} /></label>
-            <label>Match title (optional)<input className="input" value={title} onChange={lambda (e: ChangeEvent) { title = e.target.value; saved = False; }} /></label></div>
-        <section className="setup-section"><h2>Format and formation</h2><div className="format-row">{[<button type="button" key={item} className={"format active" if format == item else "format"} onClick={lambda { change_format(item); }}>{item}</button> for item in ["7v7", "9v9", "11v11"]]}</div>
-            <label>Formation<select className="input compact" value={formation_id} onChange={lambda (e: ChangeEvent) { change_formation(e.target.value); }}>{[<option key={item.id} value={item.id}>{item.shape}</option> for item in formations_for_format(format)]}</select></label></section>
-        <section className="setup-section"><h2>Match timing</h2><div className="setup-grid"><label>Half length (minutes)<input className="input" type="number" min="1" value={half_length} onChange={lambda (e: ChangeEvent) { half_length = e.target.value; saved = False; }} /></label>
-            <label>Number of halves<select className="input" value={halves} onChange={lambda (e: ChangeEvent) { halves = e.target.value; saved = False; }}><option value="2">2 halves</option><option value="1">1 running clock</option></select></label></div></section>
-        <section className="setup-section"><h2>Playing-time alerts</h2><label className="minimum-playing-time-label">Minimum Playing Time (minutes)<input className="input compact" type="number" min="1" value={minimum_playing_time} onChange={lambda (e: ChangeEvent) { minimum_playing_time = e.target.value; saved = False; }} /></label><label className="minimum-playing-time-label">Assistant review countdown (seconds)<input className="input compact" type="number" min="1" value={assistant_accept_seconds} onChange={lambda (e: ChangeEvent) { assistant_accept_seconds = e.target.value; saved = False; }} /></label><div className="threshold-grid">{[<div className="threshold" key={group}><label className="check-row"><input type="checkbox" checked={thresholds[group].enabled} onChange={lambda (e: ChangeEvent) { set_threshold(group, e.target.checked, thresholds[group].minutes); }} /> {label}</label>
-            <input type="range" min="1" max="30" value={thresholds[group].minutes} disabled={not thresholds[group].enabled} onChange={lambda (e: ChangeEvent) { set_threshold(group, thresholds[group].enabled, int(e.target.value)); }} /><span>{thresholds[group].minutes} min</span></div>
-            for (group, label) in [("GK", "Goalkeeper"), ("DEF", "Defender"), ("MID", "Midfielder"), ("FWD", "Forward")]]}</div>
-            <label className="check-row"><input type="checkbox" checked={goalkeeper_rotation} onChange={lambda (e: ChangeEvent) { goalkeeper_rotation = e.target.checked; saved = False; }} /> Enable goalkeeper rotation alerts</label>
-            <label className="check-row"><input type="checkbox" checked={alert_sound} onChange={lambda (e: ChangeEvent) { alert_sound = e.target.checked; saved = False; }} /> Enable alert sound</label></section>
-        <section className="setup-section"><h2>Roster for this match</h2><div className="match-roster" onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={drop_on_roster}>{[<div key={player.id} draggable={player.id in roster_ids and player.id not in unavailable_ids} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", player.id); }}><label className="check-row"><input type="checkbox" checked={player.id in roster_ids} onChange={lambda (e: ChangeEvent) { toggle_roster(player.id, e.target.checked); }} /> {jersey_label(player.jersey_number)} {player.name}</label>
-            {<label className="check-row unavailable"><input type="checkbox" checked={player.id in unavailable_ids} onChange={lambda (e: ChangeEvent) { toggle_unavailable(player.id, e.target.checked); }} /> Unavailable</label> if player.id in roster_ids else None}</div> for player in team_players]}</div></section>
-        <section className="setup-section setup-lineup"><div className="setup-lineup-heading"><div><h2>Starting lineup</h2><p>Drag players from the match roster or select a position on the field.</p></div>{<span className="setup-lineup-count">{len(assignments)} / {len(formation.positions)} placed</span> if formation else None}</div><div className="lineup-actions"><select className="input compact" value="" onChange={lambda (e: ChangeEvent) { apply_lineup(e.target.value); }}><option value="">{"Choose a saved lineup…" if team_lineups else "No saved lineups yet"}</option>{[<option key={lineup.id} value={lineup.id}>{lineup.name}</option> for lineup in team_lineups]}</select>
-            <button className="button secondary" type="button" onClick={auto_fill}>Auto-fill by position</button><Link className="button ghost" to="/lineups">Manage lineups</Link></div>
-            {<div className="setup-field"><div className="position-legend" aria-label="Position colors"><span><i className="legend-GK"></i> GK Goalkeeper</span><span><i className="legend-DEF"></i> DEF Defender</span><span><i className="legend-MID"></i> MID Midfielder</span><span><i className="legend-FWD"></i> FWD Forward</span></div><div className="setup-pitch"><svg className="setup-pitch-lines" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden={True}><rect x="3" y="3" width="94" height="144" /><line x1="3" y1="75" x2="97" y2="75" /><circle cx="50" cy="75" r="9" /><circle cx="50" cy="75" r="0.8" fill="white" /><rect x="30" y="128" width="40" height="19" /><rect x="40" y="141" width="20" height="6" /><path d="M 38 128 A 12 12 0 0 1 62 128" /><rect x="30" y="3" width="40" height="19" /><rect x="40" y="3" width="20" height="6" /><path d="M 38 22 A 12 12 0 0 0 62 22" /></svg>{[<div className={"setup-slot group-" + position.group + (" occupied" if position.id in assignments else "") + (" goalkeeper" if position.group == "GK" else "")} key={position.id} draggable={position.id in assignments} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", assignments[position.id]); }} onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={lambda (e: any) { drop_on_slot(position.id, e); }} style={{"left": str(position.x) + "%", "top": str(position.y) + "%"}}>{[LineupToken(player) for player in selected_players if position.id in assignments and player.id == assignments[position.id]]}{EmptyPosition(position.label) if position.id not in assignments else None}<select aria-label={position.label} value={assignments[position.id] if position.id in assignments else ""} onChange={lambda (e: ChangeEvent) { assign(position.id, e.target.value); }}><option value="">Open</option>{[<option key={player.id} value={player.id}>{player.name}</option> for player in selected_players]}</select></div> for position in formation.positions]}</div></div> if formation else None}</section>
-        <section className="validation">{[<p className="error" key={idx}>{message}</p> for (idx, message) in enumerate(validation["errors"])]}{[<p className="warning" key={idx}>{message}</p> for (idx, message) in enumerate(validation["warnings"])]}</section>
-        {<p className="error" role="alert">{notice}</p> if notice else None}
-        {<p className="success">Match setup saved.</p> if saved else None}<div className="actions"><button className="button secondary" type="button" onClick={persist}>Save draft</button><button className="button primary" type="button" onClick={start_match}>Start match</button></div>
+    alert_labels = [("GK", "Goalkeeper"), ("DEF", "Defender"), ("MID", "Midfielder"), ("FWD", "Forward")];
+    shown_errors = validation["errors"] if attempted else []; shown_warnings = validation["warnings"] if attempted else [];
+    <section className="page match-setup">
+        <div className="setup-header"><div><Link className="setup-back" to="/matches">← Matches</Link><h1>Match setup</h1></div>
+            <div className="setup-header-actions"><button className="button secondary" type="button" onClick={persist}>Save draft</button><button className="button primary" type="button" onClick={start_match}>Start match</button></div></div>
+        {<div className="setup-status">{[<p className="error" key={"e" + str(idx)}>{message}</p> for (idx, message) in enumerate(shown_errors)]}{[<p className="warning" key={"w" + str(idx)}>{message}</p> for (idx, message) in enumerate(shown_warnings)]}{<p className={"error" if notice_error else "setup-notice"} role="status">{notice}</p> if notice and notice not in shown_errors else None}{<p className="success">Match setup saved.</p> if saved else None}</div> if shown_errors or shown_warnings or notice or saved else None}
+        <div className="setup-layout">
+            <div className="setup-settings">
+                <section className="setup-card"><h2>Match details</h2>
+                    <div className="setup-fields"><label>Opponent<input className="input" required value={opponent} onChange={lambda (e: ChangeEvent) { opponent = e.target.value; saved = False; }} /></label>
+                        <label>Team name<input className="input" value={team_name} onChange={lambda (e: ChangeEvent) { team_name = e.target.value; saved = False; }} /></label>
+                        <label>Date<input className="input" type="date" value={date} onChange={lambda (e: ChangeEvent) { date = e.target.value; saved = False; }} /></label>
+                        <label>Kickoff <span className="optional">optional</span><input className="input" type="time" value={kickoff} onChange={lambda (e: ChangeEvent) { kickoff = e.target.value; saved = False; }} /></label>
+                        <label className="span-2">Title <span className="optional">optional</span><input className="input" placeholder="e.g. Spring Cup semi-final" value={title} onChange={lambda (e: ChangeEvent) { title = e.target.value; saved = False; }} /></label></div></section>
+                <section className="setup-card"><h2>Format and timing</h2>
+                    <div className="setup-fields"><div className="setup-field-group span-2"><span className="setup-label">Format</span><div className="format-row">{[<button type="button" key={item} className={"format active" if format == item else "format"} onClick={lambda { change_format(item); }}>{item}</button> for item in ["7v7", "9v9", "11v11"]]}</div></div>
+                        <label className="span-2">Formation<select className="input" value={formation_id} onChange={lambda (e: ChangeEvent) { change_formation(e.target.value); }}>{[<option key={item.id} value={item.id}>{item.shape}</option> for item in formations_for_format(format)]}</select></label>
+                        <label>Half length (min)<input className="input" type="number" min="1" value={half_length} onChange={lambda (e: ChangeEvent) { half_length = e.target.value; saved = False; }} /></label>
+                        <label>Halves<select className="input" value={halves} onChange={lambda (e: ChangeEvent) { halves = e.target.value; saved = False; }}><option value="2">2 halves</option><option value="1">1 running clock</option></select></label></div></section>
+                <section className="setup-card"><div className="setup-card-head"><h2>Players</h2><span className="setup-muted">{len(selected_players)} of {len(team_players)} available</span></div>
+                    <ul className="setup-players" onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={drop_on_roster}>{[<li key={player.id} className={"setup-player" + ("" if player.id in roster_ids else " is-off") + (" is-out" if player.id in unavailable_ids else "")} draggable={player.id in roster_ids and player.id not in unavailable_ids} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", player.id); }}><label className="setup-player-main"><input type="checkbox" checked={player.id in roster_ids} onChange={lambda (e: ChangeEvent) { toggle_roster(player.id, e.target.checked); }} /><span className="setup-jersey">{jersey_label(player.jersey_number)}</span><span className="setup-player-name">{player.name}</span></label>
+                        {<label className="setup-out"><input type="checkbox" checked={player.id in unavailable_ids} onChange={lambda (e: ChangeEvent) { toggle_unavailable(player.id, e.target.checked); }} /> Out</label> if player.id in roster_ids else None}</li> for player in team_players]}</ul></section>
+                <details className="setup-card setup-alerts"><summary><h2>Playing-time alerts</h2><span className="setup-muted">Min {minimum_playing_time} min · {len([group for (group, label) in alert_labels if thresholds[group].enabled])} of 4 positions on</span></summary>
+                    <div className="setup-fields"><label>Minimum playing time (min)<input className="input" type="number" min="1" value={minimum_playing_time} onChange={lambda (e: ChangeEvent) { minimum_playing_time = e.target.value; saved = False; }} /></label>
+                        <label>Assistant countdown (sec)<input className="input" type="number" min="1" value={assistant_accept_seconds} onChange={lambda (e: ChangeEvent) { assistant_accept_seconds = e.target.value; saved = False; }} /></label></div>
+                    <div className="threshold-list">{[<div className="threshold" key={group}><label className="check-row"><input type="checkbox" checked={thresholds[group].enabled} onChange={lambda (e: ChangeEvent) { set_threshold(group, e.target.checked, thresholds[group].minutes); }} /> {label}</label>
+                        <input type="range" min="1" max="30" value={thresholds[group].minutes} disabled={not thresholds[group].enabled} onChange={lambda (e: ChangeEvent) { set_threshold(group, thresholds[group].enabled, int(e.target.value)); }} /><span className="threshold-value">{thresholds[group].minutes} min</span></div> for (group, label) in alert_labels]}</div>
+                    <label className="check-row"><input type="checkbox" checked={goalkeeper_rotation} onChange={lambda (e: ChangeEvent) { goalkeeper_rotation = e.target.checked; saved = False; }} /> Goalkeeper rotation alerts</label>
+                    <label className="check-row"><input type="checkbox" checked={alert_sound} onChange={lambda (e: ChangeEvent) { alert_sound = e.target.checked; saved = False; }} /> Alert sound</label></details>
+            </div>
+            <section className="setup-card setup-lineup"><div className="setup-card-head"><h2>Starting lineup</h2>{<span className="setup-lineup-count">{len(assignments)} / {len(formation.positions)} placed</span> if formation else None}</div>
+                <div className="lineup-actions"><select className="input" value="" onChange={lambda (e: ChangeEvent) { apply_lineup(e.target.value); }}><option value="">{"Load a saved lineup…" if team_lineups else "No saved lineups yet"}</option>{[<option key={lineup.id} value={lineup.id}>{lineup.name}</option> for lineup in team_lineups]}</select>
+                    <button className="button secondary" type="button" onClick={auto_fill}>Auto-fill</button><Link className="button ghost" to="/lineups">Manage</Link></div>
+                {<div className="setup-field"><div className="position-legend" aria-label="Position colors"><span><i className="legend-GK"></i> GK</span><span><i className="legend-DEF"></i> DEF</span><span><i className="legend-MID"></i> MID</span><span><i className="legend-FWD"></i> FWD</span><span className="setup-hint">Drag players in, or click a spot</span></div><div className="setup-pitch"><svg className="setup-pitch-lines" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden={True}><rect x="3" y="3" width="94" height="144" /><line x1="3" y1="75" x2="97" y2="75" /><circle cx="50" cy="75" r="9" /><circle cx="50" cy="75" r="0.8" fill="white" /><rect x="30" y="128" width="40" height="19" /><rect x="40" y="141" width="20" height="6" /><path d="M 38 128 A 12 12 0 0 1 62 128" /><rect x="30" y="3" width="40" height="19" /><rect x="40" y="3" width="20" height="6" /><path d="M 38 22 A 12 12 0 0 0 62 22" /></svg>{[<div className={"setup-slot group-" + position.group + (" occupied" if position.id in assignments else "") + (" goalkeeper" if position.group == "GK" else "")} key={position.id} draggable={position.id in assignments} onDragStart={lambda (e: any) { e.dataTransfer.setData("text/plain", assignments[position.id]); }} onDragOver={lambda (e: any) { e.preventDefault(); }} onDrop={lambda (e: any) { drop_on_slot(position.id, e); }} style={{"left": str(position.x) + "%", "top": str(position.y) + "%"}}>{[LineupToken(player) for player in selected_players if position.id in assignments and player.id == assignments[position.id]]}{EmptyPosition(position.label) if position.id not in assignments else None}<select aria-label={position.label} value={assignments[position.id] if position.id in assignments else ""} onChange={lambda (e: ChangeEvent) { assign(position.id, e.target.value); }}><option value="">Open</option>{[<option key={player.id} value={player.id}>{player.name}</option> for player in selected_players]}</select></div> for position in formation.positions]}</div></div> if formation else None}</section>
+        </div>
     </section>
 }

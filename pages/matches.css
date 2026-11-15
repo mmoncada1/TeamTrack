@@ -7,3 +7,5 @@
 [data-theme="dark"] .match-result-win{--result-bg:#102b22;--result-ink:#86efac}[data-theme="dark"] .match-result-loss{--result-bg:#351c22;--result-ink:#fca5a5}[data-theme="dark"] .match-result-draw{--result-bg:#273449;--result-ink:#cbd5e1}[data-theme="dark"] .match-results .match-result{background:var(--result-bg)}[data-theme="dark"] .match-result-teams span,[data-theme="dark"] .match-result-meta{color:#cbd5e1}
 @media(max-width:540px){.match-result-main{flex-wrap:wrap;gap:.5rem}.match-result-teams{flex-basis:100%}.match-result-score{font-size:1.7rem}}
 
+
+.setup-section{margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e2e8f0}.setup-section h2{margin:0 0 .7rem;font-size:1.1rem}
