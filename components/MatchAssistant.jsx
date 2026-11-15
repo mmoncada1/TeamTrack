@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { getAccessToken } from "../state/cloud.js";
+import { chooseVoiceTranscript } from "./voice-transcript.js";
 
 export function MatchAssistant({ game, players, summary, derived, team, queuedSubs = [], onQueueSubstitutions, onApplyQueuedSubstitutions, onAcceptSubstitutions, onAcceptGoal, onAcceptMatchAction, fieldLocked = false }) {
   const [question, setQuestion] = useState("");
@@ -253,11 +254,14 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     current.lang = "en-US";
     current.continuous = false;
     current.interimResults = false;
-    current.maxAlternatives = 1;
+    current.maxAlternatives = 5;
     setError("");
     current.onresult = (event) => {
       const transcript = Array.from(event.results).slice(event.resultIndex)
-        .filter((result) => result.isFinal).map((result) => result[0].transcript).join(" ").trim();
+        .filter((result) => result.isFinal)
+        .map((result) => mode === "question"
+          ? chooseVoiceTranscript(Array.from(result), players.filter((player) => player.team_id === game.team_id))
+          : result[0].transcript).join(" ").trim();
       if (transcript) {
         if (mode === "confirmation") {
           if (/\b(?:accept|confirm|record|do)\s+all\b/i.test(transcript)) acceptProposals(proposalsRef.current);
