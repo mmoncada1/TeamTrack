@@ -275,8 +275,14 @@ def:pub LiveMatchPage() -> JsxPage {
         if team_value == "us" and (not scorer or not any([player.id == scorer for player in available_players])) {
             return "The scorer is no longer available in this match.";
         }
+        if team_value == "us" and (scorer not in derived.player_states or derived.player_states[scorer].status != "field") {
+            return "The scorer is no longer on the field. Ask TeamTrack again.";
+        }
         if assister and (assister == scorer or not any([player.id == assister for player in available_players])) {
             return "The assister is no longer available in this match.";
+        }
+        if assister and (assister not in derived.player_states or derived.player_states[assister].status != "field") {
+            return "The assister is no longer on the field. Ask TeamTrack again.";
         }
         try { return "" if apply(record_goal_action(game, team_value, False, scorer, assister, None, int(Date.now()))) else action_error; }
         except Exception { return "Could not record this goal. Please use the goal form."; }

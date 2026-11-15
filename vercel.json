@@ -2,6 +2,6 @@
   "framework": null,
   "buildCommand": "bash scripts/vercel-build.sh",
   "outputDirectory": "dist",
-  "functions": { "api/match-assistant.js": { "maxDuration": 30 } },
+  "functions": { "api/match-assistant.js": { "maxDuration": 30 }, "api/match-transcribe.js": { "maxDuration": 30 } },
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

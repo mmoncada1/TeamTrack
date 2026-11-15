@@ -23,23 +23,29 @@ function validSubstitution(suggestion, context) {
 }
 
 function isSubstitutionQuestion(question) {
-  return /\b(subs?|substitutes?|substitutions?|swaps?|replace|replacements?|rotate|rotations?)\b|\bbring\s+(?:in|on)\b|\btake\s+(?:off|out)\b|\bin\s+for\b/i.test(question);
+  return /\b(subs?|substitutes?|substitutions?|swaps?|replace|replacements?|rotate|rotations?)\b|\bbring\s+(?:in|on)\b|\b(?:bring|put)\s+\w+\s+(?:in|on)\b|\btake\s+(?:off|out)\b|\btake\s+\w+\s+(?:off|out)\b|\bin\s+for\b/i.test(question);
 }
 
 function namedSubstitution(question, context) {
   const clean = question.trim().replace(/[.!?]+$/, "");
   const normalized = clean.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const markers = [...normalized.matchAll(/\bin for\b/g)];
-  const match = /^(?:(?:substitute|sub)\s+)?(.+?)\s+in\s+for\s+(.+)$/i.exec(clean) ||
-    /^(?:substitute|sub)\s+out\s+(.+)$/i.exec(clean);
-  if (!markers.length && !match) return null;
+  const pair = /^(?:(?:substitute|sub)\s+)?(.+?)\s+in\s+for\s+(.+)$/i.exec(clean) ||
+    /^(?:substitute|sub|swap|replace)\s+(.+?)\s+for\s+(.+)$/i.exec(clean) ||
+    /^(?:put|bring)\s+(.+?)\s+(?:on|in)\s+for\s+(.+)$/i.exec(clean);
+  const outOnly = /^(?:substitute|sub)\s+out\s+(.+)$/i.exec(clean) ||
+    /^(?:take|substitute|sub)\s+(.+?)\s+(?:off|out)$/i.exec(clean);
+  const inOnly = /^(?:bring|put|substitute|sub)\s+(.+?)\s+(?:on|in)$/i.exec(clean);
+  if (!markers.length && !pair && !outOnly && !inOnly) return null;
   const players = Array.isArray(context.players) ? context.players : [];
-  const findPlayer = (spoken) => {
+  const findPlayer = (spoken, role) => {
     const name = spoken.trim().toLowerCase();
     const matches = players.filter((player) => player.name?.toLowerCase() === name);
     if (matches.length === 1) return matches[0];
     const firstNames = players.filter((player) => player.name?.split(/\s+/)[0]?.toLowerCase() === name);
-    if (firstNames.length === 1) return firstNames[0];
+    const inRole = firstNames.filter((player) => (context.player_states || []).some((state) =>
+      state.player_id === player.id && state.status === role));
+    if (inRole.length === 1) return inRole[0];
     if (matches.length || firstNames.length) return null;
     const distance = (left, right) => {
       let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
@@ -54,7 +60,9 @@ function namedSubstitution(question, context) {
       return previous[right.length];
     };
     const maxEdits = name.length >= 8 ? 2 : name.length >= 4 ? 1 : 0;
-    const ranked = players.map((player) => ({ player, edits: Math.min(
+    const eligible = players.filter((player) => (context.player_states || []).some((state) =>
+      state.player_id === player.id && state.status === role));
+    const ranked = eligible.map((player) => ({ player, edits: Math.min(
       distance(name, player.name.toLowerCase()), distance(name, player.name.split(/\s+/)[0].toLowerCase()),
     ) })).sort((left, right) => left.edits - right.edits);
     return ranked[0]?.edits <= maxEdits && ranked[1]?.edits !== ranked[0].edits ? ranked[0].player : null;
@@ -65,10 +73,11 @@ function namedSubstitution(question, context) {
       const full = player.name?.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
       return full ? [{ player, value: full }, { player, value: full.split(" ")[0] }] : [];
     }).sort((left, right) => right.value.length - left.value.length);
-    const resolveEdge = (text, side) => {
+    const resolveEdge = (text, side, role) => {
       const found = aliases.filter(({ value }) => side === "end"
         ? text === value || text.endsWith(` ${value}`)
-        : text === value || text.startsWith(`${value} `));
+        : text === value || text.startsWith(`${value} `)).filter(({ player }) =>
+          (context.player_states || []).some((state) => state.player_id === player.id && state.status === role));
       if (!found.length) return null;
       const longest = found[0].value.length;
       const ids = [...new Set(found.filter((item) => item.value.length === longest).map((item) => item.player.id))];
@@ -81,8 +90,8 @@ function namedSubstitution(question, context) {
       const marker = markers[index];
       const before = normalized.slice(index ? markers[index - 1].index + markers[index - 1][0].length : 0, marker.index).trim();
       const after = normalized.slice(marker.index + marker[0].length, index + 1 < markers.length ? markers[index + 1].index : undefined).trim();
-      const incoming = resolveEdge(before, "end") || (markers.length === 1 ? findPlayer(before.split(" ").at(-1)) : null);
-      const outgoing = resolveEdge(after, "start") || (markers.length === 1 ? findPlayer(after) : null);
+      const incoming = resolveEdge(before, "end", "bench") || (markers.length === 1 ? findPlayer(before.split(" ").at(-1), "bench") : null);
+      const outgoing = resolveEdge(after, "start", "field") || (markers.length === 1 ? findPlayer(after, "field") : null);
       const outState = projected.player_states.find((item) => item.player_id === outgoing?.id);
       const inState = projected.player_states.find((item) => item.player_id === incoming?.id);
       const suggestion = { incoming_player_id: incoming?.id, outgoing_player_id: outgoing?.id, position_id: outState?.position_id };
@@ -95,13 +104,26 @@ function namedSubstitution(question, context) {
     }
     return suggestions;
   }
-  const outgoing = findPlayer(match[2] || match[1]);
+  if (inOnly) {
+    const incoming = findPlayer(inOnly[1], "bench");
+    const inState = (context.player_states || []).find((state) => state.player_id === incoming?.id);
+    if (!incoming || inState?.status !== "bench") return [];
+    const field = (context.player_states || []).filter((state) => state.status === "field" && state.position_id)
+      .sort((left, right) => (right.current_stint_ms || 0) - (left.current_stint_ms || 0));
+    for (const outgoing of field) {
+      const proposal = { incoming_player_id: incoming.id, outgoing_player_id: outgoing.player_id,
+        position_id: outgoing.position_id };
+      if (validSubstitution(proposal, context)) return [proposal];
+    }
+    return [];
+  }
+  const outgoing = findPlayer(pair?.[2] || outOnly?.[1], "field");
   if (!outgoing) return [];
   const states = Array.isArray(context.player_states) ? context.player_states : [];
   const outState = states.find((item) => item.player_id === outgoing.id);
   if (outState?.status !== "field") return [];
-  if (match[2]) {
-    const incoming = findPlayer(match[1]);
+  if (pair) {
+    const incoming = findPlayer(pair[1], "bench");
     const suggestion = { incoming_player_id: incoming?.id, outgoing_player_id: outgoing.id, position_id: outState.position_id };
     return validSubstitution(suggestion, context) ? [suggestion] : [];
   }
@@ -213,10 +235,13 @@ function recordedScorers(context) {
 function proposedGoal(question, context) {
   if (!/\b(scored?|scores?|goal)\b/i.test(question) || isGoalQuestion(question) ||
       !["in_progress", "paused", "half_time"].includes(context.match.status)) return null;
-  if (/\b(opponent|other team|they)\b/i.test(question) && /\b(scored?|scores?|goal)\b/i.test(question)) {
+  if (/^\s*(?:opponent|other team|they)\s+(?:scored?|scores?)\b/i.test(question) ||
+      /\bgoal\s+(?:for|by)\s+(?:opponent|other team)\b/i.test(question)) {
     return { team: "opponent", scorer_id: null, assister_id: null };
   }
   const players = Array.isArray(context.players) ? context.players : [];
+  const fieldIds = new Set((context.player_states || []).filter((state) => state.status === "field")
+    .map((state) => state.player_id));
   const normalize = (value) => value.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
   const text = ` ${normalize(question)} `;
   const identities = players.flatMap((player) => {
@@ -224,11 +249,34 @@ function proposedGoal(question, context) {
     return full ? [{ id: player.id, alias: full }, { id: player.id, alias: full.split(" ")[0] }] : [];
   });
   const resolve = (part) => {
-    const matches = identities.filter(({ alias }) => alias && (` ${part} `).includes(` ${alias} `));
-    if (!matches.length) return null;
-    const longest = Math.max(...matches.map(({ alias }) => alias.length));
-    const ids = [...new Set(matches.filter(({ alias }) => alias.length === longest).map(({ id }) => id))];
-    return ids.length === 1 ? ids[0] : null;
+    const matches = identities.filter(({ id, alias }) => fieldIds.has(id) && alias && (` ${part} `).includes(` ${alias} `));
+    if (matches.length) {
+      const longest = Math.max(...matches.map(({ alias }) => alias.length));
+      const ids = [...new Set(matches.filter(({ alias }) => alias.length === longest).map(({ id }) => id))];
+      return ids.length === 1 ? ids[0] : null;
+    }
+    const spoken = normalize(part);
+    if (!/^[a-z]{4,}$/.test(spoken)) return null;
+    const distance = (left, right) => {
+      let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+      for (let index = 0; index < left.length; index++) {
+        const current = [index + 1];
+        for (let other = 0; other < right.length; other++) {
+          current.push(Math.min(current[other] + 1, previous[other + 1] + 1,
+            previous[other] + (left[index] === right[other] ? 0 : 1)));
+        }
+        previous = current;
+      }
+      return previous[right.length];
+    };
+    const ranked = players.filter((player) => fieldIds.has(player.id)).map((player) => {
+      const first = normalize(player.name || "").split(" ")[0];
+      const variants = [first];
+      if (first.endsWith("ie")) variants.push(`${first.slice(0, -2)}y`);
+      if (first.endsWith("y")) variants.push(`${first.slice(0, -1)}ie`);
+      return { id: player.id, edits: Math.min(...variants.map((alias) => distance(spoken, alias))) };
+    }).sort((left, right) => left.edits - right.edits);
+    return ranked[0]?.edits <= 1 && ranked[1]?.edits !== ranked[0].edits ? ranked[0].id : null;
   };
   const score = /\b(?:scored?|scores?)\b/.exec(text);
   const goalBy = /\bgoal\s+(?:by|from)\s+/.exec(text);
@@ -237,11 +285,15 @@ function proposedGoal(question, context) {
     goalBy ? text.slice(goalBy.index + goalBy[0].length).split(/\b(?:assisted?|passed?|pass|set up)\b/)[0] : "";
   const scorerId = resolve(scorerPart);
   if (!scorerId) return null;
+  const onField = (id) => (context.player_states || []).some((state) =>
+    state.player_id === id && state.status === "field");
+  if (!onField(scorerId)) return null;
   const afterScore = score ? text.slice(score.index + score[0].length) :
     goalBy ? text.slice(goalBy.index + goalBy[0].length) : "";
   const assistMatch = /\b(?:assisted?\s+by|assist\s+from|passed?\s+by|pass\s+from|set\s+up\s+by|by)\s+/.exec(afterScore);
   const assistId = assistMatch ? resolve(afterScore.slice(assistMatch.index + assistMatch[0].length)) : null;
   if (assistMatch && !assistId) return null;
+  if (assistId && !onField(assistId)) return null;
   if (assistId === scorerId) return null;
   return { team: "us", scorer_id: scorerId, assister_id: assistId };
 }

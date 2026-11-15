@@ -64,11 +64,22 @@ test("returns a validated suggestion for coach approval", async () => {
 test("respects a spoken substitution with named incoming and outgoing players", async () => {
   const { res } = await ask({ answer: "Review the substitution." }, "Sam in for Alex");
   assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
+  for (const phrase of ["Sub Sam for Alex", "Bring Sam on for Alex"]) {
+    const spoken = await ask({ answer: "Review the substitution." }, phrase);
+    assert.deepEqual(spoken.res.body.substitutions,
+      [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }], phrase);
+  }
+  const bringOn = await ask({ answer: "Review the substitution." }, "Bring Sam on");
+  assert.deepEqual(bringOn.res.body.substitutions,
+    [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
 });
 
 test("respects a spoken sub-out command", async () => {
   const { res } = await ask({ answer: "Review the substitution." }, "Sub out Alex");
   assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
+  const takeOff = await ask({ answer: "Review the substitution." }, "Take Alex off");
+  assert.deepEqual(takeOff.res.body.substitutions,
+    [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
 });
 
 test("tolerates a small speech recognition error in a player name", async () => {
@@ -284,6 +295,9 @@ test("stops a batch before a combined coed violation", async () => {
 test("proposes scorer and optional assist from common goal wording", async () => {
   const goalContext = { ...context, players: [
     { id: "katie", name: "Katie Smith" }, { id: "matteo", name: "Matteo Rossi" },
+  ], player_states: [
+    { player_id: "katie", status: "field", position_id: "mid" },
+    { player_id: "matteo", status: "field", position_id: "fwd" },
   ] };
   for (const question of ["Katie scored assisted by Matteo", "Katie scored passed by Matteo", "Katie scored by Matteo", "Goal by Katie assisted by Matteo"]) {
     const { res } = await ask({ answer: "Goal." }, question, goalContext);
@@ -293,8 +307,43 @@ test("proposes scorer and optional assist from common goal wording", async () =>
   assert.deepEqual(res.body.goal, { team: "us", scorer_id: "katie", assister_id: null });
   const opponent = await ask({ answer: "Goal." }, "Opponent scored", goalContext);
   assert.deepEqual(opponent.res.body.goal, { team: "opponent", scorer_id: null, assister_id: null });
+  const againstOpponent = await ask({ answer: "Goal." }, "Katie scored against the opponent", goalContext);
+  assert.deepEqual(againstOpponent.res.body.goal, { team: "us", scorer_id: "katie", assister_id: null });
   const question = await ask({ answer: "No." }, "Did Katie score?", goalContext);
   assert.equal(question.res.body.goal, null);
+});
+
+test("resolves a spoken assist spelling against a unique roster player", async () => {
+  const goalContext = { ...context, players: [
+    { id: "henry", name: "Henry Lee" }, { id: "katie", name: "Katie Kim" },
+  ], player_states: [
+    { player_id: "henry", status: "field", position_id: "mid" },
+    { player_id: "katie", status: "field", position_id: "fwd" },
+  ] };
+  const { res } = await ask({ answer: "Goal." }, "Henry scored by Katy", goalContext);
+  assert.deepEqual(res.body.goal, { team: "us", scorer_id: "henry", assister_id: "katie" });
+  const ambiguous = await ask({ answer: "Goal." }, "Henry scored by Katy", {
+    ...goalContext, players: [...goalContext.players, { id: "other-katie", name: "Katie Jones" }],
+    player_states: [...goalContext.player_states, { player_id: "other-katie", status: "field", position_id: "def" }],
+  });
+  assert.equal(ambiguous.res.body.goal, null);
+  const benchedScorer = await ask({ answer: "Goal." }, "Henry scored", {
+    ...goalContext, player_states: [
+      { player_id: "henry", status: "bench", position_id: null }, goalContext.player_states[1],
+    ],
+  });
+  assert.equal(benchedScorer.res.body.goal, null);
+  const benchedAssister = await ask({ answer: "Goal." }, "Henry scored by Katy", {
+    ...goalContext, player_states: [goalContext.player_states[0],
+      { player_id: "katie", status: "bench", position_id: null }],
+  });
+  assert.equal(benchedAssister.res.body.goal, null);
+  const sameFirstName = await ask({ answer: "Goal." }, "Henry scored", {
+    ...goalContext,
+    players: [...goalContext.players, { id: "other-henry", name: "Henry Smith" }],
+    player_states: [...goalContext.player_states, { player_id: "other-henry", status: "bench", position_id: null }],
+  });
+  assert.deepEqual(sameFirstName.res.body.goal, { team: "us", scorer_id: "henry", assister_id: null });
 });
 
 test("answers who scored from recorded goal events without a question mark", async () => {
