@@ -287,6 +287,12 @@ export function AuthGate({ children }) {
 
   async function finishSignIn(next) {
     keepSession(next);
+    localStorage.setItem("teamtrack:onboarding:user", String(next.user?.id || "local"));
+    const pendingOnboardingEmail = localStorage.getItem("teamtrack:onboarding:pending-email");
+    if (pendingOnboardingEmail && pendingOnboardingEmail === String(next.user?.email || "").toLowerCase()) {
+      localStorage.setItem(`teamtrack:onboarding:${next.user.id}:active`, "true");
+      localStorage.removeItem("teamtrack:onboarding:pending-email");
+    }
     const remote = await loadSnapshot();
     if (remote) {
       replaceData(await hydratePhotos(remote));
@@ -320,15 +326,23 @@ export function AuthGate({ children }) {
     event.preventDefault();
     const name = teamName.trim();
     if (!name) { setError("Team name is required."); return; }
+    const owner = localStorage.getItem("teamtrack:onboarding:user") || "local";
+    const onboardingActive = localStorage.getItem(`teamtrack:onboarding:${owner}:active`) === "true";
+    const sport = onboardingActive ? "soccer" : teamSport;
     const now = Date.now();
     const team = {
-      id: crypto.randomUUID(), name, sport: teamSport,
-      coed: teamSport === "soccer" && teamCoed,
-      min_girls_on_field: teamSport === "soccer" ? Math.max(1, Math.min(11, Number(teamMinGirls) || 2)) : null,
+      id: crypto.randomUUID(), name, sport,
+      coed: sport === "soccer" && teamCoed,
+      min_girls_on_field: sport === "soccer" ? Math.max(1, Math.min(11, Number(teamMinGirls) || 2)) : null,
       created_at: now, updated_at: now,
     };
     localStorage.setItem("teamtrack:jac:teams", JSON.stringify([team]));
     localStorage.setItem("teamtrack:jac:explicit-team-ids", JSON.stringify([team.id]));
+    if (onboardingActive) {
+      const prefix = `teamtrack:onboarding:${owner}:`;
+      localStorage.setItem(`${prefix}team`, team.id);
+      localStorage.setItem(`${prefix}step`, "roster");
+    }
     selectTeam(team.id);
   }
 
@@ -366,8 +380,12 @@ export function AuthGate({ children }) {
         setPhase("signup"); return;
       }
       if (!response.access_token) {
+        if (createAccount) localStorage.setItem("teamtrack:onboarding:pending-email", email.trim().toLowerCase());
         setMessage("Account created. Please sign in to continue.");
         setPhase("login"); return;
+      }
+      if (createAccount && response.user?.id) {
+        localStorage.setItem(`teamtrack:onboarding:${response.user.id}:active`, "true");
       }
       await finishSignIn(response);
     } catch (problem) {
@@ -395,6 +413,9 @@ export function AuthGate({ children }) {
   }
 
   const h = React.createElement;
+  const onboardingOwner = localStorage.getItem("teamtrack:onboarding:user") || "local";
+  const onboardingActive = localStorage.getItem(`teamtrack:onboarding:${onboardingOwner}:active`) === "true";
+  const teamSportForSetup = onboardingActive ? "soccer" : teamSport;
   if (phase === "ready") return h(SignOutContext.Provider, { value: signOut }, children);
   if (phase === "home") return h("main", { className: "welcome-page" },
     h("header", { className: "welcome-header" },
@@ -419,12 +440,16 @@ export function AuthGate({ children }) {
       h("h1", null, "TeamTrack"),
       phase === "loading" ? h("p", null, "Connecting to Supabase…") : null,
       phase === "create-team" ? h("form", { className: "form-stack", onSubmit: createFirstTeam },
-          h("h2", null, "Create your first team"),
+          h("h2", null, onboardingActive ? "Step 1 of 4: Create your team" : "Create your first team"),
+          h("p", { className: "muted" }, onboardingActive
+            ? "Choose your team name and create the real team you’ll use throughout TeamTrack. We’ll add a sample roster automatically, then guide you through a lineup, match, and whiteboard."
+            : "This creates the team workspace for your roster, lineups, and matches."),
           h("label", null, "Team name", h("input", { className: "input", required: true, value: teamName, onChange: (event) => setTeamName(event.target.value) })),
-          h("label", null, "Sport", h("select", { className: "input", value: teamSport, onChange: (event) => setTeamSport(event.target.value) },
-            h("option", { value: "soccer" }, "Soccer"), h("option", { value: "football" }, "Football"))),
-          teamSport === "soccer" ? h("label", { className: "check-row" }, h("input", { type: "checkbox", checked: teamCoed, onChange: (event) => setTeamCoed(event.target.checked) }), " Co-ed team") : null,
-          teamSport === "soccer" && teamCoed ? h("label", null, "Girls required on the field", h("input", { className: "input short-input", type: "number", min: 1, max: 11, value: teamMinGirls, onChange: (event) => setTeamMinGirls(event.target.value) })) : null,
+          onboardingActive ? h("p", { className: "tutorial-auth-note" }, "Soccer is required for this setup guide. You can add a football team later.")
+            : h("label", null, "Sport", h("select", { className: "input", value: teamSport, onChange: (event) => setTeamSport(event.target.value) },
+              h("option", { value: "soccer" }, "Soccer"), h("option", { value: "football" }, "Football"))),
+          teamSportForSetup === "soccer" ? h("label", { className: "check-row" }, h("input", { type: "checkbox", checked: teamCoed, onChange: (event) => setTeamCoed(event.target.checked) }), " Co-ed team") : null,
+          teamSportForSetup === "soccer" && teamCoed ? h("label", null, "Girls required on the field", h("input", { className: "input short-input", type: "number", min: 1, max: 11, value: teamMinGirls, onChange: (event) => setTeamMinGirls(event.target.value) })) : null,
           h("button", { className: "button primary", type: "submit" }, "Create team"),
           h("button", { className: "button ghost", type: "button", onClick: signOut }, "Sign out")) : null,
       phase === "login" || phase === "signup" ? h("form", { className: "form-stack", onSubmit: (event) => signIn(event, phase === "signup") },

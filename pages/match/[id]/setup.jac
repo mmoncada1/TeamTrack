@@ -123,10 +123,20 @@ def:pub MatchSetupPage() -> JsxPage {
     }
     def persist {
         attempted = True;
+        owner = localStorage.getItem("teamtrack:onboarding:user") or "local";
+        prefix = "teamtrack:onboarding:" + owner + ":";
+        guided_match = localStorage.getItem(prefix + "active") == "true" and localStorage.getItem(prefix + "step") == "match" and localStorage.getItem(prefix + "match-id") == id;
+        if guided_match and (not opponent.strip() or not date) {
+            notice = "Add an opponent and match date before saving this guided match.";
+            notice_error = True; saved = False; return;
+        }
         result = state["saveMatchSetup"].call(None, id, team_name, opponent, date, kickoff, title, format, formation_id,
             positive_minutes(half_length), positive_minutes(halves), thresholds, goalkeeper_rotation,
             alert_sound, roster_ids, unavailable_ids, assignments, positive_minutes(minimum_playing_time), False, positive_minutes(assistant_accept_seconds));
         notice = result; notice_error = bool(result); saved = not bool(result);
+        if not result and guided_match {
+            localStorage.setItem(prefix + "match-saved", id);
+        }
     }
 
     def start_match {
@@ -138,7 +148,14 @@ def:pub MatchSetupPage() -> JsxPage {
                 alert_sound, roster_ids, unavailable_ids, assignments, positive_minutes(minimum_playing_time), True, positive_minutes(assistant_accept_seconds));
         } except Exception as error { notice = "Could not start match: " + str(error); notice_error = True; return; }
         notice = result; notice_error = bool(result);
-        if not result { navigate("/match/" + id + "/live"); }
+        if not result {
+            owner = localStorage.getItem("teamtrack:onboarding:user") or "local";
+            prefix = "teamtrack:onboarding:" + owner + ":";
+            if localStorage.getItem(prefix + "active") == "true" and localStorage.getItem(prefix + "step") == "match" and localStorage.getItem(prefix + "match-id") == id {
+                localStorage.setItem(prefix + "match-saved", id);
+            }
+            navigate("/match/" + id + "/live");
+        }
     }
     if not game { return <section className="page narrow-page"><h1>Match not found</h1><Link to="/matches">Back to matches</Link></section>; }
     alert_labels = [("GK", "Goalkeeper"), ("DEF", "Defender"), ("MID", "Midfielder"), ("FWD", "Forward")];
