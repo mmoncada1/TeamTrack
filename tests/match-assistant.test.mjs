@@ -213,6 +213,27 @@ test("respects a spoken sub-out command", async () => {
     [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
 });
 
+test("suggests a replacement for the named player who needs to come off next", async () => {
+  const lineup = { ...context,
+    players: [
+      { id: "matteo", name: "Matteo" }, { id: "alex", name: "Alex" },
+      { id: "sam", name: "Sam" }, { id: "jude", name: "Jude" },
+    ],
+    player_states: [
+      { player_id: "matteo", status: "field", position_id: "mid", position_group: "MID", current_stint_ms: 120000 },
+      { player_id: "alex", status: "field", position_id: "def", position_group: "DEF", current_stint_ms: 900000 },
+      { player_id: "sam", status: "bench", current_stint_ms: 600000 },
+      { player_id: "jude", status: "bench", current_stint_ms: 300000 },
+    ],
+  };
+  for (const phrase of ["Sub out Matteo next", "Sub Matteo out next", "Take Matteo off next", "Matteo needs to be subbed out next"]) {
+    const { res } = await ask({ answer: "Review the substitution." }, phrase, lineup);
+    assert.deepEqual(res.body.substitutions,
+      [{ incoming_player_id: "sam", outgoing_player_id: "matteo", position_id: "mid" }], phrase);
+    assert.match(res.body.answer, /Sam for Matteo/, phrase);
+  }
+});
+
 test("tolerates a small speech recognition error in a player name", async () => {
   const { res } = await ask({ answer: "Review the substitution." }, "Samm in for Alex");
   assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);

@@ -25,13 +25,14 @@ function validSubstitution(suggestion, context) {
 }
 
 function isSubstitutionQuestion(question) {
-  return /\b(subs?|substitutes?|substitutions?|swaps?|replace|replacements?|rotate|rotations?)\b|\bbring\s+(?:in|on)\b|\b(?:bring|put)\s+\w+\s+(?:in|on)\b|\btake\s+(?:off|out)\b|\btake\s+\w+\s+(?:off|out)\b|\bin\s+for\b/i.test(question);
+  return /\b(subs?|subbed|substitutes?|substituted|substitutions?|swaps?|replace|replacements?|rotate|rotations?)\b|\bbring\s+(?:in|on)\b|\b(?:bring|put)\s+\w+\s+(?:in|on)\b|\btake\s+(?:off|out)\b|\btake\s+\w+\s+(?:off|out)\b|\bin\s+for\b/i.test(question);
 }
 
 function namedSubstitution(question, context) {
   const clean = question.trim().replace(/[.!?]+$/, "")
     .replace(/^(?:(?:can|could|would) you\s+)?(?:please\s+)?/i, "")
-    .replace(/^(?:queue|q)\s+/i, "");
+    .replace(/^(?:queue|q)\s+/i, "")
+    .replace(/\s+(?:next|next time|at the next stoppage)\s*$/i, "");
   const clauses = clean.split(/\s*(?:,|;|\band\b|\bthen\b)\s*/i).filter(Boolean);
   if (clauses.length > 1 && clauses.every((clause) => (clause.match(/\bfor\b/gi) || []).length === 1)) {
     if (clauses.length > 5) return [];
@@ -61,7 +62,8 @@ function namedSubstitution(question, context) {
     /^(?:substitute|sub|swap|replace)\s+(.+?)\s+for\s+(.+)$/i.exec(clean) ||
     /^(?:put|bring)\s+(.+?)\s+(?:on|in)\s+for\s+(.+)$/i.exec(clean);
   const outOnly = /^(?:substitute|sub)\s+out\s+(.+)$/i.exec(clean) ||
-    /^(?:take|substitute|sub)\s+(.+?)\s+(?:off|out)$/i.exec(clean);
+    /^(?:take|substitute|sub)\s+(.+?)\s+(?:off|out)$/i.exec(clean) ||
+    /^(.+?)\s+needs?\s+to\s+(?:be\s+)?(?:subbed|substituted|taken)\s+(?:off|out)$/i.exec(clean);
   const inOnly = /^(?:bring|put|substitute|sub)\s+(.+?)\s+(?:on|in)$/i.exec(clean);
   if (!markers.length && !pair && !outOnly && !inOnly) return null;
   const players = Array.isArray(context.players) ? context.players : [];
