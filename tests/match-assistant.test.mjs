@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import handler from "../api/match-assistant.js";
+import { validateAssistantAction } from "../api/assistant-actions.js";
 
 const context = {
   match: { id: "match-1", team_id: "11111111-1111-4111-8111-111111111111", status: "in_progress" },
@@ -10,6 +11,59 @@ const context = {
     { player_id: "in", status: "bench", position_id: null },
   ],
 };
+
+test("proposes a minimum playing time change without applying it", async () => {
+  const matchContext = { ...context, settings: { minimum_playing_time_minutes: 10 } };
+  const { res, requests } = await ask({}, "Set minimum playing time threshold to 20 minutes", matchContext);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.appAction, { type: "match_setting", field: "minimum_playing_time_minutes", value: 20, previous: 10 });
+  assert.equal(requests.length, 0);
+});
+
+test("rejects unsupported or invalid app edits", () => {
+  const matchContext = { ...context, settings: { minimum_playing_time_minutes: 10 } };
+  assert.equal(validateAssistantAction({ type: "match_setting", field: "minimum_playing_time_minutes", value: 0 }, matchContext), null);
+  assert.equal(validateAssistantAction({ type: "match_setting", field: "events", value: [] }, matchContext), null);
+  assert.equal(validateAssistantAction({ type: "player_update", player_id: "other-team", field: "name", value: "Lee" }, matchContext), null);
+});
+
+test("validates threshold and lineup proposals against current match data", () => {
+  const matchContext = { ...context,
+    settings: { format: "7v7", thresholds: { MID: { enabled: true, minutes: 10 } } },
+    team_players: [{ id: "in", team_id: context.match.team_id, name: "Sam" }],
+    positions: [{ id: "mid", label: "Midfield" }], assignments: { mid: "out" },
+  };
+  assert.deepEqual(validateAssistantAction({ type: "threshold", group: "MID", enabled: true, minutes: 20 }, matchContext),
+    { type: "threshold", group: "MID", enabled: true, minutes: 20, previous: { enabled: true, minutes: 10 } });
+  assert.deepEqual(validateAssistantAction({ type: "lineup_assignment", player_id: "in", position_id: "mid" }, matchContext),
+    { type: "lineup_assignment", player_id: "in", position_id: "mid", previous: "out" });
+  assert.deepEqual(validateAssistantAction({ type: "lineup_bench", player_id: "out" }, {
+    ...matchContext, team_players: [...matchContext.team_players, { id: "out", team_id: context.match.team_id, name: "Alex" }],
+  }), { type: "lineup_bench", player_id: "out", position_id: "mid", previous: "out" });
+  assert.equal(validateAssistantAction({ type: "lineup_assignment", player_id: "in", position_id: "unknown" }, matchContext), null);
+  assert.deepEqual(validateAssistantAction({ type: "app_setting", field: "reduced_motion", value: true }, {
+    ...matchContext, app_settings: { reduced_motion: false },
+  }), { type: "app_setting", field: "reduced_motion", value: true, previous: false });
+  assert.deepEqual(validateAssistantAction({ type: "player_create", name: "Maya", preferred_groups: ["MID"], jersey_number: 13 }, matchContext),
+    { type: "player_create", name: "Maya", preferred_groups: ["MID"], jersey_number: 13,
+      gender: null, availability: "active", notes: "", previous: null });
+  assert.deepEqual(validateAssistantAction({ type: "saved_lineup_create", name: "Press" }, {
+    ...matchContext, current_formation_id: "seven", settings: { ...matchContext.settings, format: "7v7" },
+  }), { type: "saved_lineup_create", name: "Press", previous: { formation_id: "seven", assignments: { mid: "out" } } });
+});
+
+test("plans a team-scoped roster update for confirmation", async () => {
+  const matchContext = { ...context, team_players: [
+    { id: "in", team_id: context.match.team_id, name: "Sam", jersey_number: 8 },
+    { id: "other", team_id: "another-team", name: "Alex", jersey_number: 10 },
+  ] };
+  const { res } = await ask({ action_json: JSON.stringify({ type: "player_update", player_id: "in", field: "jersey_number", value: 12 }) },
+    "Change Sam's jersey number to 12", matchContext);
+  assert.deepEqual(res.body.appAction, { type: "player_update", player_id: "in", field: "jersey_number", value: 12, previous: 8 });
+  const rejected = await ask({ action_json: JSON.stringify({ type: "player_update", player_id: "other", field: "jersey_number", value: 12 }) },
+    "Change Alex's jersey number to 12", matchContext);
+  assert.equal(rejected.res.body.appAction, undefined);
+});
 
 function mockResponse(body) {
   return { ok: true, status: 200, json: async () => body };
@@ -65,6 +119,36 @@ test("returns a validated suggestion for coach approval", async () => {
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body.substitutions, [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
   assert.equal(request.response_format.mime_type, "application/json");
+});
+
+test("recognizes spoken undo commands without proposing a new match action", async () => {
+  for (const [question, type] of [
+    ["get rid of that last goal", "GOAL"],
+    ["undo that last sub", "SUBSTITUTION"],
+    ["revert the last card", "CARD"],
+    ["undo the last injury", "PLAYER_UNAVAILABLE"],
+  ]) {
+    const { res, requests } = await ask({ answer: "unused" }, question, context, { fromVoice: true });
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body.undo, { event_type: type });
+    assert.deepEqual(res.body.substitutions, []);
+    assert.equal(requests.length, 0);
+  }
+});
+
+test("recognizes moving the latest recorded substitution batch to the queue", async () => {
+  for (const [question, count] of [
+    ["queue those last 4 subs instead", 4],
+    ["I meant to queue those subs", null],
+    ["move the last sub to the queue", 1],
+  ]) {
+    const { res, requests } = await ask({ answer: "unused" }, question, context, { fromVoice: true });
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body.moveToQueue, { count });
+    assert.equal(requests.length, 0);
+  }
+  const newQueue = await ask({ answer: "Review the swap." }, "Queue sub Sam for Alex", context);
+  assert.equal(newQueue.res.body.moveToQueue, undefined);
 });
 
 test("respects a spoken substitution with named incoming and outgoing players", async () => {
@@ -127,6 +211,27 @@ test("respects a spoken sub-out command", async () => {
   const takeOff = await ask({ answer: "Review the substitution." }, "Take Alex off");
   assert.deepEqual(takeOff.res.body.substitutions,
     [{ incoming_player_id: "in", outgoing_player_id: "out", position_id: "mid" }]);
+});
+
+test("suggests a replacement for the named player who needs to come off next", async () => {
+  const lineup = { ...context,
+    players: [
+      { id: "matteo", name: "Matteo" }, { id: "alex", name: "Alex" },
+      { id: "sam", name: "Sam" }, { id: "jude", name: "Jude" },
+    ],
+    player_states: [
+      { player_id: "matteo", status: "field", position_id: "mid", position_group: "MID", current_stint_ms: 120000 },
+      { player_id: "alex", status: "field", position_id: "def", position_group: "DEF", current_stint_ms: 900000 },
+      { player_id: "sam", status: "bench", current_stint_ms: 600000 },
+      { player_id: "jude", status: "bench", current_stint_ms: 300000 },
+    ],
+  };
+  for (const phrase of ["Sub out Matteo next", "Sub Matteo out next", "Take Matteo off next", "Matteo needs to be subbed out next"]) {
+    const { res } = await ask({ answer: "Review the substitution." }, phrase, lineup);
+    assert.deepEqual(res.body.substitutions,
+      [{ incoming_player_id: "sam", outgoing_player_id: "matteo", position_id: "mid" }], phrase);
+    assert.match(res.body.answer, /Sam for Matteo/, phrase);
+  }
 });
 
 test("tolerates a small speech recognition error in a player name", async () => {
@@ -237,6 +342,15 @@ test("plans all named swaps in a spoken batch, in order", async () => {
   ]);
   const duplicate = await ask({ answer: "Review." }, "Katie in for Matteo and Katie in for Lauren", batch);
   assert.deepEqual(duplicate.res.body.substitutions, []);
+  for (const phrase of ["Sub Katie for Matteo and Audrey for Lauren", "Queue sub Katie for Matteo, sub Audrey for Lauren"]) {
+    const spoken = await ask({ answer: "Review." }, phrase, batch, {
+      fromVoice: true, interpretation: { normalized_command: phrase, confident: true },
+    });
+    assert.deepEqual(spoken.res.body.substitutions, [
+      { incoming_player_id: "katie", outgoing_player_id: "matteo", position_id: "mid" },
+      { incoming_player_id: "audrey", outgoing_player_id: "lauren", position_id: "def" },
+    ], phrase);
+  }
 });
 
 test("does not offer an invalid model suggestion", async () => {
@@ -433,6 +547,11 @@ test("proposes scorer and optional assist from common goal wording", async () =>
   }
   const { res } = await ask({ answer: "Goal." }, "Katie scored", goalContext);
   assert.deepEqual(res.body.goal, { team: "us", scorer_id: "katie", assister_id: null });
+  for (const phrase of ["Matteo scored an own goal", "Own goal by Matteo"]) {
+    const own = await ask({ answer: "Goal." }, phrase, goalContext, { fromVoice: true });
+    assert.deepEqual(own.res.body.goal,
+      { team: "us", is_own_goal: true, scorer_id: "matteo", assister_id: null }, phrase);
+  }
   const opponent = await ask({ answer: "Goal." }, "Opponent scored", goalContext);
   assert.deepEqual(opponent.res.body.goal, { team: "opponent", scorer_id: null, assister_id: null });
   const againstOpponent = await ask({ answer: "Goal." }, "Katie scored against the opponent", goalContext);
@@ -514,4 +633,17 @@ test("proposes cards and injuries without recording them", async () => {
   }
   const question = await ask({ answer: "No." }, "Did Katie get a yellow card?", actions);
   assert.equal(question.res.body.matchAction, null);
+});
+
+test("proposes match clock changes only from valid states", async () => {
+  for (const [question, status, expected] of [
+    ["Pause the match", "in_progress", "pause"],
+    ["Go to halftime", "in_progress", "half_time"],
+    ["End the match", "paused", "end"],
+  ]) {
+    const { res } = await ask({}, question, { ...context, match: { ...context.match, status, current_half: 1 }, settings: { number_of_halves: 2 } });
+    assert.deepEqual(res.body.clockAction, { type: expected, expected_status: status });
+  }
+  const { res } = await ask({ answer: "The match is paused." }, "Pause the match", { ...context, match: { ...context.match, status: "paused" } });
+  assert.equal(res.body.clockAction, undefined);
 });

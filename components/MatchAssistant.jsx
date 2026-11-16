@@ -8,7 +8,7 @@ function CountdownNotice({ seconds, action }) {
   </div>;
 }
 
-export function MatchAssistant({ game, players, summary, derived, team, queuedSubs = [], onQueueSubstitutions, onApplyQueuedSubstitutions, onAcceptSubstitutions, onAcceptGoal, onAcceptMatchAction, fieldLocked = false }) {
+export function MatchAssistant({ game, players, summary, derived, team, teamPlayers = [], savedLineups = [], formations = [], positions = [], queuedSubs = [], onQueueSubstitutions, onApplyQueuedSubstitutions, onAcceptSubstitutions, onAcceptGoal, onAcceptMatchAction, onAcceptClockAction, onAcceptAppAction, onUndoEvent, onMoveRecordedSubsToQueue, fieldLocked = false }) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
@@ -21,6 +21,10 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   const [queueRequested, setQueueRequested] = useState(false);
   const [goalProposal, setGoalProposal] = useState(null);
   const [matchAction, setMatchAction] = useState(null);
+  const [clockAction, setClockAction] = useState(null);
+  const [queuedApply, setQueuedApply] = useState(null);
+  const [undoProposal, setUndoProposal] = useState(null);
+  const [appAction, setAppAction] = useState(null);
   const [dialogError, setDialogError] = useState("");
   const [countdown, setCountdown] = useState(null);
   const dialog = useRef(null);
@@ -32,6 +36,10 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     if (proposals.length) { if (queueRequested) queueProposals(proposals, true); else acceptProposals(proposals, true); }
     else if (goalProposal) acceptGoal(true);
     else if (matchAction) acceptMatchAction(true);
+    else if (undoProposal) acceptUndo(true);
+    else if (appAction) acceptAppAction(true);
+    else if (clockAction) acceptClockAction(true);
+    else if (queuedApply) acceptQueuedApply(true);
   };
 
   useEffect(() => {
@@ -43,14 +51,71 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   }, []);
 
   useEffect(() => {
-    if (!proposals.length && !goalProposal && !matchAction) { setCountdown(null); return; }
+    if (!proposals.length && !goalProposal && !matchAction && !undoProposal && !appAction && !clockAction && !queuedApply) { setCountdown(null); return; }
     const seconds = Math.max(1, Math.floor(Number(game.settings?.assistant_accept_seconds) || 5));
     const deadline = Date.now() + seconds * 1000;
     setCountdown(seconds);
     const interval = setInterval(() => setCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000))), 200);
     const timeout = setTimeout(() => acceptLatest.current?.(), seconds * 1000);
     return () => { clearInterval(interval); clearTimeout(timeout); };
-  }, [proposals, goalProposal, matchAction, game.settings?.assistant_accept_seconds]);
+  }, [proposals, goalProposal, matchAction, undoProposal, appAction, clockAction, queuedApply, game.settings?.assistant_accept_seconds]);
+
+  function acceptClockAction(fromTimer = false) {
+    if (!onAcceptClockAction || clockAction?.match_id !== game.id || derived.status !== clockAction.expected_status) {
+      setDialogError("The match status changed. Ask TeamTrack again."); return;
+    }
+    try {
+      const result = onAcceptClockAction(clockAction);
+      if (result) setDialogError(result);
+      else { setClockAction(null); setDialogError(""); if (fromTimer) setQuestion(""); }
+    } catch (error) { setDialogError(error.message || "Could not change the match clock."); }
+  }
+
+  function acceptQueuedApply(fromTimer = false) {
+    const selected = queuedApply?.items || [];
+    if (!onApplyQueuedSubstitutions || !selected.length || selected.some((item) =>
+      !queuedSubs.some((queued) => queued.incoming_player_id === item.incoming_player_id &&
+        queued.outgoing_player_id === item.outgoing_player_id && queued.position_id === item.position_id))) {
+      setDialogError("The substitution queue changed. Ask TeamTrack again."); return;
+    }
+    try {
+      const result = onApplyQueuedSubstitutions(selected);
+      if (result) setDialogError(result);
+      else { setQueuedApply(null); setDialogError(""); setAnswer(`${selected.length} queued substitution${selected.length === 1 ? "" : "s"} recorded.`); if (fromTimer) setQuestion(""); }
+    } catch (error) { setDialogError(error.message || "Could not apply queued substitutions."); }
+  }
+
+  function actionLabel(action) {
+    const player = teamPlayers.find((item) => item.id === action.player_id);
+    const lineup = savedLineups.find((item) => item.id === action.lineup_id);
+    const formation = formations.find((item) => item.id === action.formation_id);
+    if (action.type === "match_setting") return `Match setting: ${action.field.replaceAll("_", " ")} → ${String(action.value)}`;
+    if (action.type === "threshold") return `${action.group} substitution alert → ${action.enabled ? `${action.minutes} minutes` : "off"}`;
+    if (action.type === "match_detail") return `Match ${action.field.replaceAll("_", " ")} → ${action.value}`;
+    if (action.type === "team_setting") return `Team ${action.field.replaceAll("_", " ")} → ${String(action.value)}`;
+    if (action.type === "app_setting") return action.field === "field_locked" ? `${action.value ? "Lock" : "Unlock"} the live field` :
+      `${action.value ? "Enable" : "Disable"} ${action.field.replaceAll("_", " ")}`;
+    if (action.type === "player_update") return `${player?.name || "Player"}: ${action.field.replaceAll("_", " ")} → ${Array.isArray(action.value) ? action.value.join(", ") : String(action.value)}`;
+    if (action.type === "player_create") return `Add ${action.name} to the team roster${action.jersey_number == null ? "" : ` as #${action.jersey_number}`}`;
+    if (action.type === "player_delete") return `Delete ${player?.name || "player"} from the team roster`;
+    if (action.type === "roster_member") return `${action.in_match ? "Add" : "Remove"} ${player?.name || "player"} ${action.in_match ? "to" : "from"} this match`;
+    if (action.type === "formation") return `Change live formation to ${formation?.name || action.formation_id}`;
+    if (action.type === "lineup_assignment") return `Put ${player?.name || "player"} at ${positions.find((item) => item.id === action.position_id)?.label || action.position_id}`;
+    if (action.type === "lineup_bench") return `Move ${player?.name || "player"} from the field to the bench`;
+    if (action.type === "saved_lineup") return `${lineup?.name || "Saved lineup"}: ${action.field === "name" ? `rename to ${action.value}` : `assign ${player?.name || "player"} to ${action.position_id}`}`;
+    if (action.type === "saved_lineup_create") return `Save the current field as lineup “${action.name}”`;
+    if (action.type === "saved_lineup_delete") return `Delete saved lineup “${lineup?.name || action.lineup_id}”`;
+    return "Change TeamTrack";
+  }
+
+  function acceptAppAction(fromTimer = false) {
+    if (!onAcceptAppAction || appAction?.match_id !== game.id) { setDialogError("This request is no longer available. Ask TeamTrack again."); return; }
+    try {
+      const result = onAcceptAppAction(appAction);
+      if (result) setDialogError(result);
+      else { setAppAction(null); setDialogError(""); setAnswer("Change applied."); if (fromTimer) setQuestion(""); }
+    } catch (error) { setDialogError(error.message || "Could not apply this change."); }
+  }
 
   useEffect(() => {
     if (!proposals.length) return;
@@ -138,6 +203,25 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     } catch (error) { setDialogError(error.message || "Could not record the action."); }
   }
 
+  function acceptUndo(fromTimer = false) {
+    const latest = game.events?.filter((event) => event.type === undoProposal?.event_type).at(-1);
+    const action = undoProposal?.mode === "queue" ? onMoveRecordedSubsToQueue : onUndoEvent;
+    if (!action || !latest || latest.id !== undoProposal?.event_id) {
+      setDialogError("The match history changed. Ask TeamTrack again.");
+      return;
+    }
+    try {
+      const result = action(undoProposal);
+      if (result) setDialogError(result);
+      else {
+        setUndoProposal(null);
+        setDialogError("");
+        setAnswer(undoProposal.mode === "queue" ? `${undoProposal.event_ids.length} recorded substitution${undoProposal.event_ids.length === 1 ? "" : "s"} moved to the queue.` : `${undoProposal.description} undone.`);
+        if (fromTimer === true) setQuestion("");
+      }
+    } catch (error) { setDialogError(error.message || "Could not undo that match event."); }
+  }
+
   async function submitPrompt(value, fromVoice = false) {
     const prompt = value.trim();
     if (!prompt || busyRef.current) return;
@@ -149,28 +233,47 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     setQueueRequested(false);
     setGoalProposal(null);
     setMatchAction(null);
+    setUndoProposal(null);
+    setAppAction(null);
+    setClockAction(null);
+    setQueuedApply(null);
     setDialogError("");
     try {
       if (/\b(?:push|apply|record|make)\s+(?:this\s+|the\s+|next\s+|queued\s+|all\s+)*(?:subs?|substitutions?|swaps?)\b/i.test(prompt) && onApplyQueuedSubstitutions) {
         if (!queuedSubs.length) { setAnswer("There are no queued substitutions to apply."); return; }
         const all = /\ball\b/i.test(prompt);
         const selected = all ? queuedSubs : queuedSubs.slice(0, 1);
-        const result = onApplyQueuedSubstitutions(selected);
-        setAnswer(result || `${selected.length} queued substitution${selected.length === 1 ? "" : "s"} recorded.`);
+        setQueuedApply({ items: selected });
+        setAnswer(`Review ${selected.length} queued substitution${selected.length === 1 ? "" : "s"} before recording.`);
         return;
       }
       const token = await getAccessToken();
       const playerIds = new Set(derived.included_player_ids || game.roster_player_ids || []);
+      let appSettings = {};
+      try { appSettings = JSON.parse(localStorage.getItem("teamtrack:app-settings") || "{}") || {}; } catch { /* use defaults */ }
       const context = {
-        team: team ? { coed: team.coed, min_girls_on_field: team.min_girls_on_field } : undefined,
+        team: team ? { id: team.id, name: team.name, coed: team.coed, min_girls_on_field: team.min_girls_on_field } : undefined,
         match: {
           id: game.id, team_id: game.team_id, team_name: game.team_name,
-          opponent_name: game.opponent_name, date: game.date,
-          status: derived.status, clock_ms: derived.display_clock_ms,
+          opponent_name: game.opponent_name, date: game.date, kickoff_time: game.kickoff_time,
+          title: game.title, roster_player_ids: game.roster_player_ids,
+          status: derived.status, current_half: derived.current_half, clock_ms: derived.display_clock_ms,
           remaining_ms: Math.max(0, (game.settings?.half_length_minutes || 0) * (game.settings?.number_of_halves || 0) * 60000 - derived.match_clock_ms),
           team_score: summary.team_score, opponent_score: summary.opponent_score,
         },
-        settings: { thresholds: game.settings?.thresholds, goalkeeper_rotation_enabled: game.settings?.goalkeeper_rotation_enabled },
+        settings: game.settings,
+        app_settings: { field_locked: fieldLocked, reduced_motion: Boolean(appSettings.reducedMotion),
+          alert_sound_enabled: Boolean(appSettings.alertSoundEnabled) },
+        team_players: teamPlayers.map((player) => ({ id: player.id, team_id: player.team_id, name: player.name,
+          jersey_number: player.jersey_number, availability: player.availability, preferred_groups: player.preferred_groups,
+          gender: player.gender, notes: player.notes })),
+        saved_lineups: savedLineups.map((lineup) => ({ id: lineup.id, team_id: lineup.team_id, name: lineup.name,
+          format: lineup.format, formation_id: lineup.formation_id, assignments: lineup.assignments })),
+        formations: formations.map((item) => ({ id: item.id, name: item.name, format: item.format })),
+        positions: positions.map((item) => ({ id: item.id, label: item.label, group: item.group })),
+        assignments: derived.assignments,
+        current_formation_id: derived.formation_id,
+        included_player_ids: derived.included_player_ids,
         players: players.filter((player) => player.team_id === game.team_id && playerIds.has(player.id)).map((player) => ({
           id: player.id, name: player.name, jersey_number: player.jersey_number,
           preferred_groups: player.preferred_groups, availability: player.availability, gender: player.gender,
@@ -239,6 +342,41 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
       if (onAcceptGoal && result.goal) setGoalProposal({ ...result.goal, match_id: game.id,
         team_score: summary.team_score, opponent_score: summary.opponent_score });
       if (onAcceptMatchAction && result.matchAction) setMatchAction({ ...result.matchAction, match_id: game.id });
+      if (onAcceptAppAction && result.appAction) setAppAction({ ...result.appAction, match_id: game.id });
+      if (onAcceptClockAction && result.clockAction) setClockAction({ ...result.clockAction, match_id: game.id });
+      if (result.undo) {
+        if (!onUndoEvent) setAnswer("Open the live match page to undo a recorded event.");
+        else {
+          const event = game.events?.filter((item) => item.type === result.undo.event_type).at(-1);
+          if (!event) setAnswer("No matching recorded event was found to undo.");
+          else {
+            const name = (id) => players.find((player) => player.id === id)?.name || "Unknown player";
+            const description = event.type === "GOAL" ? event.data?.is_own_goal ? `Own goal by ${name(event.data.scorer_id)}` : `Goal by ${event.data?.scorer_id ? name(event.data.scorer_id) : event.data?.team === "opponent" ? game.opponent_name : game.team_name}` :
+              event.type === "SUBSTITUTION" ? `Substitution: ${name(event.data?.player_in_id)} for ${name(event.data?.player_out_id)}` :
+              event.type === "CARD" ? `${event.data?.color || ""} card for ${name(event.data?.player_id)}` :
+              `Injury for ${name(event.data?.player_id)}`;
+            setUndoProposal({ match_id: game.id, event_id: event.id, event_type: event.type, description });
+          }
+        }
+      }
+      if (result.moveToQueue) {
+        if (!onMoveRecordedSubsToQueue) setAnswer("Open the live match page to move recorded substitutions to the queue.");
+        else {
+          const subs = game.events?.filter((item) => item.type === "SUBSTITUTION") || [];
+          const latest = subs.at(-1);
+          const batch = latest ? subs.filter((item) => item.timestamp === latest.timestamp) : [];
+          const count = result.moveToQueue.count || batch.length;
+          if (!latest) setAnswer("There are no recorded substitutions to move to the queue.");
+          else if (count > batch.length) setAnswer(`The latest recorded batch contains only ${batch.length} substitution${batch.length === 1 ? "" : "s"}.`);
+          else {
+            const selected = batch.slice(-count);
+            const name = (id) => players.find((player) => player.id === id)?.name || "Unknown player";
+            const description = selected.map((item) => `${name(item.data?.player_in_id)} for ${name(item.data?.player_out_id)}`).join(", ");
+            setUndoProposal({ mode: "queue", match_id: game.id, event_id: latest.id, event_type: "SUBSTITUTION",
+              event_ids: selected.map((item) => item.id), description });
+          }
+        }
+      }
     } catch (err) {
       setError(err.name === "AbortError" ? "The assistant took too long. Please try again." : (err.message || "The assistant could not answer."));
     } finally {
@@ -425,7 +563,7 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
   return <section className="match-assistant" aria-label="Match assistant">
     <h2>Ask TeamTrack</h2>
     <p>{onAcceptSubstitutions
-      ? "Ask about this match, substitutions, goals, cards, or injuries. Queue swaps for later or record them when they happen."
+      ? "Ask about this match or command TeamTrack to update lineups, rosters, team and match settings, substitutions, and events."
       : "Ask about this match, player time, or recorded events."}</p>
     <form onSubmit={ask}>
       <label htmlFor="match-assistant-question">Your question</label>
@@ -446,6 +584,36 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
     {listening && <p role="status">Recording… speak now. It stops after you finish, or tap the microphone to stop.</p>}
     {error && <p role="alert" className="match-assistant-error">{error}</p>}
     {answer && <div className="match-assistant-answer" aria-live="polite">{answer}</div>}
+    {appAction && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review TeamTrack change">
+      <h3>Review TeamTrack change</h3>
+      <p>{actionLabel(appAction)}</p>
+      <CountdownNotice seconds={countdown ?? (game.settings?.assistant_accept_seconds || 5)} action="applying this change" />
+      {dialogError && <p role="alert" className="match-assistant-error">{dialogError}</p>}
+      <div className="match-assistant-dialog-actions">
+        <button className="button primary" type="button" onClick={() => acceptAppAction()}>Accept</button>
+        <button className="button secondary" type="button" onClick={() => { setAppAction(null); setDialogError(""); }}>Reject</button>
+      </div>
+    </div></div>}
+    {queuedApply && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review queued substitutions">
+      <h3>Apply queued substitutions?</h3>
+      <p>{queuedApply.items.map((item) => `${players.find((player) => player.id === item.incoming_player_id)?.name || "Player"} for ${players.find((player) => player.id === item.outgoing_player_id)?.name || "player"}`).join(", ")}</p>
+      <CountdownNotice seconds={countdown ?? (game.settings?.assistant_accept_seconds || 5)} action="recording these substitutions" />
+      {dialogError && <p role="alert" className="match-assistant-error">{dialogError}</p>}
+      <div className="match-assistant-dialog-actions">
+        <button className="button primary" type="button" onClick={() => acceptQueuedApply()}>Accept</button>
+        <button className="button secondary" type="button" onClick={() => { setQueuedApply(null); setDialogError(""); }}>Reject</button>
+      </div>
+    </div></div>}
+    {undoProposal && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review undo">
+      <h3>{undoProposal.mode === "queue" ? "Move recorded substitutions to queue?" : "Undo recorded change?"}</h3>
+      <p>{undoProposal.description}</p>
+      <CountdownNotice seconds={countdown ?? (game.settings?.assistant_accept_seconds || 5)} action={undoProposal.mode === "queue" ? "moving these substitutions to the queue" : "undoing this change"} />
+      {dialogError && <p role="alert" className="match-assistant-error">{dialogError}</p>}
+      <div className="match-assistant-dialog-actions">
+        <button className="button primary" type="button" onClick={() => acceptUndo()}>{undoProposal.mode === "queue" ? "Move to queue" : "Undo change"}</button>
+        <button className="button secondary" type="button" onClick={() => { setUndoProposal(null); setDialogError(""); }}>Keep change</button>
+      </div>
+    </div></div>}
     {matchAction && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review match action">
       <h3>Review match action</h3>
       <p>{players.find((player) => player.id === matchAction.player_id)?.name || "Unknown player"}: {matchAction.type === "card" ? `${matchAction.color} card` : "mark injured"}</p>
@@ -456,11 +624,21 @@ export function MatchAssistant({ game, players, summary, derived, team, queuedSu
         <button className="button secondary" type="button" onClick={() => { setMatchAction(null); setDialogError(""); }}>Reject</button>
       </div>
     </div></div>}
+    {clockAction && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review match clock change">
+      <h3>{clockAction.type === "pause" ? "Pause match?" : clockAction.type === "half_time" ? "Go to halftime?" : "End match?"}</h3>
+      <p>{clockAction.type === "pause" ? "The match clock will pause." : clockAction.type === "half_time" ? "The first half will end." : "The match will end and its summary will open."}</p>
+      <CountdownNotice seconds={countdown ?? (game.settings?.assistant_accept_seconds || 5)} action="applying this clock change" />
+      {dialogError && <p role="alert" className="match-assistant-error">{dialogError}</p>}
+      <div className="match-assistant-dialog-actions">
+        <button className="button primary" type="button" disabled={clockAction.match_id !== game.id || derived.status !== clockAction.expected_status} onClick={() => acceptClockAction()}>{clockAction.type === "pause" ? "Pause" : clockAction.type === "half_time" ? "Go to halftime" : "End match"}</button>
+        <button className="button secondary" type="button" onClick={() => { setClockAction(null); setDialogError(""); }}>Cancel</button>
+      </div>
+    </div></div>}
     {goalProposal && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review proposed goal">
       <h3>Review goal</h3>
-      <p>{goalProposal.team === "opponent" ? `${game.opponent_name} scored` : `${players.find((player) => player.id === goalProposal.scorer_id)?.name || "Unknown player"} scored`}
+      <p>{goalProposal.is_own_goal ? `${players.find((player) => player.id === goalProposal.scorer_id)?.name || "Unknown player"} scored an own goal for ${game.opponent_name}` : goalProposal.team === "opponent" ? `${game.opponent_name} scored` : `${players.find((player) => player.id === goalProposal.scorer_id)?.name || "Unknown player"} scored`}
         {goalProposal.assister_id ? ` · Assisted by ${players.find((player) => player.id === goalProposal.assister_id)?.name || "Unknown player"}` : ""}</p>
-      <p>Score: {summary.team_score}–{summary.opponent_score} → {summary.team_score + (goalProposal.team === "us" ? 1 : 0)}–{summary.opponent_score + (goalProposal.team === "opponent" ? 1 : 0)}</p>
+      <p>Score: {summary.team_score}–{summary.opponent_score} → {summary.team_score + (goalProposal.team === "us" && !goalProposal.is_own_goal ? 1 : 0)}–{summary.opponent_score + (goalProposal.team === "opponent" || goalProposal.is_own_goal ? 1 : 0)}</p>
       <CountdownNotice seconds={countdown ?? (game.settings?.assistant_accept_seconds || 5)} action="recording this goal" />
       {(goalProposal.team_score !== summary.team_score || goalProposal.opponent_score !== summary.opponent_score) &&
         <p className="match-assistant-stale">The score changed. Ask again before recording this goal.</p>}

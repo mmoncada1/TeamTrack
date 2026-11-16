@@ -78,7 +78,7 @@ def:pub describe_event(event: MatchEvent, players: list[Player], formation_id: s
         return "Substitution: " + player_name(players_by_id, data.get("player_in_id")) + " on for " + player_name(players_by_id, data.get("player_out_id")) + ".";
     }
     if event.type == "GOAL" {
-        if data.get("is_own_goal", False) { return "Own goal (against us)."; }
+        if data.get("is_own_goal", False) { return "Own goal by " + player_name(players_by_id, data.get("scorer_id")) + " (against us)."; }
         if data.get("team") == "opponent" { return "Opponent goal."; }
         scorer = player_name(players_by_id, data.get("scorer_id"));
         assist = " (assist: " + player_name(players_by_id, data.get("assister_id")) + ")" if data.get("assister_id") else "";

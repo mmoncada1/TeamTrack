@@ -11,6 +11,7 @@ def status_label(status: str) -> str {
 
 def:pub MatchesPage() -> JsxPage {
     state = use_app_state(); navigate = useNavigate(); active_id = state["activeTeamId"]; now = int(Date.now());
+    has removing: Match | None = None;
     team_matches = [game for game in state["matches"] if game.team_id == active_id];
     active_games = [game for game in team_matches if derive_match_state(game, now).status not in ["setup", "ended"]];
     drafts = [game for game in team_matches if derive_match_state(game, now).status == "setup"];
@@ -19,10 +20,11 @@ def:pub MatchesPage() -> JsxPage {
         status = derive_match_state(game, int(Date.now())).status;
         navigate("/match/" + game.id + ("/setup" if status == "setup" else "/summary" if status == "ended" else "/live"));
     }
-    def remove(game: Match) {
-        if window.confirm("Delete " + (game.team_name or "Us") + " vs " + (game.opponent_name or "Opponent") + "? This removes its events and statistics.") {
-            state["deleteMatch"].call(None, game.id);
-        }
+    def remove(game: Match) { removing = game; }
+    def confirm_remove {
+        if removing is None { return; }
+        state["deleteMatch"].call(None, removing.id);
+        removing = None;
     }
     def rows(items: list[Match]) -> JsxElement {
         return <ul className="saved-lineups">{[<li key={game.id}><button className="match-open" onClick={lambda { open_game(game); }}><strong>{game.team_name or "Us"} vs {game.opponent_name or "Opponent"}{("  " + str(derive_match_state(game, now).team_score) + "–" + str(derive_match_state(game, now).opponent_score)) if derive_match_state(game, now).status == "ended" else ""}</strong><p>{game.date}{(" " + game.kickoff_time) if game.kickoff_time else ""} · {status_label(derive_match_state(game, now).status)} · {game.settings.format}</p></button><button className="button ghost small" onClick={lambda { remove(game); }}>Delete</button></li> for game in items]}</ul>;
@@ -36,5 +38,6 @@ def:pub MatchesPage() -> JsxPage {
         {<section className="setup-section"><h2>In progress</h2>{rows(active_games)}</section> if active_games else None}
         {<section className="setup-section"><h2>Unfinished setup</h2>{rows(drafts)}</section> if drafts else None}
         <section className="setup-section"><h2>Completed matches</h2>{<ul className="saved-lineups match-results">{[completed_row(game) for game in completed]}</ul> if completed else <p className="muted">No completed matches yet.</p>}</section>
+        {<div className="match-delete-backdrop" onClick={lambda { removing = None; }} onKeyDown={lambda (e: any) { if e.key == "Escape" { removing = None; } }}><section className="match-delete-dialog" role="dialog" aria-modal={True} aria-labelledby="match-delete-title" onClick={lambda (e: any) { e.stopPropagation(); }}><h2 id="match-delete-title">Delete match?</h2><p className="match-delete-name">{removing.team_name or "Us"} vs {removing.opponent_name or "Opponent"}</p><p className="match-delete-warning">This permanently removes the match, its events, and its statistics.</p><div className="match-delete-actions"><button className="button secondary" type="button" autoFocus={True} onClick={lambda { removing = None; }}>Cancel</button><button className="button danger" type="button" onClick={confirm_remove}>Delete match</button></div></section></div> if removing is not None else None}
     </section>
 }

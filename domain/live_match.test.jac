@@ -75,6 +75,100 @@ test "records edits deletes and undoes goals deterministically" {
     assert derive_match_state(game, 150_000).opponent_score == 0;
 }
 
+test "an own goal credits the opponent without a player goal" {
+    game = start_match(sample_game(), 0);
+    game = record_goal(game, "us", True, "fwd", None, None, 60_000);
+    state = derive_match_state(game, 90_000);
+    assert state.team_score == 0 and state.opponent_score == 1;
+    assert state.player_states["fwd"].goals == 0;
+    assert game.events[-1].data["is_own_goal"];
+    assert game.events[-1].data["scorer_id"] == "fwd";
+}
+
+test "assistant undo replays the latest goal without losing later substitutions" {
+    game = start_match(sample_game(), 0);
+    game = record_goal(game, "us", False, "fwd", None, None, 60_000);
+    first_goal_id = game.events[-1].id;
+    game = substitute_player(game, "bench-a", "mid-c", 120_000);
+    game = record_goal(game, "opponent", False, None, None, None, 150_000);
+    last_goal_id = game.events[-1].id;
+    blocked = False;
+    try { undo_recorded_event(game, first_goal_id, "GOAL", 180_000); }
+    except ValueError { blocked = True; }
+    assert blocked;
+    game = undo_recorded_event(game, last_goal_id, "GOAL", 180_000);
+    state = derive_match_state(game, 180_000);
+    assert state.team_score == 1 and state.opponent_score == 0;
+    assert state.assignments["mid-c"] == "bench-a";
+    game = undo_recorded_event(game, game.events[-1].id, "SUBSTITUTION", 190_000);
+    assert derive_match_state(game, 190_000).assignments["mid-c"] == "mid-c";
+}
+
+test "assistant undo blocks a substitution with later lineup changes" {
+    game = start_match(sample_game(), 0);
+    game = substitute_player(game, "bench-a", "mid-c", 60_000);
+    sub_id = game.events[-1].id;
+    game = substitute_player(game, "bench-b", "mid-c", 120_000);
+    blocked = False;
+    try { undo_recorded_event(game, sub_id, "SUBSTITUTION", 150_000); }
+    except ValueError { blocked = True; }
+    assert blocked;
+}
+
+test "undoing a substitution restores uninterrupted field and bench timers" {
+    game = start_match(sample_game(), 0);
+    game = substitute_player(game, "bench-a", "mid-c", 60_000);
+    game = undo_recorded_event(game, game.events[-1].id, "SUBSTITUTION", 120_000);
+    state = derive_match_state(game, 180_000);
+    assert state.assignments["mid-c"] == "mid-c";
+    assert state.player_states["mid-c"].current_stint_ms == 180_000;
+    assert state.player_states["mid-c"].total_field_ms == 180_000;
+    assert state.player_states["mid-c"].total_bench_ms == 0;
+    assert state.player_states["mid-c"].subs_out == 0;
+    assert state.player_states["bench-a"].current_stint_ms == 180_000;
+    assert state.player_states["bench-a"].total_bench_ms == 180_000;
+    assert state.player_states["bench-a"].total_field_ms == 0;
+    assert state.player_states["bench-a"].subs_in == 0;
+}
+
+test "moving a recorded batch to queue restores all original timers" {
+    game = start_match(sample_game(), 0);
+    game = substitute_player(game, "bench-a", "mid-c", 60_000);
+    first_id = game.events[-1].id;
+    game = substitute_player(game, "bench-b", "mid-l", 60_000);
+    second_id = game.events[-1].id;
+    game = record_goal(game, "us", False, "fwd", None, None, 90_000);
+    game = unrecord_substitution_batch(game, [first_id, second_id], 120_000);
+    state = derive_match_state(game, 180_000);
+    assert state.assignments["mid-c"] == "mid-c" and state.assignments["mid-l"] == "mid-l";
+    assert state.player_states["mid-c"].total_field_ms == 180_000;
+    assert state.player_states["mid-l"].total_field_ms == 180_000;
+    assert state.player_states["bench-a"].total_bench_ms == 180_000;
+    assert state.player_states["bench-b"].total_bench_ms == 180_000;
+    assert state.team_score == 1;
+}
+
+test "moving a recorded batch to queue blocks later lineup changes" {
+    game = start_match(sample_game(), 0);
+    game = substitute_player(game, "bench-a", "mid-c", 60_000);
+    sub_id = game.events[-1].id;
+    game = substitute_player(game, "bench-b", "mid-c", 120_000);
+    blocked = False;
+    try { unrecord_substitution_batch(game, [sub_id], 150_000); }
+    except ValueError { blocked = True; }
+    assert blocked;
+}
+
+test "assistant undo restores a carded or injured player" {
+    game = start_match(sample_game(), 0);
+    game = record_card(game, "def-l", "red", 60_000);
+    game = undo_recorded_event(game, game.events[-1].id, "CARD", 90_000);
+    assert derive_match_state(game, 90_000).assignments["def-l"] == "def-l";
+    game = mark_player_injured(game, "mid-c", 120_000);
+    game = undo_recorded_event(game, game.events[-1].id, "PLAYER_UNAVAILABLE", 150_000);
+    assert derive_match_state(game, 150_000).assignments["mid-c"] == "mid-c";
+}
+
 test "second yellow sends a player off and undo restores them" {
     game = start_match(sample_game(), 0);
     game = record_card(game, "def-l", "yellow", 60_000);
