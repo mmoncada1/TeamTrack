@@ -291,6 +291,23 @@ test("interprets misheard roster names and substitution words for voice commands
   assert.equal(advice.requests.length, 1);
 });
 
+test("interprets a bare voice swap with a misheard roster name", async () => {
+  const roster = { ...context,
+    players: [{ id: "kaleigh", name: "Kaleigh" }, { id: "jenny", name: "Jenny" }],
+    player_states: [
+      { player_id: "kaleigh", status: "bench", position_id: null },
+      { player_id: "jenny", status: "field", position_id: "mid" },
+    ],
+  };
+  const { res, requests } = await ask({ answer: "Review the swap." }, "kaylee for jenny", roster, {
+    fromVoice: true, interpretation: { normalized_command: "Sub Kaleigh for Jenny", confident: true },
+  });
+  assert.deepEqual(res.body.substitutions,
+    [{ incoming_player_id: "kaleigh", outgoing_player_id: "jenny", position_id: "mid" }]);
+  assert.equal(res.body.interpretedQuestion, "Sub Kaleigh for Jenny");
+  assert.equal(requests.length, 1);
+});
+
 test("interprets a misheard scorer but still requires the scorer on the field", async () => {
   const roster = { ...context,
     players: [{ id: "kaleigh", name: "Kaleigh" }, { id: "alexis", name: "Alexis" }],
