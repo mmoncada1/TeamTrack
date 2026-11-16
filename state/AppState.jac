@@ -117,11 +117,6 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
     def load_demo_roster() -> int {
         return load_sample_roster(active_team_id);
     }
-    def seed_onboarding_roster(team_id: str) -> dict[str, any] {
-        if not any([team.id == team_id and team.sport == "soccer" for team in teams]) { return {"error": "The onboarding team is no longer available.", "count": 0}; }
-        count = load_sample_roster(team_id);
-        return {"error": "", "count": count};
-    }
     def save_lineup(id: str, name: str, format: str, formation_id: str, assignments: dict[str, str]) -> str {
         team = active_team(teams, active_team_id); if team is None { return "Choose a team before saving a lineup."; }
         if team.sport == "football" { return "Saved soccer lineups are only available to soccer teams."; }
@@ -212,7 +207,6 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
         "setActiveTeam": set_active_team, "createTeam": create_team,
         "updateTeam": update_team, "deleteTeam": delete_team,
         "savePlayer": save_player, "deletePlayer": delete_player, "loadDemoRoster": load_demo_roster,
-        "seedOnboardingRoster": seed_onboarding_roster,
         "saveLineup": save_lineup, "deleteLineup": delete_lineup,
         "createMatchDraft": create_match_draft,
         "saveMatchSetup": save_match_setup, "deleteMatch": delete_match,

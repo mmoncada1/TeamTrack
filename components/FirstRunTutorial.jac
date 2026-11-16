@@ -10,11 +10,11 @@ def:pub FirstRunTutorial(open: bool, on_close: any) -> JsxElement {
     has message: str = "";
     team_id = localStorage.getItem(prefix + "team") or str(state["activeTeamId"]);
     team_name = "YOUR TEAM";
-    team_exists = False;
     for item in state["teams"] {
-        if item.id == team_id { team_name = str(item.name); team_exists = True; break; }
+        if item.id == team_id { team_name = str(item.name); break; }
     }
     team_lineups = [item for item in state["lineups"] if item.team_id == team_id];
+    roster_count = len([item for item in state["players"] if item.team_id == team_id]);
     lineup_saved = any([bool(item.assignments) for item in team_lineups]);
     match_id = localStorage.getItem(prefix + "match-id") or "";
     match_saved = bool(match_id and localStorage.getItem(prefix + "match-saved") == match_id);
@@ -25,11 +25,12 @@ def:pub FirstRunTutorial(open: bool, on_close: any) -> JsxElement {
     def activate_team {
         state["setActiveTeam"].call(None, team_id);
     }
-    def seed_roster {
-        result = state["seedOnboardingRoster"].call(None, team_id);
-        if result["error"] { error = str(result["error"]); return; }
-        localStorage.setItem(prefix + "roster-seeded", "true");
-        save_step("lineup"); navigate("/roster");
+    def open_roster {
+        activate_team(); navigate("/roster");
+    }
+    def continue_to_roster {
+        if roster_count == 0 { error = "Add at least one player to your roster before continuing."; return; }
+        save_step("lineup"); activate_team(); navigate("/lineups");
     }
     def open_lineups {
         activate_team(); navigate("/lineups");
@@ -68,13 +69,6 @@ def:pub FirstRunTutorial(open: bool, on_close: any) -> JsxElement {
         on_close.call(None);
     }
 
-    can with entry {
-        if step == "roster" and team_exists {
-            if localStorage.getItem(prefix + "roster-seeded") != "true" { seed_roster(); }
-            else { save_step("lineup"); navigate("/roster"); }
-        }
-    }
-
     if not open { return <></>; }
     if step == "complete" {
         return <aside className="tutorial-guide tutorial-complete" role="status"><p>{message}</p><button type="button" className="button primary small" onClick={lambda { on_close.call(None); }}>Done</button></aside>;
@@ -86,8 +80,12 @@ def:pub FirstRunTutorial(open: bool, on_close: any) -> JsxElement {
             <button type="button" className="button ghost small" onClick={pause_guide}>Pause guide</button>
         </div>
         <progress className="tutorial-progress" value={step_number} max={4} aria-label={"Step " + str(step_number) + " of 4"} />
-        {<div className="tutorial-step"><h3>Preparing your roster</h3><p>We’re adding sample players to your team so you can try the lineup and match tools.</p><div className="tutorial-actions"><button className="button primary" type="button" onClick={seed_roster}>Retry roster setup</button></div></div> if step == "roster" else None}
-        {<div className="tutorial-step"><h3>Create your first lineup</h3><p>Your roster is ready. Open Lineups, create a lineup, and save it. You can arrange players yourself or use Auto-fill by position.</p>
+        {<div className="tutorial-step"><h3>Build your roster</h3><p>Open Roster and add your own players. Enter each player’s name and any details you know; you can add more players later.</p>
+            {<p className="tutorial-success" role="status">{str(roster_count)} player{ "" if roster_count == 1 else "s"} on your roster.</p> if roster_count else None}
+            <div className="tutorial-actions"><button className="button primary" type="button" onClick={open_roster}>Open roster</button>
+                {<button className="button secondary" type="button" onClick={continue_to_roster}>Continue to lineup</button> if roster_count else None}
+            </div></div> if step == "roster" else None}
+        {<div className="tutorial-step"><h3>Create your first lineup</h3><p>Open Lineups, create a lineup using your roster, and save it. You can arrange players yourself or use Auto-fill by position.</p>
             {<p className="tutorial-success" role="status">Lineup saved. You’re ready to set up a match.</p> if lineup_saved else None}
             <div className="tutorial-actions"><button className="button primary" type="button" onClick={open_lineups}>{ "Open lineup" if not lineup_saved else "Open saved lineup"}</button>
                 {<button className="button secondary" type="button" onClick={continue_to_lineup}>Continue to match</button> if lineup_saved else None}
