@@ -1,12 +1,25 @@
 import from "@jac/runtime" { Link }
 import from ..domain.roster { clamp_min_girls, position_names }
+import from ..domain.stats { build_match_summary }
+import from ..domain.live_match { derive_match_state }
 import from ..state.AppState { use_app_state }
+import from "../components/RosterAssistant.jsx" { RosterAssistant }
+import "../components/match-assistant.css";
+import "../components/roster-assistant.css";
 def jersey_label(number: int | None) -> str { return "" if number is None else "#" + str(number); }
 def:pub RosterPage() -> JsxPage {
     state = use_app_state(); active = None; for item in state["teams"] { if item.id == state["activeTeamId"] { active = item; break; } }
     has editing_id: str = ""; has form_open: bool = False; has name: str = ""; has jersey: str = ""; has groups: list[str] = ["MID"];
     has gender: str = ""; has notes: str = ""; has availability: str = "active"; has photo_data: str = ""; has errors: list[str] = []; has search: str = ""; has group_filter: str = "ALL";
     team_players = [player for player in state["players"] if active and player.team_id == active.id];
+    def match_stats(game: any) -> dict[str, any] {
+        summary = build_match_summary(game, state["players"], int(Date.now()));
+        status = derive_match_state(game, int(Date.now())).status;
+        return {"date": game.date, "opponent": game.opponent_name, "status": status,
+            "players": [{"player_id": player.player_id, "goals": player.goals,
+                "assists": player.assists, "field_ms": player.total_field_ms} for player in summary.summaries]};
+    }
+    history = [match_stats(game) for game in state["matches"] if active and game.team_id == active.id and game.events];
     filtered = [player for player in team_players if (active and active.sport == "football" or group_filter == "ALL" or group_filter in player.preferred_groups) and (not search.strip() or search.strip().lower() in player.name.lower())];
     def toggle_group(group: str) { groups = [item for item in groups if item != group] if group in groups else groups + [group]; }
     def open_new { editing_id = ""; name = ""; jersey = ""; groups = ["MID"]; gender = ""; notes = ""; availability = "active"; photo_data = ""; errors = []; form_open = True; }
@@ -23,11 +36,14 @@ def:pub RosterPage() -> JsxPage {
         result = state["savePlayer"].call(None, editing_id, name, number, selected_groups, gender if gender else None, notes, availability, photo_data); errors = result; if len(result) == 0 { form_open = False; }
     }
     def remove(player: any) { state["deletePlayer"].call(None, player.id); }
+    def add_ai_players(items: any) -> any { return state["addRosterPlayers"].call(None, items); }
     if not active { return <section className="page narrow-page"><p>Loading team…</p></section>; }
-    <section className="page roster-page"><div className="title-row"><div><h1>{active.name} roster</h1><p className="muted">{"Football team" if active.sport == "football" else ("Co-ed · at least " + str(clamp_min_girls(active.min_girls_on_field)) + " girls on the field" if active.coed else "Not a co-ed team")} {" "}<Link to="/team/settings">Team settings</Link></p></div><button className="button primary" type="button" onClick={open_new}>+ Add player</button></div>
+    <section className="page roster-page roster-assistant-layout"><div className="title-row"><div><h1>{active.name} roster</h1><p className="muted">{"Football team" if active.sport == "football" else ("Co-ed · at least " + str(clamp_min_girls(active.min_girls_on_field)) + " girls on the field" if active.coed else "Not a co-ed team")} {" "}<Link to="/team/settings">Team settings</Link></p></div><button className="button primary" type="button" onClick={open_new}>+ Add player</button></div>
+        <div className="roster-workspace"><div className="roster-main">
         <div className="filters"><input className="input" type="search" placeholder="Search by name…" value={search} onChange={lambda (e: ChangeEvent) { search = e.target.value; }} />{<select value={group_filter} onChange={lambda (e: ChangeEvent) { group_filter = e.target.value; }}><option value="ALL">All positions</option><option value="GK">Goalkeeper</option><option value="DEF">Defender</option><option value="MID">Midfielder</option><option value="FWD">Forward</option></select> if active.sport != "football" else None}</div>
         {<p className="empty-state">No players yet. Add your first player to get started.</p> if not team_players else None}
         <ul className="roster-list">{[<li key={player.id}>{<img className="player-avatar image" src={player.photo_id} alt={"Photo of " + player.name} /> if player.photo_id else <div className="player-avatar">{player.name.strip()[0].upper()}</div>}<div className="player-info"><div><strong>{jersey_label(player.jersey_number)}</strong> {player.name}{<span className="badge">Unavailable</span> if player.availability == "unavailable" else None}</div><small>{"" if active.sport == "football" else position_names(player.preferred_groups)}{(" · " + ("Girl" if player.gender == "girl" else "Boy" if player.gender == "boy" else "Set gender")) if active.coed else ""}{(" · " + player.notes) if player.notes else ""}</small></div><button className="button ghost small" type="button" onClick={lambda { open_edit(player); }}>Edit</button><button className="button ghost small" type="button" onClick={lambda { remove(player); }}>Delete</button></li> for player in filtered]}</ul>
+        </div>{<aside className="roster-assistant-sidebar"><RosterAssistant key={active.id} team={active} roster={team_players} matches={history} onAddPlayers={add_ai_players} /></aside> if active.sport != "football" else None}</div>
         {<div className="modal-backdrop" onClick={lambda { form_open = False; }}><section className="modal player-modal" role="dialog" aria-modal={True} onClick={lambda (e: MouseEvent) { e.stopPropagation(); }}><h2>{"Edit player" if editing_id else "Add player"}</h2><form className="form-stack" onSubmit={submit} noValidate>
             <label>Display name<input className="input" required value={name} onChange={lambda (e: ChangeEvent) { name = e.target.value; }} /></label><label>Jersey number (optional)<input className="input" type="number" min="0" value={jersey} onChange={lambda (e: ChangeEvent) { jersey = e.target.value; }} /></label>
             {<fieldset><legend>Positions</legend><p className="muted small-text">Choose every position they can play.</p>{[<label className="check-row" key={group}><input type="checkbox" checked={group in groups} onChange={lambda { toggle_group(group); }} /> {label}</label> for (group, label) in [("GK", "Goalkeeper"), ("DEF", "Defender"), ("MID", "Midfielder"), ("FWD", "Forward")]]}</fieldset> if active.sport != "football" else None}

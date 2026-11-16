@@ -71,6 +71,26 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
             created_at=existing.created_at if existing is not None else now, updated_at=now);
         players = sort_players([player for player in players if player.id != saved.id] + [saved]); return [];
     }
+    def add_roster_players(items: list[dict[str, any]]) -> dict[str, any] {
+        team = active_team(teams, active_team_id);
+        if team is None or team.sport != "soccer" { return {"error": "Choose a soccer team first.", "added": 0, "skipped": []}; }
+        if not items or len(items) > 20 { return {"error": "Add between one and twenty players at a time.", "added": 0, "skipped": []}; }
+        names = [player.name.lower() for player in players if player.team_id == team.id];
+        created: list[Player] = []; skipped: list[str] = []; now = int(Date.now());
+        for item in items {
+            name = str(item.get("name") or "").strip(); groups = normalize_position_groups(item.get("preferred_groups") or ["MID"]);
+            gender = item.get("gender") if item.get("gender") in ["girl", "boy"] else None;
+            if name.lower() in names { skipped.append(name); continue; }
+            errors = validate_player(name, None, groups, gender, False, [], None);
+            if errors { return {"error": errors[0].message, "added": 0, "skipped": []}; }
+            created.append(Player(id=create_id("player"), team_id=team.id, name=name, jersey_number=None,
+                preferred_group=groups[0], preferred_groups=groups, gender=gender, notes=None,
+                availability="active", created_at=now, updated_at=now));
+            names.append(name.lower());
+        }
+        if created { players = sort_players(players + created); }
+        return {"error": "", "added": len(created), "skipped": skipped};
+    }
     def delete_player(id: str) {
         if not any([player.id == id and player.team_id == active_team_id for player in players]) { return; }
         players = [player for player in players if player.id != id];
@@ -206,7 +226,8 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
         "drivePlans": drive_plans, "footballWhiteboards": football_whiteboards, "activeTeamId": active_team_id,
         "setActiveTeam": set_active_team, "createTeam": create_team,
         "updateTeam": update_team, "deleteTeam": delete_team,
-        "savePlayer": save_player, "deletePlayer": delete_player, "loadDemoRoster": load_demo_roster,
+        "savePlayer": save_player, "addRosterPlayers": add_roster_players,
+        "deletePlayer": delete_player, "loadDemoRoster": load_demo_roster,
         "saveLineup": save_lineup, "deleteLineup": delete_lineup,
         "createMatchDraft": create_match_draft,
         "saveMatchSetup": save_match_setup, "deleteMatch": delete_match,

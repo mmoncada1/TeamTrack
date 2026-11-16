@@ -1,4 +1,5 @@
 import { directAssistantAction, validateAssistantAction } from "./assistant-actions.js";
+import { isPlayerStatsQuestion, playerStats } from "./player-stats.js";
 
 function validSubstitution(suggestion, context) {
   if (!suggestion || !["in_progress", "paused", "half_time"].includes(context.match.status)) return false;
@@ -452,7 +453,7 @@ export default async function handler(req, res) {
   if (typeof question !== "string" || !question.trim() || question.length > 500 ||
       typeof teamId !== "string" || !/^[0-9a-f-]{36}$/i.test(teamId) ||
       typeof context?.match?.id !== "string" ||
-      JSON.stringify(context).length > 80000) {
+      JSON.stringify(context).length > (isPlayerStatsQuestion(question) ? 500000 : 80000)) {
     return send(res, 400, { error: "Invalid or oversized match question." });
   }
   let stage = "team access";
@@ -469,6 +470,15 @@ export default async function handler(req, res) {
     const clockAction = proposedClockAction(question, context);
     if (clockAction) return send(res, 200, { answer: "Review the match clock change before applying it.",
       substitutions: [], goal: null, matchAction: null, clockAction });
+    if (isPlayerStatsQuestion(question)) {
+      const current = { date: context.match.date, opponent: context.match.opponent_name, status: context.match.status,
+        players: (context.statistics || []).map((item) => ({ player_id: item.player_id, goals: item.goals,
+          assists: item.assists, field_ms: item.total_field_ms })) };
+      const answer = playerStats(question, context.team_players?.length ? context.team_players : context.players || [],
+        context.match_history?.length ? context.match_history : [current]);
+      if (answer) return send(res, 200, { answer, substitutions: [], goal: null, matchAction: null });
+      delete context.match_history;
+    }
     const directAction = directAssistantAction(question, context);
     if (directAction) return send(res, 200, { answer: "Review this change before TeamTrack applies it.", appAction: directAction });
     if (!process.env.GEMINI_API_KEY) return send(res, 503, { error: "Match assistant is not configured yet." });

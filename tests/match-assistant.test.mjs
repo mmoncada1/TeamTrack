@@ -80,6 +80,27 @@ test("loads the function and answers an unsupported method with JSON", async () 
   assert.deepEqual(res.body, { error: "Method not allowed." });
 });
 
+test("live coach assistant answers a player's goals, assists, and minutes across matches", async () => {
+  const matchContext = { ...context,
+    team_players: [{ id: "henry", name: "Henry Lee" }],
+    match_history: [
+      { date: "2026-11-01", opponent: "Falcons", status: "ended", players: [
+        { player_id: "henry", goals: 2, assists: 1, field_ms: 1800000 },
+      ] },
+      { date: "2026-11-08", opponent: "Wolves", status: "in_progress", players: [
+        { player_id: "henry", goals: 1, assists: 0, field_ms: 1200000 },
+      ] },
+    ],
+  };
+  const { res, requests } = await ask({}, "How many goals has Henry scored?", matchContext);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body.answer, /Henry Lee: 3 goals, 1 assist, 50:00 on field across 2 matches/);
+  assert.match(res.body.answer, /vs Falcons: 2 goals, 1 assist, 30:00/);
+  assert.match(res.body.answer, /vs Wolves: 1 goal, 0 assists, 20:00.*in progress/);
+  assert.equal(requests.length, 0);
+  assert.deepEqual(res.body.substitutions, []);
+});
+
 async function ask(modelAnswer, question = "Who should I sub in?", matchContext = context, options = {}) {
   const oldFetch = globalThis.fetch;
   const oldKey = process.env.GEMINI_API_KEY;

@@ -40,6 +40,30 @@ test("transcribes a short clip with roster and soccer context", async () => {
   }
 });
 
+test("uses roster terminology for roster voice requests", async () => {
+  const oldFetch = globalThis.fetch;
+  const oldKey = process.env.GEMINI_API_KEY;
+  let prompt;
+  globalThis.fetch = async (url, options) => {
+    if (url.includes("supabase.co")) return { ok: true, json: async () => [{ id: teamId }] };
+    prompt = JSON.parse(options.body).contents[0].parts[0].text;
+    return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: "Add Audrey and Alex" }] } }] }) };
+  };
+  process.env.GEMINI_API_KEY = "test-key";
+  try {
+    const res = response();
+    await handler({ method: "POST", headers: { authorization: "Bearer test-token" },
+      body: { ...payload, purpose: "roster" } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.match(prompt, /soccer roster request/);
+    assert.match(prompt, /add player/);
+  } finally {
+    globalThis.fetch = oldFetch;
+    if (oldKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = oldKey;
+  }
+});
+
 test("distinguishes silence from an empty model response", async () => {
   const oldFetch = globalThis.fetch;
   const oldKey = process.env.GEMINI_API_KEY;
