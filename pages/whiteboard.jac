@@ -30,7 +30,17 @@ def SoccerWhiteboardPage() -> JsxElement {
     can with [active_id] entry {
         board = load_board(active_id) if active_id else empty_board(); undo_stack = []; redo_stack = []; drawing = False; current_points = []; adding_note = False;
     }
-    def persist(next_board: dict[str, list[any]]) { board = next_board; if active_id { localStorage.setItem(board_key(active_id), JSON.stringify(next_board)); } }
+    def persist(next_board: dict[str, list[any]]) {
+        board = next_board;
+        if active_id {
+            localStorage.setItem(board_key(active_id), JSON.stringify(next_board));
+            owner = localStorage.getItem("teamtrack:onboarding:user") or "local";
+            prefix = "teamtrack:onboarding:" + owner + ":";
+            if localStorage.getItem(prefix + "active") == "true" and localStorage.getItem(prefix + "step") == "whiteboard" and localStorage.getItem(prefix + "team") == active_id {
+                localStorage.setItem(prefix + "whiteboard-ready", "true" if next_board["strokes"] or next_board["notes"] else "false");
+            }
+        }
+    }
     def remember(next_board: dict[str, list[any]]) { undo_stack = undo_stack + [board]; redo_stack = []; persist(next_board); }
     def event_point(event: any) -> dict[str, float] {
         rect = event.currentTarget.getBoundingClientRect();
