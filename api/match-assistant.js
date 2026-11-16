@@ -396,12 +396,19 @@ function send(res, status, body) {
 }
 
 function needsVoiceInterpretation(question) {
+  const bareSwap = isBareVoiceSwap(question);
   const namedSwap = !/^\s*(?:who|what|which|when|where|how|should)\b/i.test(question) &&
     ((/\b(?:tub|sub|substitute|swap|replace|bring|take|put)\b/i.test(question) &&
       /\b(?:for|off|out)\b/i.test(question)) ||
       /\b(?:bring|put)\s+\w+\s+(?:on|in)\b/i.test(question));
-  return namedSwap || (!isGoalQuestion(question) &&
+  return bareSwap || namedSwap || (!isGoalQuestion(question) &&
     /\b(?:scored?|scores?|goal|card|carded|injured|injury|hurt)\b/i.test(question));
+}
+
+function isBareVoiceSwap(question) {
+  return /^\s*[a-z][a-z' -]*\s+for\s+[a-z][a-z' -]*[.!?]?\s*$/i.test(question) &&
+    (question.match(/\bfor\b/gi) || []).length === 1 &&
+    !/\b(?:sub|substitute|swap|queue|bring|put|replace|and|then|who|what|which)\b/i.test(question);
 }
 
 function exactRosterNameCount(question, context) {
@@ -486,6 +493,10 @@ export default async function handler(req, res) {
       return send(res, 200, { answer: recordedScorers(context), substitutions: [], goal: null, matchAction: null });
     }
     let command = question.trim();
+    if (fromVoice === true && isBareVoiceSwap(command)) {
+      command = `Sub ${command.replace(/[.!?]+$/, "")}`;
+    }
+    let interpretationSucceeded = false;
     let interpretationAttempted = false;
     const directSubstitution = isSubstitutionQuestion(command) ? namedSubstitution(command, context) : null;
     const directGoal = proposedGoal(command, context);
@@ -550,9 +561,9 @@ For threshold changes retain the current enabled/minutes value for the property 
       interpretationAttempted = true;
       stage = "voice interpretation";
       const interpreted = await interpretVoiceCommand(command, context, signal);
-      if (interpreted) command = interpreted;
+      if (interpreted) { command = interpreted; interpretationSucceeded = true; }
     }
-    if (interpretationAttempted && command === question.trim()) {
+    if (interpretationAttempted && !interpretationSucceeded) {
       return send(res, 200, { answer: `I heard “${question.trim().slice(0, 120)}”, but couldn't confidently match the command to this lineup. Check the player names and try again.`,
         substitutions: [], goal: null, matchAction: null, interpretedQuestion: null });
     }
