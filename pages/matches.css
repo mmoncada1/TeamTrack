@@ -9,3 +9,12 @@
 
 
 .setup-section{margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e2e8f0}.setup-section h2{margin:0 0 .7rem;font-size:1.1rem}
+.match-delete-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:1rem;background:rgb(0 0 0/.72)}
+.match-delete-dialog{width:min(100%,28rem);padding:1.5rem;border:1px solid #cbd5e1;border-radius:.75rem;background:#fff;color:#0f172a;box-shadow:0 20px 60px rgb(0 0 0/.35)}
+.match-delete-dialog h2{margin:0 0 1rem;font-size:1.2rem;color:inherit}
+.match-delete-dialog p{margin:0 0 1rem;line-height:1.5}
+.match-delete-name{font-weight:700;overflow-wrap:anywhere}
+.match-delete-warning{color:#475569}
+.match-delete-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:.75rem;margin-top:1.5rem}
+[data-theme="dark"] .match-delete-dialog{border-color:#475569;background:#1e293b;color:#f8fafc}
+[data-theme="dark"] .match-delete-warning{color:#cbd5e1}
