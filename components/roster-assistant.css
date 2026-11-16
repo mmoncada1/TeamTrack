@@ -1,0 +1,9 @@
+.roster-page.roster-assistant-layout{max-width:86rem}
+.roster-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(19rem,24rem);align-items:start;gap:1.5rem}
+.roster-main{min-width:0}
+.roster-assistant-sidebar{min-width:0;position:sticky;top:1rem}
+.roster-assistant{width:100%;box-sizing:border-box;margin:1rem 0 1.5rem}
+.roster-assistant-suggestions{display:grid;gap:.35rem;max-height:45vh;overflow:auto;margin:0 0 1.25rem;padding:0;list-style:none}
+.roster-assistant-suggestions li{display:flex;justify-content:space-between;gap:1rem;padding:.55rem .7rem;border:1px solid #475569;border-radius:8px;color:#f1f5f9}
+.roster-assistant-suggestions span{color:#cbd5e1;text-align:right}
+@media(max-width:850px){.roster-workspace{grid-template-columns:1fr}.roster-assistant-sidebar{position:static;grid-row:1}.roster-main{grid-row:2}.roster-assistant{margin-top:0}}

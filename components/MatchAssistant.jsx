@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { getAccessToken } from "../state/cloud.js";
 
+function isPlayerStatsQuestion(question) {
+  return /\b(?:how many|stats|statistics|per game|playing time|minutes?|show me|tell me|what are|what is)\b/i.test(question) ||
+    (/\b(?:goals|assists)\b/i.test(question) && !/\b(?:scored?|record|add|log|mark)\b/i.test(question));
+}
+
 function CountdownNotice({ seconds, action }) {
   return <div className="match-assistant-countdown" role="timer" aria-live="off">
     <strong aria-label={`${seconds} seconds remaining`}>{seconds}</strong>
@@ -8,7 +13,7 @@ function CountdownNotice({ seconds, action }) {
   </div>;
 }
 
-export function MatchAssistant({ game, players, summary, derived, team, teamPlayers = [], savedLineups = [], formations = [], positions = [], queuedSubs = [], onQueueSubstitutions, onApplyQueuedSubstitutions, onAcceptSubstitutions, onAcceptGoal, onAcceptMatchAction, onAcceptClockAction, onAcceptAppAction, onUndoEvent, onMoveRecordedSubsToQueue, fieldLocked = false }) {
+export function MatchAssistant({ game, players, summary, derived, team, teamPlayers = [], savedLineups = [], formations = [], positions = [], queuedSubs = [], getMatchHistory, onQueueSubstitutions, onApplyQueuedSubstitutions, onAcceptSubstitutions, onAcceptGoal, onAcceptMatchAction, onAcceptClockAction, onAcceptAppAction, onUndoEvent, onMoveRecordedSubsToQueue, fieldLocked = false }) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
@@ -252,6 +257,7 @@ export function MatchAssistant({ game, players, summary, derived, team, teamPlay
       let appSettings = {};
       try { appSettings = JSON.parse(localStorage.getItem("teamtrack:app-settings") || "{}") || {}; } catch { /* use defaults */ }
       const context = {
+        ...(isPlayerStatsQuestion(prompt) && getMatchHistory ? { match_history: getMatchHistory() } : {}),
         team: team ? { id: team.id, name: team.name, coed: team.coed, min_girls_on_field: team.min_girls_on_field } : undefined,
         match: {
           id: game.id, team_id: game.team_id, team_name: game.team_name,
@@ -563,7 +569,7 @@ export function MatchAssistant({ game, players, summary, derived, team, teamPlay
   return <section className="match-assistant" aria-label="Match assistant">
     <h2>Ask TeamTrack</h2>
     <p>{onAcceptSubstitutions
-      ? "Ask about this match or command TeamTrack to update lineups, rosters, team and match settings, substitutions, and events."
+      ? "Ask about this match, player stats across matches, or command TeamTrack to update lineups, rosters, team and match settings, substitutions, and events."
       : "Ask about this match, player time, or recorded events."}</p>
     <form onSubmit={ask}>
       <label htmlFor="match-assistant-question">Your question</label>
