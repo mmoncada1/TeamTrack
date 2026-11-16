@@ -50,7 +50,20 @@ button { cursor: pointer; }
 .hub-detail { margin-top: .25rem; font-size: .875rem; color: #64748b; }
 .hub-card.accent .hub-detail { color: #d1fae5; }
 
+.tutorial-nav-button { border: 0; background: transparent; }
+.tutorial-guide { margin: 0 0 1.25rem; padding: 1rem 1.15rem; border: 1px solid #a7f3d0; border-radius: .85rem; background: #f0fdf4; color: #0f172a; }
+.tutorial-guide-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.tutorial-guide-heading h2 { margin: 0; font-size: 1.1rem; }
+.tutorial-eyebrow { margin: 0 0 .25rem; color: #047857; font-size: .7rem; font-weight: 800; letter-spacing: .1em; }
+.tutorial-progress { display: block; width: 100%; height: .4rem; margin: .65rem 0 .85rem; accent-color: #047857; }
+.tutorial-step h3 { margin: 0 0 .35rem; font-size: 1rem; }
+.tutorial-step p { margin: .35rem 0; line-height: 1.5; }
+.tutorial-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+.tutorial-success { padding: .55rem .7rem; border: 1px solid #a7f3d0; border-radius: .55rem; background: #ecfdf5; color: #065f46; }
+.tutorial-auth-note { margin: 0; padding: .65rem .75rem; border: 1px solid #a7f3d0; border-radius: .55rem; background: #f0fdf4; color: #065f46; }
+
 @media (max-width: 640px) { .hub-grid { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .tutorial-guide { padding: .9rem; } .tutorial-guide-heading { flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .001ms !important; animation-duration: .001ms !important; } }
 
 [data-theme="dark"] { color-scheme:dark; color:#e2e8f0; background:#0f172a; }
@@ -65,6 +78,9 @@ button { cursor: pointer; }
 [data-theme="dark"] .hub-card.accent { color:#fff; background:#047857; border-color:#10b981; }
 [data-theme="dark"] .hub-detail,[data-theme="dark"] .page-heading p { color:#94a3b8; }
 [data-theme="dark"] .hub-card.accent .hub-detail { color:#d1fae5; }
+[data-theme="dark"] .tutorial-guide { color:#e2e8f0; background:#022c22; border-color:#047857; }
+[data-theme="dark"] .tutorial-eyebrow { color:#6ee7b7; }
+[data-theme="dark"] .tutorial-success,[data-theme="dark"] .tutorial-auth-note { color:#d1fae5; background:#022c22; border-color:#047857; }
 [data-theme="dark"] .migration-banner,[data-theme="dark"] .notice { color:#d1fae5; background:#022c22; border-color:#047857; }
 [data-theme="dark"] .notice p { color:#cbd5e1; }
 .auth-screen{min-height:100vh;display:grid;place-items:center;padding:1rem}.auth-screen .card{width:min(100%,420px)}

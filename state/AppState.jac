@@ -50,12 +50,13 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
     def delete_team(id: str) -> str {
         if len(teams) <= 1 { return "Keep at least one team."; }
         remaining = [team for team in teams if team.id != id]; if len(remaining) == len(teams) { return "Team not found."; }
+        localStorage.removeItem("teamtrack:whiteboard:" + id);
         teams = remaining; players = [p for p in players if p.team_id != id]; lineups = [item for item in lineups if item.team_id != id]; matches = [item for item in matches if item.team_id != id];
         football_formations = [item for item in football_formations if item.team_id != id];
         football_plays = [item for item in football_plays if item.team_id != id];
         drive_plans = [item for item in drive_plans if item.team_id != id];
         football_whiteboards = [item for item in football_whiteboards if item.team_id != id];
-        if active_team_id == id { active_team_id = remaining[0].id; } return "";
+        if active_team_id == id { active_team_id = remaining[0].id if remaining else ""; } return "";
     }
     def save_player(id: str, name: str, jersey_number: int | None, groups: list[str], gender: str | None, notes: str, availability: str, photo_data: str | None = None) -> list[str] {
         team = active_team(teams, active_team_id); if team is None { return ["Choose a team before adding a player."]; }
@@ -112,8 +113,8 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
         }
         football_plays = next_plays;
     }
-    def load_demo_roster() -> int {
-        team = active_team(teams, active_team_id); if team is None { return 0; }
+    def load_sample_roster(team_id: str) -> int {
+        team = active_team(teams, team_id); if team is None { return 0; }
         samples = [("Alex Rivera", "GK"), ("Jordan Lee", "DEF"), ("Sam Okafor", "DEF"),
             ("Casey Nguyen", "DEF"), ("Maya Torres", "MID"), ("Priya Shah", "MID"),
             ("Liam Fischer", "MID"), ("Noah Kim", "FWD"), ("Ella Martin", "FWD"),
@@ -132,6 +133,9 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
         }
         if new_players { players = sort_players(players + new_players); }
         return len(new_players);
+    }
+    def load_demo_roster() -> int {
+        return load_sample_roster(active_team_id);
     }
     def save_lineup(id: str, name: str, format: str, formation_id: str, assignments: dict[str, str]) -> str {
         team = active_team(teams, active_team_id); if team is None { return "Choose a team before saving a lineup."; }
@@ -220,9 +224,13 @@ def:pub AppStateProvider(children: any = None) -> JsxElement {
     value = {"teams": teams, "players": players, "lineups": lineups, "matches": matches,
         "footballFormations": football_formations, "footballPlays": football_plays,
         "drivePlans": drive_plans, "footballWhiteboards": football_whiteboards, "activeTeamId": active_team_id,
-        "setActiveTeam": set_active_team, "createTeam": create_team, "updateTeam": update_team, "deleteTeam": delete_team,
-        "savePlayer": save_player, "addRosterPlayers": add_roster_players, "deletePlayer": delete_player, "loadDemoRoster": load_demo_roster, "saveLineup": save_lineup, "deleteLineup": delete_lineup,
-        "createMatchDraft": create_match_draft, "saveMatchSetup": save_match_setup, "deleteMatch": delete_match,
+        "setActiveTeam": set_active_team, "createTeam": create_team,
+        "updateTeam": update_team, "deleteTeam": delete_team,
+        "savePlayer": save_player, "addRosterPlayers": add_roster_players,
+        "deletePlayer": delete_player, "loadDemoRoster": load_demo_roster,
+        "saveLineup": save_lineup, "deleteLineup": delete_lineup,
+        "createMatchDraft": create_match_draft,
+        "saveMatchSetup": save_match_setup, "deleteMatch": delete_match,
         "replaceMatch": replace_match, "saveFootballFormation": save_football_formation,
         "deleteFootballFormation": delete_football_formation, "saveFootballPlay": save_football_play,
         "deleteFootballPlay": delete_football_play, "saveDrivePlan": save_drive_plan,

@@ -6,7 +6,15 @@ def:pub NewMatchPage() -> JsxPage {
         if not started.current {
             started.current = True; today = new(Date).toISOString()[:10];
             id = state["createMatchDraft"].call(None, today);
-            if id { navigate("/match/" + id + "/setup", {"replace": True}); }
+            if id {
+                owner = localStorage.getItem("teamtrack:onboarding:user") or "local";
+                prefix = "teamtrack:onboarding:" + owner + ":";
+                if localStorage.getItem(prefix + "active") == "true" and localStorage.getItem(prefix + "step") == "match" and localStorage.getItem(prefix + "team") == state["activeTeamId"] {
+                    localStorage.setItem(prefix + "match-id", id);
+                    localStorage.removeItem(prefix + "match-saved");
+                }
+                navigate("/match/" + id + "/setup", {"replace": True});
+            }
             else { error = True; }
         }
     }
