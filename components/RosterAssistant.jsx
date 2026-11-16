@@ -1,17 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { getAccessToken } from "../state/cloud.js";
 
-function isPlayerStatsQuestion(question) {
-  return /\b(?:how many|stats|statistics|per game|playing time|minutes?|show me|tell me|what are|what is)\b/i.test(question) ||
-    (/\b(?:goals|assists)\b/i.test(question) && !/\b(?:scored?|record|add|log|mark)\b/i.test(question));
-}
-
 export function RosterAssistant({ team, roster, matches, onAddPlayers }) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
+  const [stats, setStats] = useState(null);
   const [micSupported, setMicSupported] = useState(false);
   const [micStarting, setMicStarting] = useState(false);
   const [listening, setListening] = useState(false);
@@ -31,10 +27,9 @@ export function RosterAssistant({ team, roster, matches, onAddPlayers }) {
     const prompt = value.trim();
     if (!prompt || busyRef.current) return;
     busyRef.current = true;
-    setBusy(true); setError(""); setAnswer(""); setSuggestions([]);
+    setBusy(true); setError(""); setAnswer(""); setSuggestions([]); setStats(null);
     try {
       const token = await getAccessToken();
-      const asksStats = isPlayerStatsQuestion(prompt);
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 30000);
       let response;
@@ -43,7 +38,7 @@ export function RosterAssistant({ team, roster, matches, onAddPlayers }) {
           method: "POST", signal: controller.signal,
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ question: prompt, teamId: team.id, coed: team.coed,
-            roster: roster.map((player) => ({ id: player.id, name: player.name })), matches: asksStats ? matches : [] }),
+            roster: roster.map((player) => ({ id: player.id, name: player.name })), matches }),
         });
       } finally { clearTimeout(timer); }
       if (!(response.headers.get("content-type") || "").includes("application/json")) {
@@ -62,6 +57,9 @@ export function RosterAssistant({ team, roster, matches, onAddPlayers }) {
       } else if (result.mode === "generate" && result.players?.length) {
         setAnswer(result.answer);
         setSuggestions(result.players);
+      } else if (result.stats) {
+        setStats(result.stats);
+        setQuestion("");
       } else setAnswer(result.answer || "I could not answer that request.");
     } catch (err) {
       setError(err.name === "AbortError" ? "The roster assistant took too long. Try again." : err.message);
@@ -221,6 +219,13 @@ export function RosterAssistant({ team, roster, matches, onAddPlayers }) {
     {listening && <p role="status">Recording… speak now. It stops after you finish, or tap the microphone to stop.</p>}
     {error && <p role="alert" className="match-assistant-error">{error}</p>}
     {answer && <div className="match-assistant-answer" aria-live="polite">{answer}</div>}
+    {stats && <div className="match-assistant-dialog-backdrop" onClick={() => setStats(null)}><div className="match-assistant-dialog roster-stats-dialog" role="dialog" aria-modal="true" aria-label={`${stats.name} statistics`} onClick={(event) => event.stopPropagation()}>
+      <div className="roster-stats-heading"><div><span>Player stats</span><h3>{stats.name}</h3></div><button className="button secondary" type="button" onClick={() => setStats(null)} aria-label="Close player stats">Close</button></div>
+      <div className="roster-stats-grid"><div><strong>{stats.goals}</strong><span>Goals</span></div><div><strong>{stats.assists}</strong><span>Assists</span></div><div><strong>{stats.matches}</strong><span>Games</span></div><div><strong>{Math.floor(stats.fieldMs / 60000)}</strong><span>Minutes</span></div></div>
+      <details className="roster-stats-games"><summary>Individual games ({stats.games.length})</summary>
+        {stats.games.length ? <ul>{stats.games.map((game, index) => <li key={`${game.date}-${game.opponent}-${index}`}><strong>{game.date} vs {game.opponent}</strong><span>{game.goals} goal{game.goals === 1 ? "" : "s"} · {game.assists} assist{game.assists === 1 ? "" : "s"} · {Math.floor(game.fieldMs / 60000)} min{game.status === "ended" ? "" : " · In progress"}</span></li>)}</ul> : <p>No match history yet.</p>}
+      </details>
+    </div></div>}
     {suggestions.length > 0 && <div className="match-assistant-dialog-backdrop"><div className="match-assistant-dialog" role="dialog" aria-modal="true" aria-label="Review generated roster">
       <h3>Review sample roster</h3>
       <p>These are fictional sample players. Add them to {team.name}?</p>

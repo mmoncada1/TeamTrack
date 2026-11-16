@@ -6,4 +6,18 @@
 .roster-assistant-suggestions{display:grid;gap:.35rem;max-height:45vh;overflow:auto;margin:0 0 1.25rem;padding:0;list-style:none}
 .roster-assistant-suggestions li{display:flex;justify-content:space-between;gap:1rem;padding:.55rem .7rem;border:1px solid #475569;border-radius:8px;color:#f1f5f9}
 .roster-assistant-suggestions span{color:#cbd5e1;text-align:right}
+.roster-stats-dialog{width:min(100%,42rem)}
+.roster-stats-heading{display:flex;justify-content:space-between;align-items:start;gap:1rem;margin-bottom:1.25rem}
+.roster-stats-heading span{color:#94a3b8;font-size:.85rem;text-transform:uppercase;letter-spacing:.08em}
+.roster-stats-heading h3{margin:.25rem 0 0;font-size:1.5rem}
+.roster-stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.65rem;margin-bottom:1.25rem}
+.roster-stats-grid>div{display:grid;gap:.2rem;padding:1rem;border:1px solid #475569;border-radius:10px;background:#263449}
+.roster-stats-grid strong{color:#f1f5f9;font-size:1.6rem;font-variant-numeric:tabular-nums}
+.roster-stats-grid span{color:#cbd5e1;font-size:.85rem}
+.roster-stats-games{border-top:1px solid #475569;padding-top:1rem;color:#f1f5f9}
+.roster-stats-games summary{cursor:pointer;font-weight:700}
+.roster-stats-games ul{display:grid;gap:.5rem;list-style:none;padding:0;margin:1rem 0 0;max-height:40vh;overflow:auto}
+.roster-stats-games li{display:grid;gap:.25rem;padding:.7rem;border:1px solid #475569;border-radius:8px}
+.roster-stats-games li span{color:#cbd5e1;font-size:.9rem}
+@media(max-width:520px){.roster-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:850px){.roster-workspace{grid-template-columns:1fr}.roster-assistant-sidebar{position:static;grid-row:1}.roster-main{grid-row:2}.roster-assistant{margin-top:0}}

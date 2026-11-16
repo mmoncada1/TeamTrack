@@ -1,4 +1,4 @@
-import { isPlayerStatsQuestion, playerStats } from "./player-stats.js";
+import { rosterStatsAnswer } from "./roster-stats.js";
 
 const SUPABASE_URL = "https://agtdyrerqbuwfwimbttj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_7Hc6x5-_JGvimNXl2iMcig_shCj4LMq";
@@ -56,12 +56,10 @@ export default async function handler(req, res) {
     const teams = await access.json();
     if (!Array.isArray(teams) || teams.length !== 1) return send(res, 403, { error: "This team is unavailable." });
 
-    if (isPlayerStatsQuestion(question)) {
-      const answer = playerStats(question, roster, matches);
-      return send(res, 200, { answer: answer || "I couldn't identify one roster player. Use a full name if teammates share a first name.", players: [] });
-    }
     const added = directAdd(question);
     if (added) return send(res, 200, { answer: added.length ? `Adding ${added.map((player) => player.name).join(", ")} to the roster.` : "List player names separated by commas or 'and'.", players: added, mode: "add" });
+    const statsAnswer = rosterStatsAnswer(question, roster, matches);
+    if (statsAnswer) return send(res, 200, { ...statsAnswer, players: [] });
     if (!/\b(?:generate|create|make|build)\b.*\b(?:roster|team)\b|\b(?:roster|team)\b.*\b(?:generate|create)\b/i.test(question)) {
       return send(res, 200, { answer: "Try 'Auto generate me a roster', 'Add Audrey, Alex, and Matteo', or 'How many goals has Henry scored?'", players: [] });
     }

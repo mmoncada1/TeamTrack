@@ -24,7 +24,7 @@ async function ask(question, options = {}) {
   };
   try {
     await handler({ method: "POST", headers: { authorization: "Bearer test-token" },
-      body: { question, teamId, coed: options.coed || false, roster,
+      body: { question, teamId, coed: options.coed || false, roster: options.roster || roster,
         matches: options.matches || [] } }, res);
     return { res, requests };
   } finally {
@@ -72,8 +72,35 @@ test("answers goals, assists, and minutes from supplied match summaries", async 
   ];
   const { res, requests } = await ask("How many goals has Henry scored?", { matches });
   assert.equal(res.statusCode, 200);
-  assert.match(res.body.answer, /Henry Lee: 3 goals, 1 assist, 50:00 on field across 2 matches/);
-  assert.match(res.body.answer, /vs Falcons: 2 goals, 1 assist, 30:00/);
-  assert.match(res.body.answer, /vs Wolves: 1 goal, 0 assists, 20:00/);
+  assert.match(res.body.answer, /Henry Lee has scored 3 goals/);
+  assert.match(res.body.answer, /vs Falcons: 2 goals/);
+  assert.match(res.body.answer, /vs Wolves: 1 goal/);
+  assert.doesNotMatch(res.body.answer, /assists|on field/);
   assert.equal(requests.length, 0);
+  const possessive = await ask("show me Henry's stats", { matches });
+  assert.equal(possessive.res.body.stats.name, "Henry Lee");
+  assert.equal(possessive.res.body.stats.goals, 3);
+  assert.equal(possessive.res.body.stats.assists, 1);
+  assert.equal(possessive.res.body.stats.games.length, 2);
+  assert.equal(possessive.requests.length, 0);
+  const singleScoringGame = await ask("Henry goals?", { matches: [
+    { date: "2026-11-01", opponent: "Falcons", players: [{ player_id: "henry", goals: 2 }] },
+    { date: "2026-11-08", opponent: "Wolves", players: [{ player_id: "henry", goals: 0 }] },
+  ] });
+  assert.doesNotMatch(singleScoringGame.res.body.answer, /Wolves/);
+});
+
+test("answers natural leaderboard questions from roster match history", async () => {
+  const players = [...roster, { id: "audrey", name: "Audrey Chen" }];
+  const matches = [{ date: "2026-11-01", opponent: "Falcons", status: "ended", players: [
+    { player_id: "henry", goals: 2, assists: 0, field_ms: 1800000 },
+    { player_id: "audrey", goals: 1, assists: 2, field_ms: 2400000 },
+  ] }];
+  const goals = await ask("who's scored the most goals?", { roster: players, matches });
+  assert.match(goals.res.body.answer, /Henry Lee has the most goals: 2/);
+  assert.equal(goals.requests.length, 0);
+  const assists = await ask("Which player has the most assists?", { roster: players, matches });
+  assert.match(assists.res.body.answer, /Audrey Chen has the most assists: 2/);
+  const minutes = await ask("who played the most minutes?", { roster: players, matches });
+  assert.match(minutes.res.body.answer, /Audrey Chen has the most minutes: 40/);
 });
